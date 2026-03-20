@@ -4,7 +4,7 @@ import { graphqlRequest } from '../../api/graphql';
 import { jsonSuccess } from '../../output/json';
 import { renderTable, renderKeyValue } from '../../output/table';
 import { handleError } from '../../output/error';
-import { setFlagApiKey, getDefaultSpace } from '../../auth/store';
+import { setFlagApiKey } from '../../auth/store';
 import { TIER_LIMITS } from '../../config/defaults';
 
 export function registerSpaceCommands(program: Command): void {
