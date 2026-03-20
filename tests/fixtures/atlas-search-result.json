@@ -1,0 +1,18 @@
+{
+  "items": [{
+    "id": "atlas_evt_abc123",
+    "title": "Berlin Techno Night",
+    "description": "Underground techno at Tresor",
+    "start": "2026-03-22T22:00:00Z",
+    "location": { "name": "Tresor", "city": "Berlin", "country": "DE", "lat": 52.51, "lng": 13.42 },
+    "categories": ["music", "nightlife"],
+    "organizer": { "name": "Berlin Techno Collective", "verified": true, "atlas_id": "org_xyz" },
+    "price": { "amount": 18.00, "currency": "EUR", "display": "18.00 EUR" },
+    "source": { "platform": "lemonade", "url": "https://lemonade.social/e/tresor-night" },
+    "availability": "available",
+    "payment_methods": ["tempo_usdc", "stripe_card"]
+  }],
+  "cursor": "eyJwIjoxfQ==",
+  "total": 47,
+  "sources": [{ "platform": "lemonade", "count": 32 }, { "platform": "eventbrite", "count": 15 }]
+}
