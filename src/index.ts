@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+
+import { Command } from 'commander';
+import { registerAuthCommands } from './commands/auth';
+import { registerSpaceCommands } from './commands/space';
+import { registerEventCommands } from './commands/event';
+import { registerTicketCommands } from './commands/tickets';
+import { registerRewardCommands } from './commands/rewards';
+import { registerSiteCommands } from './commands/site';
+import { registerConnectorCommands } from './commands/connectors';
+import { registerConfigCommands } from './commands/config';
+
+const program = new Command();
+
+program
+  .name('lemonade')
+  .description('Lemonade CLI - manage Spaces, events, and tickets')
+  .version('0.1.0');
+
+registerAuthCommands(program);
+registerSpaceCommands(program);
+registerEventCommands(program);
+registerTicketCommands(program);
+registerRewardCommands(program);
+registerSiteCommands(program);
+registerConnectorCommands(program);
+registerConfigCommands(program);
+
+program.parse();

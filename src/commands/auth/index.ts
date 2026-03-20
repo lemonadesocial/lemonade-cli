@@ -1,0 +1,99 @@
+import { Command } from 'commander';
+import { graphqlRequest } from '../../api/graphql';
+import { jsonSuccess } from '../../output/json';
+import { renderKeyValue } from '../../output/table';
+import { handleError } from '../../output/error';
+import { setApiKey, setFlagApiKey } from '../../auth/store';
+import { loginWithBrowser } from '../../auth/oauth';
+
+interface MeResponse {
+  aiGetMe: {
+    _id: string;
+    name: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+  };
+}
+
+export function registerAuthCommands(program: Command): void {
+  const auth = program
+    .command('auth')
+    .description('Authentication commands');
+
+  auth
+    .command('login')
+    .description('Log in via browser (OAuth)')
+    .option('--json', 'Output as JSON')
+    .action(async (opts) => {
+      try {
+        const result = await loginWithBrowser();
+        if (!result.success) {
+          throw new Error(result.error || 'Login failed');
+        }
+
+        if (opts.json) {
+          console.log(jsonSuccess({ logged_in: true }));
+        } else {
+          console.log('Logged in successfully.');
+        }
+      } catch (error) {
+        handleError(error, opts.json);
+      }
+    });
+
+  auth
+    .command('token <api-key>')
+    .description('Authenticate with an API key')
+    .option('--json', 'Output as JSON')
+    .action(async (apiKey: string, opts) => {
+      try {
+        setFlagApiKey(apiKey);
+        const result = await graphqlRequest<MeResponse>(
+          'query { aiGetMe { _id name email first_name last_name } }',
+        );
+        setFlagApiKey(undefined);
+
+        setApiKey(apiKey);
+
+        const me = result.aiGetMe;
+        if (opts.json) {
+          console.log(jsonSuccess({ name: me.name, email: me.email }));
+        } else {
+          console.log(`API key saved. Authenticated as ${me.name}`);
+        }
+      } catch (error) {
+        setFlagApiKey(undefined);
+        handleError(error, opts.json);
+      }
+    });
+
+  auth
+    .command('whoami')
+    .description('Show current authenticated user')
+    .option('--json', 'Output as JSON')
+    .option('--api-key <key>', 'API key override')
+    .action(async (opts) => {
+      try {
+        setFlagApiKey(opts.apiKey);
+        const result = await graphqlRequest<MeResponse>(
+          'query { aiGetMe { _id name email first_name last_name } }',
+        );
+        setFlagApiKey(undefined);
+
+        const me = result.aiGetMe;
+        if (opts.json) {
+          console.log(jsonSuccess(me));
+        } else {
+          console.log(renderKeyValue([
+            ['Name', me.name],
+            ['Email', me.email],
+            ['User ID', me._id],
+          ]));
+        }
+      } catch (error) {
+        setFlagApiKey(undefined);
+        handleError(error, opts.json);
+      }
+    });
+}
