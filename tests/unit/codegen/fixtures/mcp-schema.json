@@ -1,0 +1,55 @@
+{
+  "version": "1.5.0",
+  "exported_at": "2026-03-19T10:00:00Z",
+  "tools": [
+    {
+      "name": "search_events",
+      "description": "Search for events by keyword, location, date, and category",
+      "annotations": { "readOnlyHint": true, "destructiveHint": false },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "q": { "type": "string", "description": "Keyword search" },
+          "lat": { "type": "number", "description": "Latitude" },
+          "lng": { "type": "number", "description": "Longitude" },
+          "limit": { "type": "number", "description": "Max results" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "_id": { "type": "string" },
+                "title": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create_event",
+      "description": "Create a new event",
+      "annotations": { "readOnlyHint": false, "destructiveHint": false },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string", "description": "Event title" },
+          "space_id": { "type": "string", "description": "Space ID" },
+          "start": { "type": "string", "description": "Start date (ISO)" }
+        },
+        "required": ["title", "space_id", "start"]
+      }
+    },
+    {
+      "name": "get_me",
+      "description": "Get current user info",
+      "annotations": { "readOnlyHint": true },
+      "inputSchema": { "type": "object", "properties": {} }
+    }
+  ]
+}
