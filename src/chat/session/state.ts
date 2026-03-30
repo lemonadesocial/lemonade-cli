@@ -48,6 +48,10 @@ export function updateSession(
       session.currentSpace = { _id: String(data._id), title: String(data.title) };
       break;
 
+    case 'space_switch':
+      session.currentSpace = { _id: String(data._id), title: String(data.title) };
+      break;
+
     case 'space_list': {
       const items = (data as { items?: Array<Record<string, unknown>> }).items;
       if (items && items.length === 1) {

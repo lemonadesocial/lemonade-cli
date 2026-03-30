@@ -816,6 +816,34 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   });
 
   register({
+    name: 'space_switch',
+    displayName: 'space switch',
+    description:
+      'Switch the active space for this session. All subsequent space-scoped commands will use this space.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'The space ID to switch to', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{
+        aiListMySpaces: { items: Array<{ _id: string; title: string; slug: string }> };
+      }>(
+        `query {
+          aiListMySpaces(limit: 100, skip: 0) {
+            items { _id title slug }
+          }
+        }`,
+      );
+      const spaces = result.aiListMySpaces.items;
+      const match = spaces.find((s) => s._id === args.space_id);
+      if (!match) {
+        throw new Error('Space not found. Run space_list to see your spaces.');
+      }
+      return { _id: match._id, title: match.title, slug: match.slug };
+    },
+  });
+
+  register({
     name: 'space_update',
     displayName: 'space update',
     description: 'Update a space.',

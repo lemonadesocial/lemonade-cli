@@ -56,6 +56,12 @@ describe('Session State', () => {
     expect(session.currentSpace).toBeUndefined();
   });
 
+  it('updates session after space_switch', () => {
+    const session = createSessionState(mockUser);
+    updateSession(session, 'space_switch', { _id: 's5', title: 'Berlin Techno' });
+    expect(session.currentSpace).toEqual({ _id: 's5', title: 'Berlin Techno' });
+  });
+
   it('handles null/undefined result gracefully', () => {
     const session = createSessionState(mockUser);
     updateSession(session, 'event_create', null);
