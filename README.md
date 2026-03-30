@@ -33,7 +33,7 @@ lemonade auth whoami
 make-lemonade
 ```
 
-Chat with an AI assistant that can manage your events, tickets, and spaces using natural language.
+Chat with an AI assistant that can manage your events, tickets, and spaces using natural language. You can say things like "switch to my Berlin Techno space" to change the active space mid-conversation.
 
 ```bash
 make-lemonade --provider openai          # Use OpenAI instead of Anthropic
