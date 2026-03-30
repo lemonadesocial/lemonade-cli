@@ -1,7 +1,19 @@
 {
-  "name": "lemonade-cli",
+  "name": "@lemonadesocial/cli",
   "version": "0.1.0",
-  "description": "Lemonade CLI - manage Spaces, events, and tickets from the terminal",
+  "description": "Lemonade CLI - manage events, communities, and tickets from the terminal",
+  "homepage": "https://github.com/lemonadesocial/lemonade-cli",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lemonadesocial/lemonade-cli.git"
+  },
+  "keywords": [
+    "lemonade",
+    "events",
+    "cli",
+    "ai",
+    "ticketing"
+  ],
   "bin": {
     "lemonade": "./dist/index.js",
     "make-lemonade": "./dist/chat/index.js"
