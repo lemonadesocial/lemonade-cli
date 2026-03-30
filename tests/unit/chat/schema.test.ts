@@ -125,4 +125,21 @@ describe('validateArgs', () => {
     const result = validateArgs({ title: 'Test', tags: [1, 2] }, params);
     expect(result.valid).toBe(false);
   });
+
+  it('catches invalid enum values', () => {
+    const enumParams: ToolParam[] = [
+      { name: 'sort', type: 'string', description: 'Sort', required: true, enum: ['asc', 'desc'] },
+    ];
+    const result = validateArgs({ sort: 'invalid' }, enumParams);
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain('Must be one of');
+  });
+
+  it('accepts valid enum values', () => {
+    const enumParams: ToolParam[] = [
+      { name: 'sort', type: 'string', description: 'Sort', required: true, enum: ['asc', 'desc'] },
+    ];
+    const result = validateArgs({ sort: 'asc' }, enumParams);
+    expect(result.valid).toBe(true);
+  });
 });

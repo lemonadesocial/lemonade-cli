@@ -25,13 +25,3 @@ export function printToolError(message: string): void {
 export function printWarning(message: string): void {
   console.log(chalk.yellow(`\n  ${message}`));
 }
-
-export function printDim(message: string): void {
-  console.log(chalk.dim(`  ${message}`));
-}
-
-export function formatToolResult(result: unknown, isTTY: boolean): string {
-  const json = JSON.stringify(result, null, 2);
-  if (!isTTY) return json;
-  return stripAnsi(json);
-}

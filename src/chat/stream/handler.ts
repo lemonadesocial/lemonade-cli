@@ -7,6 +7,12 @@ import { writeStreamToken, writeNewline, printWarning } from './display';
 
 const TOKEN_WARN_THRESHOLD_ANTHROPIC = 150_000;
 const TOKEN_WARN_THRESHOLD_OPENAI = 90_000;
+const MAX_TOOL_ITERATIONS = 25;
+
+function safeErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return 'Unknown error';
+}
 
 export async function handleTurn(
   provider: AIProvider,
@@ -19,42 +25,48 @@ export async function handleTurn(
   isTTY: boolean,
 ): Promise<void> {
 
-  while (true) {
+  for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     const toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }> = [];
     let accumulatedText = '';
     let stopReason: 'end_turn' | 'tool_use' | undefined;
     let lastUsage: { input_tokens: number; output_tokens: number } | undefined;
     let textStarted = false;
 
-    const events = provider.stream({
-      systemPrompt,
-      messages,
-      tools: formattedTools,
-      maxTokens: 4096,
-    });
+    try {
+      const events = provider.stream({
+        systemPrompt,
+        messages,
+        tools: formattedTools,
+        maxTokens: 4096,
+      });
 
-    for await (const event of events) {
-      switch (event.type) {
-        case 'text_delta':
-          if (event.text) {
-            if (!textStarted && isTTY) process.stdout.write('\n  ');
-            textStarted = true;
-            writeStreamToken(event.text, isTTY);
-            accumulatedText += event.text;
-          }
-          break;
+      for await (const event of events) {
+        switch (event.type) {
+          case 'text_delta':
+            if (event.text) {
+              if (!textStarted && isTTY) process.stdout.write('\n  ');
+              textStarted = true;
+              writeStreamToken(event.text, isTTY);
+              accumulatedText += event.text;
+            }
+            break;
 
-        case 'tool_call':
-          if (event.toolCall) {
-            toolCalls.push(event.toolCall);
-          }
-          break;
+          case 'tool_call':
+            if (event.toolCall) {
+              toolCalls.push(event.toolCall);
+            }
+            break;
 
-        case 'done':
-          stopReason = event.stopReason;
-          lastUsage = event.usage;
-          break;
+          case 'done':
+            stopReason = event.stopReason;
+            lastUsage = event.usage;
+            break;
+        }
       }
+    } catch (err) {
+      if (textStarted) writeNewline();
+      printWarning(`Streaming error: ${safeErrorMessage(err)}`);
+      return;
     }
 
     if (textStarted) writeNewline();

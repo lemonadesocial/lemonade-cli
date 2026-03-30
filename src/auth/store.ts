@@ -11,6 +11,9 @@ export interface LemonadeConfig {
   output_format?: 'json' | 'table';
   api_url?: string;
   registry_url?: string;
+  anthropic_key?: string;
+  openai_key?: string;
+  ai_provider?: string;
 }
 
 const CONFIG_DIR = join(homedir(), '.lemonade');
@@ -43,7 +46,7 @@ function readConfig(): LemonadeConfig {
 
 function writeConfig(config: LemonadeConfig): void {
   ensureConfigDir();
-  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), { encoding: 'utf-8', mode: 0o600 });
 }
 
 let flagApiKey: string | undefined;

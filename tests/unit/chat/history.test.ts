@@ -59,6 +59,34 @@ describe('truncateHistory', () => {
     consoleSpy.mockRestore();
   });
 
+  it('skips tool_result messages at the cut boundary', () => {
+    // Build 60 messages where position 40 is a tool_result
+    const messages: Message[] = Array.from({ length: 60 }, (_, i) => {
+      if (i === 40) {
+        return {
+          role: 'user' as const,
+          content: [{ tool_use_id: 'tc1', content: '{"ok":true}' }],
+        };
+      }
+      return {
+        role: i % 2 === 0 ? 'user' as const : 'assistant' as const,
+        content: `Message ${i}`,
+      };
+    });
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    truncateHistory(messages);
+
+    // The first remaining message should NOT be a tool_result
+    const firstContent = messages[0].content;
+    if (Array.isArray(firstContent)) {
+      const blocks = firstContent as Array<Record<string, unknown>>;
+      expect('tool_use_id' in blocks[0]).toBe(false);
+    }
+
+    consoleSpy.mockRestore();
+  });
+
   it('does not truncate when token count is under limit', () => {
     const messages: Message[] = Array.from({ length: 30 }, (_, i) => ({
       role: i % 2 === 0 ? 'user' : 'assistant',

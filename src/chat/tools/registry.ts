@@ -4,10 +4,6 @@ import { atlasRequest } from '../../api/atlas';
 import { registrySearch } from '../../api/registry';
 import { getDefaultSpace } from '../../auth/store';
 
-function tool(def: ToolDef): ToolDef {
-  return def;
-}
-
 export function buildToolRegistry(): Record<string, ToolDef> {
   const tools: Record<string, ToolDef> = {};
 
@@ -17,7 +13,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   // --- Auth ---
 
-  register(tool({
+  register({
     name: 'get_me',
     displayName: 'auth whoami',
     description: 'Get the current authenticated user profile.',
@@ -29,11 +25,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetMe;
     },
-  }));
+  });
 
   // --- Event ---
 
-  register(tool({
+  register({
     name: 'event_create',
     displayName: 'event create',
     description: 'Create a new event. Returns the event ID, title, and status.',
@@ -72,9 +68,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiCreateEvent;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_list',
     displayName: 'event list',
     description: 'List your hosted events.',
@@ -101,9 +97,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetHostingEvents;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_search',
     displayName: 'event search',
     description: 'Search events across all platforms via federated search.',
@@ -137,9 +133,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         limit: (args.limit as number) || 10,
       });
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_get',
     displayName: 'event get',
     description: 'Get detailed information about a specific event.',
@@ -159,9 +155,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetEvent;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_update',
     displayName: 'event update',
     description: 'Update an existing event.',
@@ -194,9 +190,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiUpdateEvent;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_publish',
     displayName: 'event publish',
     description: 'Publish a draft event to make it live.',
@@ -213,9 +209,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiPublishEvent;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_cancel',
     displayName: 'event cancel',
     description: 'Cancel an event. This action cannot be undone.',
@@ -230,9 +226,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return { cancelled: true, event_id: args.event_id };
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_ticket_sold_insight',
     displayName: 'event ticket sales',
     description: 'Get ticket sales data for an event.',
@@ -252,9 +248,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetEventTicketSoldInsight;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_view_insight',
     displayName: 'event view stats',
     description: 'Get page view statistics for an event.',
@@ -275,9 +271,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetEventViewInsight;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_guest_stats',
     displayName: 'event guest stats',
     description: 'Get guest statistics for an event (going, pending, declined, checked in).',
@@ -296,9 +292,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetEventGuestStats;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_guests',
     displayName: 'event guests',
     description: 'List attendees for an event.',
@@ -325,9 +321,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetEventGuests;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_invite',
     displayName: 'event invite',
     description: 'Send email invitations to an event.',
@@ -343,9 +339,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return { sent: true, count: (args.emails as string[]).length };
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_approvals',
     displayName: 'event approvals',
     description: 'Approve or decline event join requests.',
@@ -371,9 +367,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiDecideEventJoinRequests;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_feedback_summary',
     displayName: 'event feedback summary',
     description: 'Get feedback summary (average rating, distribution) for an event.',
@@ -393,9 +389,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetEventFeedbackSummary;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_feedbacks',
     displayName: 'event feedbacks',
     description: 'List individual feedback entries for an event.',
@@ -422,9 +418,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiListEventFeedbacks;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_checkins',
     displayName: 'event checkins',
     description: 'List check-in history for an event.',
@@ -449,9 +445,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetEventCheckins;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_payment_stats',
     displayName: 'event payment stats',
     description: 'Get payment statistics for an event.',
@@ -470,9 +466,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetEventPaymentStats;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'event_application_answers',
     displayName: 'event applications',
     description: 'Get application answers for an event.',
@@ -491,9 +487,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetEventApplicationAnswers;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'accept_event',
     displayName: 'accept event',
     description: 'Accept an event invitation.',
@@ -508,9 +504,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiAcceptEvent;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'decline_event',
     displayName: 'decline event',
     description: 'Decline an event invitation.',
@@ -525,11 +521,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiDeclineEvent;
     },
-  }));
+  });
 
   // --- Tickets ---
 
-  register(tool({
+  register({
     name: 'tickets_list_types',
     displayName: 'tickets types',
     description: 'List ticket types for an event.',
@@ -549,9 +545,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiListEventTicketTypes;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'tickets_create_type',
     displayName: 'tickets create-type',
     description: 'Create a ticket type for an event.',
@@ -585,9 +581,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiCreateEventTicketType;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'tickets_update_type',
     displayName: 'tickets update-type',
     description: 'Update an existing ticket type.',
@@ -618,9 +614,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiUpdateEventTicketType;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'tickets_buy',
     displayName: 'tickets buy',
     description: 'Purchase tickets for an event. Requires attendee info for each ticket.',
@@ -637,6 +633,13 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const quantity = args.quantity as number;
       const names = args.attendee_names as string[];
       const emails = args.attendee_emails as string[];
+
+      if (names.length !== quantity || emails.length !== quantity) {
+        throw new Error(
+          `Attendee count mismatch: expected ${quantity} names and ${quantity} emails, got ${names.length} names and ${emails.length} emails.`,
+        );
+      }
+
       const attendees = names.map((name, i) => ({ name, email: emails[i] }));
 
       const body: Record<string, unknown> = {
@@ -678,9 +681,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
       return purchaseResult.data;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'tickets_price',
     displayName: 'tickets price',
     description: 'Calculate ticket price with optional discount.',
@@ -707,9 +710,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiCalculateTicketPrice;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'tickets_receipt',
     displayName: 'tickets receipt',
     description: 'Check ticket purchase receipt status.',
@@ -724,9 +727,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       });
       return result.data;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'tickets_create_discount',
     displayName: 'tickets create-discount',
     description: 'Create a discount code for an event ticket type.',
@@ -757,11 +760,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiCreateEventTicketDiscount;
     },
-  }));
+  });
 
   // --- Space ---
 
-  register(tool({
+  register({
     name: 'space_create',
     displayName: 'space create',
     description: 'Create a new space (community).',
@@ -788,9 +791,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiCreateSpace;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'space_list',
     displayName: 'space list',
     description: 'List your spaces.',
@@ -810,9 +813,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiListMySpaces;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'space_update',
     displayName: 'space update',
     description: 'Update a space.',
@@ -837,9 +840,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiUpdateSpace;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'space_stats',
     displayName: 'space analytics',
     description: 'Get space analytics (members, events, ratings).',
@@ -859,9 +862,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetSpaceStats;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'space_members',
     displayName: 'space members',
     description: 'List members of a space.',
@@ -880,9 +883,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetSpaceMembers;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'space_add_member',
     displayName: 'space add-member',
     description: 'Add a member to a space.',
@@ -901,9 +904,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiAddSpaceMember;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'space_remove_member',
     displayName: 'space remove-member',
     description: 'Remove a member from a space.',
@@ -921,9 +924,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiRemoveSpaceMember;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'space_connectors',
     displayName: 'space connectors',
     description: 'List connected platforms for a space.',
@@ -942,9 +945,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.spaceConnections;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'space_stripe_connect',
     displayName: 'space stripe-connect',
     description: 'Get a Stripe Connect onboarding URL.',
@@ -965,9 +968,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.generateStripeAccountLink;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'space_stripe_status',
     displayName: 'space stripe-status',
     description: 'Check Stripe account connection status.',
@@ -983,11 +986,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         account_id: account?.account_id || null,
       };
     },
-  }));
+  });
 
   // --- Rewards ---
 
-  register(tool({
+  register({
     name: 'rewards_balance',
     displayName: 'rewards balance',
     description: 'View reward balance for a space.',
@@ -1009,9 +1012,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.atlasRewardSummary;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'rewards_history',
     displayName: 'rewards history',
     description: 'View reward transaction history for a space.',
@@ -1039,9 +1042,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.atlasRewardHistory;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'rewards_payouts',
     displayName: 'rewards payouts',
     description: 'View payout history.',
@@ -1061,9 +1064,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.atlasPayoutHistory;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'rewards_referral',
     displayName: 'rewards referral',
     description: 'Generate, apply, or view referral codes.',
@@ -1097,9 +1100,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.atlasReferralSummary;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'rewards_settings',
     displayName: 'rewards settings',
     description: 'View or update payout settings.',
@@ -1139,11 +1142,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.atlasGetPayoutSettings;
     },
-  }));
+  });
 
   // --- Site ---
 
-  register(tool({
+  register({
     name: 'site_generate',
     displayName: 'site generate',
     description: 'AI-generate a page from a text description.',
@@ -1175,9 +1178,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGeneratePageFromDescription;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'site_create_page',
     displayName: 'site create-page',
     description: 'Create a page configuration.',
@@ -1199,9 +1202,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiCreatePageConfig;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'site_update_section',
     displayName: 'site update-section',
     description: 'Update a section in a page configuration.',
@@ -1230,9 +1233,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiUpdatePageConfigSection;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'site_deploy',
     displayName: 'site deploy',
     description: 'Publish a page.',
@@ -1249,9 +1252,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.publishPageConfig;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'site_templates',
     displayName: 'site templates',
     description: 'List available page section templates.',
@@ -1271,11 +1274,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiSuggestSections;
     },
-  }));
+  });
 
   // --- Connectors ---
 
-  register(tool({
+  register({
     name: 'connectors_list',
     displayName: 'connectors list',
     description: 'List available platform integrations.',
@@ -1287,9 +1290,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.availableConnectors;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'connectors_sync',
     displayName: 'connectors sync',
     description: 'Trigger a connector sync.',
@@ -1309,11 +1312,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.executeConnectorAction;
     },
-  }));
+  });
 
   // --- Notifications ---
 
-  register(tool({
+  register({
     name: 'notifications_list',
     displayName: 'notifications list',
     description: 'Get recent notifications.',
@@ -1325,9 +1328,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetNotifications;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'notifications_read',
     displayName: 'notifications read',
     description: 'Mark notifications as read.',
@@ -1342,11 +1345,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiReadNotifications;
     },
-  }));
+  });
 
   // --- System ---
 
-  register(tool({
+  register({
     name: 'get_backend_version',
     displayName: 'backend version',
     description: 'Get the backend API version.',
@@ -1358,9 +1361,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetBackendVersion;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'list_chains',
     displayName: 'list chains',
     description: 'List supported blockchain networks.',
@@ -1372,11 +1375,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiListChains;
     },
-  }));
+  });
 
   // --- Launchpad ---
 
-  register(tool({
+  register({
     name: 'launchpad_list_coins',
     displayName: 'launchpad list-coins',
     description: 'List launchpad coins.',
@@ -1388,9 +1391,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiListLaunchpadCoins;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'launchpad_add_coin',
     displayName: 'launchpad add-coin',
     description: 'Add a new launchpad coin.',
@@ -1409,9 +1412,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiAddLaunchpadCoin;
     },
-  }));
+  });
 
-  register(tool({
+  register({
     name: 'launchpad_update_coin',
     displayName: 'launchpad update-coin',
     description: 'Update a launchpad coin.',
@@ -1434,11 +1437,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiUpdateLaunchpadCoin;
     },
-  }));
+  });
 
   // --- My Tickets ---
 
-  register(tool({
+  register({
     name: 'my_tickets',
     displayName: 'my tickets',
     description: 'Get tickets the current user has purchased.',
@@ -1450,7 +1453,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetMyTickets;
     },
-  }));
+  });
 
   return tools;
 }

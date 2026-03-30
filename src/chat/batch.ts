@@ -1,7 +1,13 @@
 import readline from 'readline';
-import { AIProvider, Message, ToolDef, SystemMessage } from './providers/interface';
+import { Message, ToolDef, SystemMessage } from './providers/interface';
+import { AIProvider } from './providers/interface';
 import { SessionState } from './session/state';
 import { handleTurn } from './stream/handler';
+
+function safeErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return 'Unknown error';
+}
 
 export async function batchMode(
   provider: AIProvider,
@@ -20,19 +26,23 @@ export async function batchMode(
 
     messages.push({ role: 'user', content: trimmed });
 
-    await handleTurn(
-      provider,
-      messages,
-      formattedTools,
-      systemPrompt,
-      session,
-      registry,
-      null,
-      false,
-    );
+    try {
+      await handleTurn(
+        provider,
+        messages,
+        formattedTools,
+        systemPrompt,
+        session,
+        registry,
+        null,
+        false,
+      );
+    } catch (err) {
+      console.error(`Error: ${safeErrorMessage(err)}`);
+      continue;
+    }
 
     if (jsonOutput) {
-      // Extract the last assistant message for JSON output
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.role === 'assistant' && Array.isArray(lastMsg.content)) {
         const textBlock = (lastMsg.content as Array<Record<string, unknown>>).find(

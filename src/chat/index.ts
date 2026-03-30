@@ -15,6 +15,12 @@ import { batchMode } from './batch';
 import { detectApiKey, detectProvider, onboardApiKey } from './onboarding';
 
 const VERSION = '0.1.0';
+const VALID_PROVIDERS = ['anthropic', 'openai'];
+
+function safeErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return 'Unknown error';
+}
 
 function parseArgs(argv: string[]): {
   provider?: string;
@@ -81,10 +87,16 @@ async function fetchUser(): Promise<{ _id: string; name: string; email: string; 
 }
 
 function createProvider(providerName: string, apiKey: string, model?: string): AIProvider {
+  const resolvedModel = model || process.env.MAKE_LEMONADE_MODEL;
+
   if (providerName === 'openai') {
-    return new OpenAIProvider(apiKey, model || process.env.MAKE_LEMONADE_MODEL);
+    return new OpenAIProvider(apiKey, resolvedModel);
   }
-  return new AnthropicProvider(apiKey, model || process.env.MAKE_LEMONADE_MODEL);
+  if (providerName === 'anthropic') {
+    return new AnthropicProvider(apiKey, resolvedModel);
+  }
+
+  throw new Error(`Unknown provider "${providerName}". Supported: ${VALID_PROVIDERS.join(', ')}`);
 }
 
 function printWelcome(firstName: string): void {
@@ -99,6 +111,7 @@ function printWelcome(firstName: string): void {
 
   Type ${chalk.dim('"help"')} for tips, ${chalk.dim('"exit"')} to quit.
 `);
+  console.log(chalk.dim('  Note: Tool results are sent to your AI provider.\n'));
 }
 
 async function interactiveMode(
@@ -160,15 +173,11 @@ async function interactiveMode(
         true,
       );
     } catch (err) {
-      if (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 400) {
-        const msg = String(err);
-        if (msg.includes('context length') || msg.includes('too many tokens')) {
-          console.log(chalk.red('\n  Session is too long. Start a new session: exit and run make-lemonade again.\n'));
-        } else {
-          console.error(chalk.red(`\n  Error: ${msg}\n`));
-        }
+      const msg = safeErrorMessage(err);
+      if (msg.includes('context length') || msg.includes('too many tokens')) {
+        console.log(chalk.red('\n  Session is too long. Start a new session: exit and run make-lemonade again.\n'));
       } else {
-        console.error(chalk.red(`\n  Error: ${err}\n`));
+        console.error(chalk.red(`\n  Error: ${msg}\n`));
       }
     }
 
@@ -199,12 +208,19 @@ async function main(): Promise<void> {
 
   // Determine provider
   const providerName = args.provider || detectProvider();
+
+  // Validate provider name
+  if (!VALID_PROVIDERS.includes(providerName)) {
+    console.error(chalk.red(`  Unknown provider "${providerName}". Supported: ${VALID_PROVIDERS.join(', ')}`));
+    process.exit(2);
+  }
+
   let apiKey = detectApiKey(providerName);
 
   // Onboarding if no API key
   if (!apiKey && isTTY) {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    apiKey = await onboardApiKey(rl);
+    apiKey = await onboardApiKey(rl, providerName);
     rl.close();
     if (!apiKey) {
       process.exit(2);
@@ -219,7 +235,7 @@ async function main(): Promise<void> {
   try {
     user = await fetchUser();
   } catch (err) {
-    console.error(chalk.red(`  Failed to fetch user profile: ${err}`));
+    console.error(chalk.red(`  Failed to fetch user profile: ${safeErrorMessage(err)}`));
     process.exit(2);
     return;
   }
@@ -248,6 +264,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(chalk.red(`Fatal: ${err}`));
+  console.error(chalk.red(`Fatal: ${safeErrorMessage(err)}`));
   process.exit(1);
 });

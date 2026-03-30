@@ -46,7 +46,10 @@ function classifyError(err: unknown): ClassifiedError {
     }
   }
 
-  return { fatal: false, message: String(err), retryable: false };
+  if (err instanceof Error) {
+    return { fatal: false, message: err.message, retryable: false };
+  }
+  return { fatal: false, message: 'Unknown error', retryable: false };
 }
 
 function formatDestructiveDescription(tool: ToolDef, args: Record<string, unknown>): string {

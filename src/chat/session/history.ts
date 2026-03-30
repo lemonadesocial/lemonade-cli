@@ -19,6 +19,12 @@ function estimateTokens(messages: Message[]): number {
   return Math.ceil(chars / 4);
 }
 
+function isToolResultMessage(msg: Message): boolean {
+  if (msg.role !== 'user' || !Array.isArray(msg.content)) return false;
+  const blocks = msg.content as Array<Record<string, unknown>>;
+  return blocks.length > 0 && 'tool_use_id' in blocks[0];
+}
+
 export function truncateHistory(messages: Message[]): void {
   const shouldTruncate =
     messages.length > MAX_MESSAGES ||
@@ -26,9 +32,16 @@ export function truncateHistory(messages: Message[]): void {
 
   if (!shouldTruncate) return;
 
-  const toRemove = messages.length - KEEP_RECENT;
-  if (toRemove <= 0) return;
+  let cutIndex = messages.length - KEEP_RECENT;
+  if (cutIndex <= 0) return;
 
-  messages.splice(0, toRemove);
+  // Advance past any tool_result messages to avoid orphaning them
+  while (cutIndex < messages.length && isToolResultMessage(messages[cutIndex])) {
+    cutIndex++;
+  }
+
+  if (cutIndex >= messages.length) return;
+
+  messages.splice(0, cutIndex);
   console.log(chalk.dim('  Context trimmed to save tokens. Older messages dropped.'));
 }

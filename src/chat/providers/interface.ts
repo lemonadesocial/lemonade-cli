@@ -48,7 +48,7 @@ export interface ToolParam {
   type: ParamType;
   description: string;
   required: boolean;
-  default?: string;
+  default?: string | number | boolean;
   enum?: string[];
 }
 

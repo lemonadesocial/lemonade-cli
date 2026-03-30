@@ -90,6 +90,9 @@ export function validateArgs(
     if (!validateParamType(value, param.type)) {
       errors.push(`Invalid type for ${key}: expected ${JSON.stringify(param.type)}`);
     }
+    if (param.enum && value !== null && value !== undefined && !param.enum.includes(String(value))) {
+      errors.push(`Invalid value for ${key}: "${value}". Must be one of: ${param.enum.join(', ')}`);
+    }
   }
 
   return { valid: errors.length === 0, errors };
