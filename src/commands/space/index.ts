@@ -326,6 +326,85 @@ export function registerSpaceCommands(program: Command): void {
     });
 
   space
+    .command('stripe-connect')
+    .description('Connect your Stripe account for accepting payments')
+    .option('--return-url <url>', 'URL to return to after Stripe onboarding', 'https://lemonade.social')
+    .option('--json', 'Output as JSON')
+    .option('--api-key <key>', 'API key override')
+    .action(async (opts) => {
+      try {
+        setFlagApiKey(opts.apiKey);
+
+        const result = await graphqlRequest<{
+          generateStripeAccountLink: { url: string; expires_at?: string };
+        }>(
+          `mutation($return_url: String!, $refresh_url: String!) {
+            generateStripeAccountLink(return_url: $return_url, refresh_url: $refresh_url) {
+              url expires_at
+            }
+          }`,
+          { return_url: opts.returnUrl, refresh_url: opts.returnUrl },
+        );
+
+        setFlagApiKey(undefined);
+
+        const link = result.generateStripeAccountLink;
+
+        if (opts.json) {
+          console.log(jsonSuccess({ onboarding_url: link.url, expires_at: link.expires_at }));
+        } else {
+          console.log('Opening Stripe Connect onboarding...');
+          console.log(`If the browser does not open, visit: ${link.url}`);
+          await open(link.url);
+        }
+      } catch (error) {
+        setFlagApiKey(undefined);
+        handleError(error, opts.json);
+      }
+    });
+
+  space
+    .command('stripe-status')
+    .description('Check Stripe account connection status')
+    .option('--json', 'Output as JSON')
+    .option('--api-key <key>', 'API key override')
+    .action(async (opts) => {
+      try {
+        setFlagApiKey(opts.apiKey);
+
+        const result = await graphqlRequest<{
+          getMe: { stripe_connected_account?: { account_id: string; connected: boolean } };
+        }>(
+          `query {
+            getMe {
+              stripe_connected_account { account_id connected }
+            }
+          }`,
+        );
+
+        setFlagApiKey(undefined);
+
+        const account = result.getMe.stripe_connected_account;
+
+        if (opts.json) {
+          console.log(jsonSuccess({
+            connected: !!account?.connected,
+            account_id: account?.account_id || null,
+          }));
+        } else if (account?.connected) {
+          console.log(`Stripe: Connected (${account.account_id})`);
+        } else if (account) {
+          console.log('Stripe: Onboarding incomplete. Run: lemonade space stripe-connect');
+        } else {
+          console.log('Stripe: Not connected. Run: lemonade space stripe-connect');
+        }
+      } catch (error) {
+        setFlagApiKey(undefined);
+        handleError(error, opts.json);
+      }
+    });
+
+  space
     .command('upgrade <space-id-or-slug>')
     .description('Open subscription upgrade page')
     .option('--json', 'Output as JSON')
