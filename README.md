@@ -27,6 +27,21 @@ lemonade auth token <your-api-key>
 lemonade auth whoami
 ```
 
+## Interactive AI Mode
+
+```bash
+make-lemonade
+```
+
+Chat with an AI assistant that can manage your events, tickets, and spaces using natural language.
+
+```bash
+make-lemonade --provider openai          # Use OpenAI instead of Anthropic
+echo "list my events" | make-lemonade    # Batch mode via stdin
+```
+
+Requires an AI provider API key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`).
+
 ## Commands
 
 ### Spaces
@@ -40,6 +55,8 @@ lemonade space connectors                  # List connected platforms
 lemonade space analytics <id>
 lemonade space plan <id>                   # Show current plan and usage
 lemonade space upgrade <id>                # Open subscription page
+lemonade space stripe-connect              # Connect Stripe for payouts
+lemonade space stripe-status               # Check Stripe connection status
 ```
 
 ### Events
@@ -130,6 +147,10 @@ Returns:
 | `LEMONADE_API_KEY` | API key (skips login) |
 | `LEMONADE_API_URL` | Backend URL (default: production) |
 | `LEMONADE_REGISTRY_URL` | Atlas Registry URL |
+| `ANTHROPIC_API_KEY` | Anthropic API key (for make-lemonade) |
+| `OPENAI_API_KEY` | OpenAI API key (for make-lemonade) |
+| `MAKE_LEMONADE_PROVIDER` | AI provider override: anthropic (default), openai |
+| `MAKE_LEMONADE_MODEL` | Model override (e.g. claude-sonnet-4-6, gpt-4o) |
 
 ## Exit Codes
 

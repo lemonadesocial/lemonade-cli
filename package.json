@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "description": "Lemonade CLI - manage Spaces, events, and tickets from the terminal",
   "bin": {
-    "lemonade": "./dist/index.js"
+    "lemonade": "./dist/index.js",
+    "make-lemonade": "./dist/chat/index.js"
   },
   "engines": {
     "node": ">=18"
@@ -29,10 +30,12 @@
     "access": "public"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "chalk": "^4.1.2",
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
     "open": "^8.4.2",
+    "openai": "^6.33.0",
     "ora": "^5.4.1"
   },
   "devDependencies": {

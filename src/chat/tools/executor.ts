@@ -1,0 +1,143 @@
+import chalk from 'chalk';
+import ora from 'ora';
+import readline from 'readline';
+import { ToolDef, ToolResultMessage } from '../providers/interface';
+import { SessionState, updateSession } from '../session/state';
+import { validateArgs } from './schema';
+import { printToolError } from '../stream/display';
+import { GraphQLError } from '../../api/graphql';
+import { AtlasError } from '../../api/atlas';
+
+interface ClassifiedError {
+  fatal: boolean;
+  message: string;
+  retryable: boolean;
+}
+
+function classifyError(err: unknown): ClassifiedError {
+  if (err instanceof GraphQLError) {
+    if (err.code === 'UNAUTHENTICATED') {
+      return { fatal: true, message: 'Authentication failed. Run "lemonade auth login".', retryable: false };
+    }
+    return { fatal: false, message: err.message, retryable: false };
+  }
+
+  if (err instanceof AtlasError) {
+    if (err.statusCode === 401 || err.statusCode === 403) {
+      return { fatal: true, message: 'Authentication failed.', retryable: false };
+    }
+    return { fatal: false, message: err.message, retryable: false };
+  }
+
+  if (err instanceof TypeError && err.message.includes('fetch')) {
+    return { fatal: true, message: 'Network error. Check your connection.', retryable: true };
+  }
+
+  if (err && typeof err === 'object' && 'status' in err) {
+    const status = (err as { status: number }).status;
+    if (status === 429) {
+      return { fatal: false, message: 'Rate limited. Wait a moment and try again.', retryable: true };
+    }
+    if (status === 401) {
+      return { fatal: true, message: 'API key is invalid.', retryable: false };
+    }
+    if (status >= 500) {
+      return { fatal: true, message: 'AI service error. Try again shortly.', retryable: true };
+    }
+  }
+
+  if (err instanceof Error) {
+    return { fatal: false, message: err.message, retryable: false };
+  }
+  return { fatal: false, message: 'Unknown error', retryable: false };
+}
+
+function formatDestructiveDescription(tool: ToolDef, args: Record<string, unknown>): string {
+  const parts = [tool.displayName];
+  const id = args.event_id || args.space_id || args.coin_id || '';
+  if (id) parts.push(`(${id})`);
+  return parts.join(' ');
+}
+
+export async function executeToolCalls(
+  toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }>,
+  registry: Record<string, ToolDef>,
+  session: SessionState,
+  rl: readline.Interface | null,
+  isTTY: boolean,
+): Promise<{ results: ToolResultMessage[]; fatal: boolean }> {
+  const results: ToolResultMessage[] = [];
+
+  for (const call of toolCalls) {
+    const tool = registry[call.name];
+
+    if (!tool) {
+      results.push({
+        tool_use_id: call.id,
+        content: `Unknown tool: ${call.name}`,
+        is_error: true,
+      });
+      continue;
+    }
+
+    const validation = validateArgs(call.arguments, tool.params);
+    if (!validation.valid) {
+      results.push({
+        tool_use_id: call.id,
+        content: JSON.stringify({ error: validation.errors.join(', ') }),
+        is_error: true,
+      });
+      continue;
+    }
+
+    if (tool.destructive && rl && isTTY) {
+      const desc = formatDestructiveDescription(tool, call.arguments);
+      const answer = await new Promise<string>((resolve) => {
+        rl.question(chalk.yellow(`\n  Confirm: ${desc}? (yes/no) `), resolve);
+      });
+      if (!['yes', 'y'].includes(answer.trim().toLowerCase())) {
+        results.push({
+          tool_use_id: call.id,
+          content: JSON.stringify({ cancelled: true, reason: 'User declined' }),
+        });
+        continue;
+      }
+    } else if (tool.destructive && !isTTY) {
+      results.push({
+        tool_use_id: call.id,
+        content: JSON.stringify({ cancelled: true, reason: 'Destructive action declined in non-interactive mode' }),
+      });
+      continue;
+    }
+
+    const spinner = isTTY ? ora(`Running: ${tool.displayName}...`).start() : null;
+
+    try {
+      const result = await tool.execute(call.arguments);
+      if (spinner) spinner.succeed(`Done: ${tool.displayName}`);
+
+      updateSession(session, call.name, result);
+
+      results.push({
+        tool_use_id: call.id,
+        content: JSON.stringify(result),
+      });
+    } catch (err) {
+      if (spinner) spinner.fail(`Failed: ${tool.displayName}`);
+
+      const classified = classifyError(err);
+      results.push({
+        tool_use_id: call.id,
+        content: JSON.stringify({ error: classified.message }),
+        is_error: true,
+      });
+
+      if (classified.fatal) {
+        printToolError(classified.message);
+        return { results, fatal: true };
+      }
+    }
+  }
+
+  return { results, fatal: false };
+}
