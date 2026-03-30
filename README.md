@@ -1,30 +1,49 @@
 # Lemonade CLI
 
-Manage Spaces, events, tickets, and more from the terminal. Built for developers and AI agents.
+Manage events, communities, tickets, and more from the terminal. Built for developers and AI agents.
 
-## Install
+## Quickstart
 
 ```bash
+# 1. Install
 npm install -g lemonade-cli
+
+# 2. Authenticate
+lemonade auth login              # Opens browser for OAuth
+
+# 3. Verify
+lemonade auth whoami             # Should show your name and email
 ```
 
-Or run directly:
+That's it. You can now run any `lemonade` command.
+
+### Try the AI terminal (optional)
+
+`make-lemonade` is an interactive AI chat that manages your Lemonade account using natural language.
 
 ```bash
-npx lemonade-cli --help
+# Set your AI provider key (pick one)
+export ANTHROPIC_API_KEY=sk-ant-...
+# or
+export OPENAI_API_KEY=sk-...
+
+# Launch
+make-lemonade
 ```
 
-## Authentication
+If you skip the export step, `make-lemonade` will walk you through setting up an API key on first launch.
+
+### Local development (contributors)
+
+If you're working on the CLI itself instead of using it:
 
 ```bash
-# Login via browser (OAuth)
-lemonade auth login
-
-# Or use an API key
-lemonade auth token <your-api-key>
-
-# Check current user
-lemonade auth whoami
+git clone https://github.com/lemonadesocial/lemonade-cli.git
+cd lemonade-cli
+yarn install
+yarn build
+npm link                         # Makes `lemonade` and `make-lemonade` available globally
+yarn test                        # Run tests
 ```
 
 ## Interactive AI Mode
@@ -33,16 +52,28 @@ lemonade auth whoami
 make-lemonade
 ```
 
-Chat with an AI assistant that can manage your events, tickets, and spaces using natural language. You can say things like "switch to my Berlin Techno space" to change the active space mid-conversation.
+Chat with an AI assistant that can create events, manage tickets, switch spaces, and more -- all in natural language.
 
 ```bash
-make-lemonade --provider openai          # Use OpenAI instead of Anthropic
-echo "list my events" | make-lemonade    # Batch mode via stdin
+# Examples of what you can say:
+> create a techno event in Berlin next Saturday at 10pm
+> add a 25 dollar early bird ticket
+> publish it
+> switch to my Berlin Techno space
+> how are ticket sales for my warehouse party?
 ```
 
-Requires an AI provider API key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`).
+**Options:**
 
-## Commands
+```bash
+make-lemonade --provider openai          # Use OpenAI instead of Anthropic (default)
+make-lemonade --model gpt-4o            # Override the model
+echo "list my events" | make-lemonade    # Batch mode via stdin
+make-lemonade --json                     # JSON output (batch mode)
+make-lemonade --help                     # Full options
+```
+
+## CLI Commands
 
 ### Spaces
 
@@ -50,13 +81,13 @@ Requires an AI provider API key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`).
 lemonade space create --title "Berlin Techno"
 lemonade space list
 lemonade space update <id> --description "Underground events"
-lemonade space connect eventbrite          # Connect Eventbrite account
-lemonade space connectors                  # List connected platforms
+lemonade space connect <platform>        # Connect a platform (e.g. eventbrite)
+lemonade space connectors <id>           # List connected platforms
 lemonade space analytics <id>
-lemonade space plan <id>                   # Show current plan and usage
-lemonade space upgrade <id>                # Open subscription page
-lemonade space stripe-connect              # Connect Stripe for payouts
-lemonade space stripe-status               # Check Stripe connection status
+lemonade space plan <id>                 # Show current plan and usage
+lemonade space upgrade <id>              # Open subscription page
+lemonade space stripe-connect            # Connect Stripe for payouts
+lemonade space stripe-status             # Check Stripe connection status
 ```
 
 ### Events
@@ -64,7 +95,7 @@ lemonade space stripe-status               # Check Stripe connection status
 ```bash
 lemonade event create --title "Warehouse Party" --space <id>
 lemonade event list
-lemonade event search "techno berlin"      # Atlas federated search
+lemonade event search "techno berlin"    # Atlas federated search
 lemonade event get <id>
 lemonade event update <id> --description "Updated info"
 lemonade event publish <id>
@@ -72,7 +103,7 @@ lemonade event cancel <id>
 lemonade event analytics <id>
 lemonade event guests <id>
 lemonade event invite <id> --email user@example.com
-lemonade event approvals <id>              # Manage join requests
+lemonade event approvals <id>            # Manage join requests
 lemonade event feedback <id>
 lemonade event checkins <id>
 ```
@@ -116,20 +147,39 @@ lemonade connectors sync <id>
 ### Configuration
 
 ```bash
-lemonade config init                       # Create ~/.lemonade/config.json
-lemonade config set default_space <id>
+lemonade config init                     # Create ~/.lemonade/config.json
+lemonade config set default_space <id>   # Set default space for all commands
 lemonade config get default_space
+```
+
+## Authentication
+
+Three ways to authenticate:
+
+```bash
+# Option 1: Browser login (recommended)
+lemonade auth login
+
+# Option 2: API key (for scripts and CI)
+lemonade auth token <your-api-key>
+
+# Option 3: Environment variable (for CI/CD)
+export LEMONADE_API_KEY=your-api-key
+```
+
+Check your auth status:
+
+```bash
+lemonade auth whoami
 ```
 
 ## JSON Output
 
-Every command supports `--json` for structured output:
+Every command supports `--json` for structured output, useful for scripting:
 
 ```bash
 lemonade event list --json
 ```
-
-Returns:
 
 ```json
 {
@@ -144,13 +194,13 @@ Returns:
 
 | Variable | Purpose |
 |---|---|
-| `LEMONADE_API_KEY` | API key (skips login) |
+| `LEMONADE_API_KEY` | API key for Lemonade (skips browser login) |
 | `LEMONADE_API_URL` | Backend URL (default: production) |
 | `LEMONADE_REGISTRY_URL` | Atlas Registry URL |
 | `ANTHROPIC_API_KEY` | Anthropic API key (for make-lemonade) |
 | `OPENAI_API_KEY` | OpenAI API key (for make-lemonade) |
-| `MAKE_LEMONADE_PROVIDER` | AI provider override: anthropic (default), openai |
-| `MAKE_LEMONADE_MODEL` | Model override (e.g. claude-sonnet-4-6, gpt-4o) |
+| `MAKE_LEMONADE_PROVIDER` | AI provider: `anthropic` (default) or `openai` |
+| `MAKE_LEMONADE_MODEL` | Model override (e.g. `claude-sonnet-4-6`, `gpt-4o`) |
 
 ## Exit Codes
 
@@ -160,17 +210,6 @@ Returns:
 | 1 | User error (bad input, not found) |
 | 2 | Authentication error |
 | 3 | Network error |
-
-## Development
-
-```bash
-git clone https://github.com/lemonadesocial/lemonade-cli.git
-cd lemonade-cli
-yarn install
-yarn build
-yarn test
-yarn dev -- --help    # Run locally
-```
 
 ## License
 
