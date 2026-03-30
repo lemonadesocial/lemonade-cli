@@ -6,7 +6,7 @@ Manage events, communities, tickets, and more from the terminal. Built for devel
 
 ```bash
 # 1. Install
-npm install -g @lemonade_social/cli
+npm install -g @lemonade-social/cli
 
 # 2. Authenticate
 lemonade auth login              # Opens browser for OAuth
