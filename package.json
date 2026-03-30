@@ -15,6 +15,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src/",
+    "generate": "yarn generate:mcp && yarn generate:graphql",
+    "generate:mcp": "ts-node src/codegen/generate-from-mcp.ts",
+    "generate:graphql": "ts-node src/codegen/generate-from-graphql.ts",
     "prepublishOnly": "npm run build"
   },
   "files": [
