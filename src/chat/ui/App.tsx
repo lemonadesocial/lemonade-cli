@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { render, Box, useApp } from 'ink';
+import { render, Box, Text, useApp, useInput } from 'ink';
 import { AIProvider, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
 import { Header } from './Header.js';
@@ -7,7 +7,11 @@ import { WelcomeBanner } from './WelcomeBanner.js';
 import { MessageArea } from './MessageArea.js';
 import { InputArea } from './InputArea.js';
 import { StatusBar } from './StatusBar.js';
+import { ToolCallGroup } from './ToolCallGroup.js';
+import { ConfirmPrompt } from './ConfirmPrompt.js';
+import { ErrorDisplay } from './ErrorDisplay.js';
 import { useChatEngine } from './hooks/useChatEngine.js';
+import { parseSlashCommand, getModelsForProvider } from './SlashCommands.js';
 
 interface AppProps {
   provider: AIProvider;
@@ -21,6 +25,7 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
   const { exit } = useApp();
   const [showBanner, setShowBanner] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [slashOutput, setSlashOutput] = useState<string | null>(null);
 
   const {
     messages,
@@ -29,22 +34,83 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
     tokenCount,
     streamTokenCount,
     lastError,
+    classifiedError,
     lastToolName,
+    toolCalls,
     sendMessage,
+    clearHistory,
+    cancelStream,
     pendingConfirmation,
     confirmAction,
   } = useChatEngine({ provider, session, registry, formattedTools });
 
+  // Escape cancels streaming, Ctrl+C handled by ink
+  useInput((_input, key) => {
+    if (key.escape && isStreaming) {
+      cancelStream();
+    }
+  });
+
   const handleSubmit = useCallback((text: string) => {
-    if (text === '/exit' || text === '/quit') {
-      exit();
-      return;
+    setSlashOutput(null);
+
+    const cmd = parseSlashCommand(text);
+    if (cmd.handled) {
+      switch (cmd.action) {
+        case 'exit':
+          exit();
+          return;
+
+        case 'clear':
+          clearHistory();
+          setShowBanner(true);
+          return;
+
+        case 'help':
+          setSlashOutput(cmd.output || '');
+          return;
+
+        case 'model': {
+          if (!cmd.args) {
+            const models = getModelsForProvider(provider.name);
+            const list = models
+              .map((m) => (m === provider.model ? `  * ${m} (current)` : `    ${m}`))
+              .join('\n');
+            setSlashOutput(`Models for ${provider.name}:\n${list}`);
+          } else {
+            const models = getModelsForProvider(provider.name);
+            if (models.includes(cmd.args)) {
+              provider.model = cmd.args;
+              setSlashOutput(`Switched to ${cmd.args}`);
+            } else {
+              setSlashOutput(`Unknown model: "${cmd.args}". Available: ${models.join(', ')}`);
+            }
+          }
+          return;
+        }
+
+        case 'provider':
+          if (!cmd.args) {
+            setSlashOutput('Usage: /provider <name>');
+          } else {
+            setSlashOutput('Provider switching requires API keys. Configure keys and restart.');
+          }
+          return;
+
+        case 'space':
+          setSlashOutput(`Current space: ${session.currentSpace?.title || 'none'}`);
+          return;
+
+        default:
+          if (cmd.output) setSlashOutput(cmd.output);
+          return;
+      }
     }
 
     if (showBanner) setShowBanner(false);
     setPendingPrompt(null);
     sendMessage(text);
-  }, [showBanner, sendMessage, exit]);
+  }, [showBanner, sendMessage, exit, clearHistory, provider, session]);
 
   const handleSelectPrompt = useCallback((text: string) => {
     setPendingPrompt(text);
@@ -75,18 +141,31 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
           isStreaming={isStreaming}
         />
 
-        {pendingConfirmation ? (
-          <Box paddingX={1}>
-            <InputArea
-              onSubmit={(answer) => {
-                confirmAction(
-                  pendingConfirmation.id,
-                  ['yes', 'y'].includes(answer.toLowerCase()),
-                );
-              }}
-              disabled={false}
-            />
+        {toolCalls.length > 0 ? <ToolCallGroup calls={toolCalls} /> : null}
+
+        {classifiedError ? (
+          <ErrorDisplay
+            type={classifiedError.type}
+            message={classifiedError.message}
+            retryAfter={classifiedError.retryAfter}
+          />
+        ) : null}
+
+        {slashOutput ? (
+          <Box paddingX={2} marginY={0}>
+            <Box flexDirection="column">
+              {slashOutput.split('\n').map((line, i) => (
+                <Text key={i} dimColor>{line}</Text>
+              ))}
+            </Box>
           </Box>
+        ) : null}
+
+        {pendingConfirmation ? (
+          <ConfirmPrompt
+            description={pendingConfirmation.description}
+            onConfirm={(confirmed) => confirmAction(pendingConfirmation.id, confirmed)}
+          />
         ) : null}
       </Box>
 
