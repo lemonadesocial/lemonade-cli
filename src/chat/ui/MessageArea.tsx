@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Static } from 'ink';
 import { UserMessage } from './UserMessage.js';
 import { AssistantMessage } from './AssistantMessage.js';
+import { ThinkingIndicator } from './ThinkingIndicator.js';
 
 export interface ChatMessage {
   id: string;
@@ -12,11 +13,19 @@ export interface ChatMessage {
 interface MessageAreaProps {
   messages: ChatMessage[];
   streamingText: string;
+  isStreaming: boolean;
+  scrollOffset?: number;
 }
 
-export function MessageArea({ messages, streamingText }: MessageAreaProps): React.ReactElement {
+export function MessageArea({
+  messages,
+  streamingText,
+  isStreaming,
+}: MessageAreaProps): React.ReactElement {
+  const showThinking = isStreaming && !streamingText;
+
   return (
-    <Box flexDirection="column" flexGrow={1}>
+    <Box flexDirection="column" flexGrow={1} overflow="hidden">
       <Static items={messages}>
         {(msg) => (
           <Box key={msg.id}>
@@ -28,7 +37,8 @@ export function MessageArea({ messages, streamingText }: MessageAreaProps): Reac
           </Box>
         )}
       </Static>
-      {streamingText ? <AssistantMessage text={streamingText} /> : null}
+      {showThinking ? <ThinkingIndicator /> : null}
+      {streamingText ? <AssistantMessage text={streamingText} streaming /> : null}
     </Box>
   );
 }
