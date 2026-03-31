@@ -58,6 +58,8 @@ export type ParamType =
   | 'number'
   | 'boolean'
   | 'string[]'
+  | 'number[]'
+  | 'object[]'
   | { type: 'object'; properties: Record<string, ToolParam> };
 
 export interface ToolDef {

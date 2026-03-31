@@ -39,6 +39,14 @@ function paramTypeToJsonSchema(param: ToolParam): JsonSchema {
       schema.type = 'array';
       schema.items = { type: 'string' };
       break;
+    case 'number[]':
+      schema.type = 'array';
+      schema.items = { type: 'number' };
+      break;
+    case 'object[]':
+      schema.type = 'array';
+      schema.items = { type: 'object' };
+      break;
     default:
       schema.type = 'string';
   }
@@ -114,6 +122,10 @@ function validateParamType(value: unknown, type: ParamType): boolean {
       return typeof value === 'boolean';
     case 'string[]':
       return Array.isArray(value) && value.every((v) => typeof v === 'string');
+    case 'number[]':
+      return Array.isArray(value) && value.every((v) => typeof v === 'number');
+    case 'object[]':
+      return Array.isArray(value) && value.every((v) => typeof v === 'object' && v !== null);
     default:
       return true;
   }

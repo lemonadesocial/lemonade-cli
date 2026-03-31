@@ -62,6 +62,20 @@ describe('Session State', () => {
     expect(session.currentSpace).toEqual({ _id: 's5', title: 'Berlin Techno' });
   });
 
+  it('updates session after event_clone', () => {
+    const session = createSessionState(mockUser);
+    updateSession(session, 'event_clone', ['cloned1', 'cloned2']);
+    expect(session.lastCreatedEvent).toEqual({ _id: 'cloned1', title: 'Cloned event' });
+    expect(session.currentEvent).toEqual({ _id: 'cloned1', title: 'Cloned event' });
+  });
+
+  it('does not update session for event_clone with empty array', () => {
+    const session = createSessionState(mockUser);
+    updateSession(session, 'event_clone', []);
+    expect(session.lastCreatedEvent).toBeUndefined();
+    expect(session.currentEvent).toBeUndefined();
+  });
+
   it('handles null/undefined result gracefully', () => {
     const session = createSessionState(mockUser);
     updateSession(session, 'event_create', null);
