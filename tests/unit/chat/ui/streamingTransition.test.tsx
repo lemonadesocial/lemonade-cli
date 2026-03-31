@@ -3,7 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { render } from 'ink-testing-library';
 import { Box } from 'ink';
 import { AssistantMessage } from '../../../../src/chat/ui/AssistantMessage';
-import { MessageArea, ChatMessage } from '../../../../src/chat/ui/MessageArea';
+import { MessageArea } from '../../../../src/chat/ui/MessageArea';
+import { THINKING_WORDS } from '../../../../src/chat/ui/ThinkingIndicator';
 
 // L4: Integration test for streaming-to-markdown transition
 describe('streaming to markdown transition', () => {
@@ -28,34 +29,31 @@ describe('streaming to markdown transition', () => {
     expect(doneOutput).not.toContain('**bold**');
   });
 
-  it('MessageArea shows ThinkingIndicator before first token, streaming text during, finalized after', () => {
-    const messages: ChatMessage[] = [];
-
+  it('MessageArea shows ThinkingIndicator before first token, streaming text during', () => {
     // Phase 1: streaming started, no text yet -> thinking indicator
     const { lastFrame: thinkingFrame } = render(
-      <MessageArea messages={messages} streamingText="" isStreaming={true} maxHeight={20} scrollOffset={0} />,
+      <MessageArea streamingText="" isStreaming={true} />,
     );
-    expect(thinkingFrame()!).toContain('Thinking...');
+    const output = thinkingFrame()!;
+    const hasThinkingWord = THINKING_WORDS.some((w) => output.includes(`${w}...`));
+    expect(hasThinkingWord).toBe(true);
 
     // Phase 2: first token arrived -> streaming text shown
     const { lastFrame: streamingFrame } = render(
-      <MessageArea messages={messages} streamingText="# Hello **world**" isStreaming={true} maxHeight={20} scrollOffset={0} />,
+      <MessageArea streamingText="# Hello **world**" isStreaming={true} />,
     );
     const streamOut = streamingFrame()!;
     expect(streamOut).not.toContain('Thinking...');
     expect(streamOut).toContain('Hello');
+  });
 
-    // Phase 3: turn complete, message finalized -> viewport renders messages
-    const finalized: ChatMessage[] = [
-      { id: '1', role: 'assistant', text: '# Hello **world**' },
-    ];
-    const { lastFrame: finalFrame } = render(
-      <MessageArea messages={finalized} streamingText="" isStreaming={false} maxHeight={20} scrollOffset={0} />,
+  it('MessageArea shows nothing when not streaming and no streaming text', () => {
+    // Completed messages are flushed to stdout, not rendered in Ink
+    const { lastFrame } = render(
+      <MessageArea streamingText="" isStreaming={false} />,
     );
-    const finalOut = finalFrame()!;
-    expect(finalOut).not.toContain('Thinking...');
-    expect(finalOut).toContain('Hello');
-    expect(finalOut).toContain('world');
+    const output = lastFrame()!;
+    expect(output).not.toContain('Thinking...');
   });
 
   it('code blocks render as plain text during streaming and highlighted after', () => {

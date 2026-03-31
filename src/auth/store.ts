@@ -16,6 +16,7 @@ export interface LemonadeConfig {
   openai_key?: string;
   ai_provider?: string;
   ai_mode?: 'credits' | 'own_key';
+  ai_credits_space?: string;
   agent_name?: string;
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { render, Box, Text, useApp, useInput, useStdout } from 'ink';
 import { AIProvider, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
@@ -11,8 +11,10 @@ import { ToolCallGroup } from './ToolCallGroup.js';
 import { ConfirmPrompt } from './ConfirmPrompt.js';
 import { ErrorDisplay } from './ErrorDisplay.js';
 import { useChatEngine } from './hooks/useChatEngine.js';
-import { parseSlashCommand, getModelsForProvider } from './SlashCommands.js';
+import { parseSlashCommand, getModelsForProvider, SLASH_COMMANDS } from './SlashCommands.js';
 import { getAgentName, setAgentName } from '../skills/loader.js';
+import { formatUserMessage, formatAssistantMessage } from './writeMessage.js';
+import { getAiModeDisplay } from '../aiMode.js';
 
 interface AppProps {
   provider: AIProvider;
@@ -20,20 +22,27 @@ interface AppProps {
   registry: Record<string, ToolDef>;
   formattedTools: unknown[];
   user: { _id: string; name: string; email: string; first_name: string };
+  creditsSpaceName?: string;
 }
 
 // Header = 2 lines, InputArea = 3 lines, StatusBar = 2 lines
 const FIXED_CHROME_HEIGHT = 7;
 
-function App({ provider, session, registry, formattedTools, user }: AppProps): React.ReactElement {
+const ALL_SLASH_NAMES = SLASH_COMMANDS.map((c) => c.name);
+
+function App({ provider, session, registry, formattedTools, user, creditsSpaceName }: AppProps): React.ReactElement {
   const { exit } = useApp();
-  const { stdout } = useStdout();
+  const { stdout, write } = useStdout();
   const [rows, setRows] = useState(() => stdout.rows || 24);
   const [showBanner, setShowBanner] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [slashOutput, setSlashOutput] = useState<string | null>(null);
   const [agentName, setAgentNameState] = useState(() => getAgentName());
-  const [scrollOffset, setScrollOffset] = useState(0);
+  const [modelName, setModelName] = useState(() => provider.model);
+  const [inputValue, setInputValue] = useState('');
+
+  // Track how many messages have been flushed to stdout
+  const flushedCountRef = useRef(0);
 
   useEffect(() => {
     const onResize = () => setRows(stdout.rows || 24);
@@ -60,40 +69,46 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
 
   const messageAreaHeight = Math.max(rows - FIXED_CHROME_HEIGHT, 3);
 
-  // Auto-scroll to bottom during streaming
+  // Flush completed messages to stdout as they appear.
+  // This gives us natural terminal scrollback instead of viewport slicing.
   useEffect(() => {
-    if (isStreaming) {
-      setScrollOffset(0);
+    const newMessages = messages.slice(flushedCountRef.current);
+    for (const msg of newMessages) {
+      if (msg.role === 'user') {
+        write(formatUserMessage(msg.text));
+      } else {
+        write(formatAssistantMessage(msg.text));
+      }
     }
-  }, [isStreaming, streamingText]);
+    flushedCountRef.current = messages.length;
+  }, [messages, write]);
 
-  const pageSize = Math.max(Math.floor(messageAreaHeight / 2), 3);
+  // Reset flushed count when history is cleared
+  useEffect(() => {
+    if (messages.length === 0) {
+      flushedCountRef.current = 0;
+    }
+  }, [messages.length]);
 
   useInput((input, key) => {
     if (key.escape && isStreaming) {
       cancelStream();
     }
-    if (key.upArrow && !isStreaming) {
-      setScrollOffset((prev) => prev + 1);
-    }
-    if (key.downArrow && !isStreaming) {
-      setScrollOffset((prev) => Math.max(prev - 1, 0));
-    }
-    // Page Up / Page Down via [ and ] keys (Ink does not expose pageUp/pageDown)
-    if (input === '[' && !isStreaming) {
-      setScrollOffset((prev) => prev + pageSize);
-    }
-    if (input === ']' && !isStreaming) {
-      setScrollOffset((prev) => Math.max(prev - pageSize, 0));
-    }
-    // End key resets scroll
-    if (key.return && !input && !isStreaming) {
-      setScrollOffset(0);
-    }
   });
+
+  // Bug 5: Slash command suggestions filtered by current input
+  const slashSuggestions = useMemo(() => {
+    if (!inputValue.startsWith('/')) return undefined;
+    return ALL_SLASH_NAMES.filter((name) => name.startsWith(inputValue));
+  }, [inputValue]);
+
+  const handleInputChange = useCallback((value: string) => {
+    setInputValue(value);
+  }, []);
 
   const handleSubmit = useCallback((text: string) => {
     setSlashOutput(null);
+    setInputValue('');
 
     const cmd = parseSlashCommand(text);
     if (cmd.handled) {
@@ -115,13 +130,14 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
           if (!cmd.args) {
             const models = getModelsForProvider(provider.name);
             const list = models
-              .map((m) => (m === provider.model ? `  * ${m} (current)` : `    ${m}`))
+              .map((m) => (m === modelName ? `  * ${m} (current)` : `    ${m}`))
               .join('\n');
             setSlashOutput(`Models for ${provider.name}:\n${list}`);
           } else {
             const models = getModelsForProvider(provider.name);
             if (models.includes(cmd.args)) {
               provider.model = cmd.args;
+              setModelName(cmd.args);
               setSlashOutput(`Switched to ${cmd.args}`);
             } else {
               setSlashOutput(`Unknown model: "${cmd.args}". Available: ${models.join(', ')}`);
@@ -137,6 +153,18 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
             setSlashOutput('Provider switching requires API keys. Configure keys and restart.');
           }
           return;
+
+        case 'mode': {
+          const current = getAiModeDisplay();
+          if (cmd.args === 'credits') {
+            setSlashOutput(`Current mode: ${current}\nTo switch to credits mode, exit and run: make-lemonade --mode credits`);
+          } else if (cmd.args === 'own_key') {
+            setSlashOutput(`Current mode: ${current}\nTo switch to own-key mode, exit and run: make-lemonade --mode own_key`);
+          } else {
+            setSlashOutput(`Current mode: ${current}\nUsage: /mode credits  or  /mode own_key\nMode changes require restarting the session.`);
+          }
+          return;
+        }
 
         case 'space':
           setSlashOutput(`Current space: ${session.currentSpace?.title || 'none'}`);
@@ -161,9 +189,8 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
 
     if (showBanner) setShowBanner(false);
     setPendingPrompt(null);
-    setScrollOffset(0);
     sendMessage(text);
-  }, [showBanner, sendMessage, exit, clearHistory, provider, session]);
+  }, [showBanner, sendMessage, exit, clearHistory, provider, session, modelName]);
 
   const handleSelectPrompt = useCallback((text: string) => {
     setPendingPrompt(text);
@@ -173,7 +200,7 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
     <Box flexDirection="column" height={rows}>
       <Header
         providerName={provider.name}
-        modelName={provider.model}
+        modelName={modelName}
         spaceName={session.currentSpace?.title}
         tokenCount={tokenCount}
       />
@@ -182,7 +209,7 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
         {showBanner && messages.length === 0 ? (
           <WelcomeBanner
             providerName={provider.name}
-            modelName={provider.model}
+            modelName={modelName}
             firstName={user.first_name || user.name}
             agentName={agentName}
             onSelectPrompt={handleSelectPrompt}
@@ -190,11 +217,8 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
         ) : null}
 
         <MessageArea
-          messages={messages}
           streamingText={streamingText}
           isStreaming={isStreaming}
-          maxHeight={messageAreaHeight}
-          scrollOffset={scrollOffset}
         />
 
         {toolCalls.length > 0 ? <ToolCallGroup calls={toolCalls} /> : null}
@@ -230,13 +254,16 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
           onSubmit={handleSubmit}
           disabled={isStreaming}
           defaultValue={pendingPrompt ?? undefined}
+          onChange={handleInputChange}
+          suggestions={slashSuggestions}
         />
       ) : null}
 
       <StatusBar
         spaceName={session.currentSpace?.title}
+        creditsSpaceName={creditsSpaceName}
         providerName={provider.name}
-        modelName={provider.model}
+        modelName={modelName}
         isStreaming={isStreaming}
         streamTokenCount={streamTokenCount}
         lastError={lastError}
