@@ -25,4 +25,11 @@ describe('AssistantMessage', () => {
     const { lastFrame } = render(<AssistantMessage text="```\nconst x = 1\n```" />);
     expect(lastFrame()!).toContain('const x = 1');
   });
+
+  it('has no colored border or label', () => {
+    const { lastFrame } = render(<AssistantMessage text="just a response" />);
+    const output = lastFrame()!;
+    expect(output).not.toContain('You');
+    expect(output).toContain('just a response');
+  });
 });

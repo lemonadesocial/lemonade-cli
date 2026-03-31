@@ -60,7 +60,16 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
 
   const messageAreaHeight = Math.max(rows - FIXED_CHROME_HEIGHT, 3);
 
-  useInput((_input, key) => {
+  // Auto-scroll to bottom during streaming
+  useEffect(() => {
+    if (isStreaming) {
+      setScrollOffset(0);
+    }
+  }, [isStreaming, streamingText]);
+
+  const pageSize = Math.max(Math.floor(messageAreaHeight / 2), 3);
+
+  useInput((input, key) => {
     if (key.escape && isStreaming) {
       cancelStream();
     }
@@ -69,6 +78,17 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
     }
     if (key.downArrow && !isStreaming) {
       setScrollOffset((prev) => Math.max(prev - 1, 0));
+    }
+    // Page Up / Page Down via [ and ] keys (Ink does not expose pageUp/pageDown)
+    if (input === '[' && !isStreaming) {
+      setScrollOffset((prev) => prev + pageSize);
+    }
+    if (input === ']' && !isStreaming) {
+      setScrollOffset((prev) => Math.max(prev - pageSize, 0));
+    }
+    // End key resets scroll
+    if (key.return && !input && !isStreaming) {
+      setScrollOffset(0);
     }
   });
 
@@ -214,7 +234,6 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
       ) : null}
 
       <StatusBar
-        agentName={agentName}
         spaceName={session.currentSpace?.title}
         providerName={provider.name}
         modelName={provider.model}

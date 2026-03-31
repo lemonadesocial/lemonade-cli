@@ -798,7 +798,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     displayName: 'space list',
     description: 'List your spaces.',
     params: [
-      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '20' },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '100' },
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
@@ -809,7 +809,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
             items { _id title slug description }
           }
         }`,
-        { limit: (args.limit as number) || 20, skip: (args.skip as number) || 0 },
+        // Backend aiListMySpaces includes creator, admin, and ambassador roles
+      { limit: (args.limit as number) || 100, skip: (args.skip as number) || 0 },
       );
       return result.aiListMySpaces;
     },
