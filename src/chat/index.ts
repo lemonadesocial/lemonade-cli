@@ -13,8 +13,9 @@ import { buildSystemMessages } from './session/cache.js';
 import { handleTurn } from './stream/handler.js';
 import { batchMode } from './batch.js';
 import { detectApiKey, detectProvider, onboardApiKey } from './onboarding.js';
+import { ChatEngine } from './engine/ChatEngine.js';
 
-const VERSION = '0.2.0';
+export const VERSION = '0.2.0';
 const VALID_PROVIDERS = ['anthropic', 'openai'];
 
 function safeErrorMessage(err: unknown): string {
@@ -22,13 +23,20 @@ function safeErrorMessage(err: unknown): string {
   return 'Unknown error';
 }
 
-function parseArgs(argv: string[]): {
+export function parseArgs(argv: string[]): {
   provider?: string;
   model?: string;
   json: boolean;
+  simple: boolean;
   help: boolean;
 } {
-  const result = { provider: undefined as string | undefined, model: undefined as string | undefined, json: false, help: false };
+  const result = {
+    provider: undefined as string | undefined,
+    model: undefined as string | undefined,
+    json: false,
+    simple: false,
+    help: false,
+  };
 
   for (let i = 2; i < argv.length; i++) {
     switch (argv[i]) {
@@ -40,6 +48,9 @@ function parseArgs(argv: string[]): {
         break;
       case '--json':
         result.json = true;
+        break;
+      case '--simple':
+        result.simple = true;
         break;
       case '--help':
       case '-h':
@@ -63,6 +74,7 @@ function printHelp(): void {
   ${chalk.bold('Options:')}
     --provider <name>   AI provider: anthropic (default), openai
     --model <model>     Model override (e.g. claude-sonnet-4-6, gpt-4o)
+    --simple            Use legacy readline mode (no Ink UI)
     --json              Output as JSON (batch mode)
     -h, --help          Show this help
 
@@ -74,6 +86,7 @@ function printHelp(): void {
 
   ${chalk.bold('Examples:')}
     make-lemonade
+    make-lemonade --simple
     echo "list my events" | make-lemonade
     echo "create event" | make-lemonade --json
 `);
@@ -126,7 +139,42 @@ async function interactiveMode(
     prompt: chalk.green('> '),
   });
 
+  const engine = new ChatEngine();
   const messages: Message[] = [];
+
+  // Simple-mode adapter: bridge engine events to display.ts + readline
+  const { writeStreamToken, writeNewline, printWarning } = await import('./stream/display.js');
+  let textStarted = false;
+
+  engine.on('text_delta', (data) => {
+    if (!textStarted) {
+      process.stdout.write('\n  ');
+      textStarted = true;
+    }
+    writeStreamToken(data.text, true);
+  });
+
+  engine.on('warning', (data) => {
+    printWarning(data.message);
+  });
+
+  engine.on('error', (data) => {
+    if (textStarted) writeNewline();
+    printWarning(data.message);
+  });
+
+  engine.on('confirm_request', (data) => {
+    rl.question(chalk.yellow(`\n  Confirm: ${data.description}? (yes/no) `), (answer) => {
+      engine.confirmAction(data.id, ['yes', 'y'].includes(answer.trim().toLowerCase()));
+    });
+  });
+
+  engine.on('turn_done', () => {
+    if (textStarted) {
+      writeNewline();
+      textStarted = false;
+    }
+  });
 
   rl.prompt();
 
@@ -157,6 +205,7 @@ async function interactiveMode(
       continue;
     }
 
+    textStarted = false;
     messages.push({ role: 'user', content: input });
 
     const systemPrompt = buildSystemMessages(session, provider.name);
@@ -171,6 +220,7 @@ async function interactiveMode(
         registry,
         rl,
         true,
+        engine,
       );
     } catch (err) {
       const msg = safeErrorMessage(err);
@@ -247,10 +297,14 @@ async function main(): Promise<void> {
   const provider = createProvider(providerName, apiKey, args.model);
   const formattedTools = provider.formatTools(toolDefs);
 
-  if (isTTY) {
+  if (isTTY && !args.simple) {
+    // Ink UI mode (default for TTY)
+    const { renderApp } = await import('./ui/App.js');
+    await renderApp({ provider, session, registry, formattedTools, user });
+  } else if (isTTY) {
+    // --simple: legacy readline mode
     printWelcome(user.first_name || user.name);
 
-    // Handle Ctrl+C
     process.on('SIGINT', () => {
       console.log('\n  See you!\n');
       process.exit(0);
