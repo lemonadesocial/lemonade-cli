@@ -10,8 +10,7 @@ import { registerSiteCommands } from './commands/site';
 import { registerConnectorCommands } from './commands/connectors';
 import { registerConfigCommands } from './commands/config';
 import { loadGeneratedCommands, checkSchemaVersion } from './commands/loader';
-
-const { version } = require('../package.json');
+import { version } from '../package.json';
 
 const program = new Command();
 
