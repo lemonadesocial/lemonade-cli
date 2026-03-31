@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.8](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.7...v1.0.8) (2026-03-31)
+
+
+### Bug Fixes
+
+* update aiGetMe query to match new AIGetMeResponse schema ([9de7741](https://github.com/lemonadesocial/lemonade-cli/commit/9de774114ceef8693f5a1477389ac8e2589643f9))
+
 ## [1.0.7](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.6...v1.0.7) (2026-03-31)
 
 
