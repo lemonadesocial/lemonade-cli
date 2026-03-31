@@ -9,8 +9,6 @@ import { InputArea } from './InputArea.js';
 import { StatusBar } from './StatusBar.js';
 import { useChatEngine } from './hooks/useChatEngine.js';
 
-// TODO: Phase B/C -- detect terminal width < 60 cols and fall back to simple mode (US-R.3)
-
 interface AppProps {
   provider: AIProvider;
   session: SessionState;
@@ -71,7 +69,11 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
           />
         ) : null}
 
-        <MessageArea messages={messages} streamingText={streamingText} />
+        <MessageArea
+          messages={messages}
+          streamingText={streamingText}
+          isStreaming={isStreaming}
+        />
 
         {pendingConfirmation ? (
           <Box paddingX={1}>
