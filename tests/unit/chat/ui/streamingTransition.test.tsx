@@ -33,24 +33,24 @@ describe('streaming to markdown transition', () => {
 
     // Phase 1: streaming started, no text yet -> thinking indicator
     const { lastFrame: thinkingFrame } = render(
-      <MessageArea messages={messages} streamingText="" isStreaming={true} />,
+      <MessageArea messages={messages} streamingText="" isStreaming={true} maxHeight={20} scrollOffset={0} />,
     );
     expect(thinkingFrame()!).toContain('Thinking...');
 
     // Phase 2: first token arrived -> streaming text shown
     const { lastFrame: streamingFrame } = render(
-      <MessageArea messages={messages} streamingText="# Hello **world**" isStreaming={true} />,
+      <MessageArea messages={messages} streamingText="# Hello **world**" isStreaming={true} maxHeight={20} scrollOffset={0} />,
     );
     const streamOut = streamingFrame()!;
     expect(streamOut).not.toContain('Thinking...');
     expect(streamOut).toContain('Hello');
 
-    // Phase 3: turn complete, message finalized -> markdown rendered in Static
+    // Phase 3: turn complete, message finalized -> viewport renders messages
     const finalized: ChatMessage[] = [
       { id: '1', role: 'assistant', text: '# Hello **world**' },
     ];
     const { lastFrame: finalFrame } = render(
-      <MessageArea messages={finalized} streamingText="" isStreaming={false} />,
+      <MessageArea messages={finalized} streamingText="" isStreaming={false} maxHeight={20} scrollOffset={0} />,
     );
     const finalOut = finalFrame()!;
     expect(finalOut).not.toContain('Thinking...');

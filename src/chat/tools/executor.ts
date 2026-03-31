@@ -75,6 +75,7 @@ export async function executeToolCalls(
 
     if (!tool) {
       results.push({
+        type: 'tool_result',
         tool_use_id: call.id,
         content: `Unknown tool: ${call.name}`,
         is_error: true,
@@ -85,6 +86,7 @@ export async function executeToolCalls(
     const validation = validateArgs(call.arguments, tool.params);
     if (!validation.valid) {
       results.push({
+        type: 'tool_result',
         tool_use_id: call.id,
         content: JSON.stringify({ error: validation.errors.join(', ') }),
         is_error: true,
@@ -99,6 +101,7 @@ export async function executeToolCalls(
         const confirmed = await engine.requestConfirmation(call.id, desc);
         if (!confirmed) {
           results.push({
+            type: 'tool_result',
             tool_use_id: call.id,
             content: JSON.stringify({ cancelled: true, reason: 'User declined' }),
           });
@@ -110,6 +113,7 @@ export async function executeToolCalls(
         });
         if (!['yes', 'y'].includes(answer.trim().toLowerCase())) {
           results.push({
+            type: 'tool_result',
             tool_use_id: call.id,
             content: JSON.stringify({ cancelled: true, reason: 'User declined' }),
           });
@@ -118,6 +122,7 @@ export async function executeToolCalls(
       }
     } else if (tool.destructive && !isTTY) {
       results.push({
+        type: 'tool_result',
         tool_use_id: call.id,
         content: JSON.stringify({ cancelled: true, reason: 'Destructive action declined in non-interactive mode' }),
       });
@@ -140,6 +145,7 @@ export async function executeToolCalls(
       updateSession(session, call.name, result);
 
       results.push({
+        type: 'tool_result',
         tool_use_id: call.id,
         content: JSON.stringify(result),
       });
@@ -153,6 +159,7 @@ export async function executeToolCalls(
       }
 
       results.push({
+        type: 'tool_result',
         tool_use_id: call.id,
         content: JSON.stringify({ error: classified.message }),
         is_error: true,

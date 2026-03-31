@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { render, Box, Text, useApp, useInput } from 'ink';
+import React, { useState, useCallback, useEffect } from 'react';
+import { render, Box, Text, useApp, useInput, useStdout } from 'ink';
 import { AIProvider, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
 import { Header } from './Header.js';
@@ -22,12 +22,24 @@ interface AppProps {
   user: { _id: string; name: string; email: string; first_name: string };
 }
 
+// Header = 2 lines, InputArea = 3 lines, StatusBar = 2 lines
+const FIXED_CHROME_HEIGHT = 7;
+
 function App({ provider, session, registry, formattedTools, user }: AppProps): React.ReactElement {
   const { exit } = useApp();
+  const { stdout } = useStdout();
+  const [rows, setRows] = useState(() => stdout.rows || 24);
   const [showBanner, setShowBanner] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [slashOutput, setSlashOutput] = useState<string | null>(null);
   const [agentName, setAgentNameState] = useState(() => getAgentName());
+  const [scrollOffset, setScrollOffset] = useState(0);
+
+  useEffect(() => {
+    const onResize = () => setRows(stdout.rows || 24);
+    stdout.on('resize', onResize);
+    return () => { stdout.off('resize', onResize); };
+  }, [stdout]);
 
   const {
     messages,
@@ -46,12 +58,17 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
     confirmAction,
   } = useChatEngine({ provider, session, registry, formattedTools });
 
-  // Escape cancels streaming, Ctrl+C handled by ink.
-  // Note: Escape also fires when ConfirmPrompt is active but is a no-op
-  // (isStreaming is false during confirmation). This is expected behavior.
+  const messageAreaHeight = Math.max(rows - FIXED_CHROME_HEIGHT, 3);
+
   useInput((_input, key) => {
     if (key.escape && isStreaming) {
       cancelStream();
+    }
+    if (key.upArrow && !isStreaming) {
+      setScrollOffset((prev) => prev + 1);
+    }
+    if (key.downArrow && !isStreaming) {
+      setScrollOffset((prev) => Math.max(prev - 1, 0));
     }
   });
 
@@ -124,6 +141,7 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
 
     if (showBanner) setShowBanner(false);
     setPendingPrompt(null);
+    setScrollOffset(0);
     sendMessage(text);
   }, [showBanner, sendMessage, exit, clearHistory, provider, session]);
 
@@ -132,7 +150,7 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
   }, []);
 
   return (
-    <Box flexDirection="column" height="100%">
+    <Box flexDirection="column" height={rows}>
       <Header
         providerName={provider.name}
         modelName={provider.model}
@@ -140,7 +158,7 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
         tokenCount={tokenCount}
       />
 
-      <Box flexDirection="column" flexGrow={1}>
+      <Box flexDirection="column" height={messageAreaHeight} overflow="hidden">
         {showBanner && messages.length === 0 ? (
           <WelcomeBanner
             providerName={provider.name}
@@ -155,6 +173,8 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
           messages={messages}
           streamingText={streamingText}
           isStreaming={isStreaming}
+          maxHeight={messageAreaHeight}
+          scrollOffset={scrollOffset}
         />
 
         {toolCalls.length > 0 ? <ToolCallGroup calls={toolCalls} /> : null}
