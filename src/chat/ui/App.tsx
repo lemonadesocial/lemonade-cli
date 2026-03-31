@@ -44,7 +44,9 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
     confirmAction,
   } = useChatEngine({ provider, session, registry, formattedTools });
 
-  // Escape cancels streaming, Ctrl+C handled by ink
+  // Escape cancels streaming, Ctrl+C handled by ink.
+  // Note: Escape also fires when ConfirmPrompt is active but is a no-op
+  // (isStreaming is false during confirmation). This is expected behavior.
   useInput((_input, key) => {
     if (key.escape && isStreaming) {
       cancelStream();

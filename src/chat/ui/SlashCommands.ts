@@ -15,13 +15,6 @@ export const SLASH_COMMANDS = [
   { name: '/quit', description: 'Exit the app' },
 ] as const;
 
-const COMMAND_NAMES = SLASH_COMMANDS.map((c) => c.name);
-
-export function getCompletions(partial: string): string[] {
-  if (!partial.startsWith('/')) return [];
-  return COMMAND_NAMES.filter((name) => name.startsWith(partial) && name !== partial);
-}
-
 const HELP_TABLE = `
 Commands:
   /help              Show commands and shortcuts

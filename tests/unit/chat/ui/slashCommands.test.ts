@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseSlashCommand,
-  getCompletions,
   getModelsForProvider,
 } from '../../../../src/chat/ui/SlashCommands';
 
@@ -83,26 +82,6 @@ describe('parseSlashCommand', () => {
     const result = parseSlashCommand('/HELP');
     expect(result.handled).toBe(true);
     expect(result.action).toBe('help');
-  });
-});
-
-describe('getCompletions', () => {
-  it('returns matching commands for partial input', () => {
-    const completions = getCompletions('/he');
-    expect(completions).toContain('/help');
-  });
-
-  it('returns multiple matches', () => {
-    const completions = getCompletions('/');
-    expect(completions.length).toBeGreaterThan(1);
-  });
-
-  it('returns empty for non-slash input', () => {
-    expect(getCompletions('hello')).toEqual([]);
-  });
-
-  it('returns empty for exact match', () => {
-    expect(getCompletions('/help')).toEqual([]);
   });
 });
 

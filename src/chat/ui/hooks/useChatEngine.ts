@@ -21,26 +21,40 @@ export interface ClassifiedError {
   retryAfter?: number;
 }
 
+const SENSITIVE_PATTERNS = [
+  /sk-ant-[a-zA-Z0-9_-]+/g,
+  /sk-[a-zA-Z0-9_-]{20,}/g,
+];
+
+export function scrubSensitive(msg: string): string {
+  let scrubbed = msg;
+  for (const pattern of SENSITIVE_PATTERNS) {
+    scrubbed = scrubbed.replace(pattern, 'sk-...redacted');
+  }
+  return scrubbed;
+}
+
 export function classifyError(message: string): ClassifiedError {
-  const lower = message.toLowerCase();
+  const scrubbed = scrubSensitive(message);
+  const lower = scrubbed.toLowerCase();
   if (lower.includes('rate limit') || lower.includes('429')) {
-    const match = message.match(/(\d+)\s*s/);
+    const match = scrubbed.match(/(\d+)\s*s/);
     return {
       type: 'rate_limit',
-      message,
+      message: scrubbed,
       retryAfter: match ? parseInt(match[1], 10) : undefined,
     };
   }
   if (lower.includes('auth') || lower.includes('unauthorized') || lower.includes('401') || lower.includes('expired')) {
-    return { type: 'auth', message };
+    return { type: 'auth', message: scrubbed };
   }
   if (lower.includes('context') || lower.includes('token limit') || lower.includes('too long') || lower.includes('context_length')) {
-    return { type: 'context_length', message };
+    return { type: 'context_length', message: scrubbed };
   }
   if (lower.includes('network') || lower.includes('econnrefused') || lower.includes('fetch') || lower.includes('timeout')) {
-    return { type: 'network', message };
+    return { type: 'network', message: scrubbed };
   }
-  return { type: 'generic', message };
+  return { type: 'generic', message: scrubbed };
 }
 
 interface UseChatEngineResult {
@@ -195,13 +209,17 @@ export function useChatEngine({
       }
     }
 
+    const wasCancelled = abort.signal.aborted;
     abortRef.current = null;
 
     // Finalize streamed text into messages
     setStreamingText((currentStreaming) => {
       if (currentStreaming) {
+        const finalText = wasCancelled
+          ? currentStreaming + ' [cancelled]'
+          : currentStreaming;
         const assistantId = String(++msgIdRef.current);
-        setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', text: currentStreaming }]);
+        setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', text: finalText }]);
       }
       return '';
     });

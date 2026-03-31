@@ -13,11 +13,18 @@ interface ToolCallProps {
 }
 
 const MAX_RESULT_LINES = 3;
+const MAX_RESULT_CHARS = 500;
 
-function truncateToLines(text: string, maxLines: number): string {
-  const lines = text.split('\n');
-  if (lines.length <= maxLines) return text;
-  return lines.slice(0, maxLines).join('\n') + '\n...';
+export function truncateResult(text: string): string {
+  let truncated = text;
+  if (truncated.length > MAX_RESULT_CHARS) {
+    truncated = truncated.slice(0, MAX_RESULT_CHARS) + '...';
+  }
+  const lines = truncated.split('\n');
+  if (lines.length > MAX_RESULT_LINES) {
+    truncated = lines.slice(0, MAX_RESULT_LINES).join('\n') + '\n...';
+  }
+  return truncated;
 }
 
 export function ToolCall({ name, status, result, error }: ToolCallProps): React.ReactElement {
@@ -31,7 +38,7 @@ export function ToolCall({ name, status, result, error }: ToolCallProps): React.
   }
 
   const detail = error || result;
-  const detailText = detail ? truncateToLines(String(detail), MAX_RESULT_LINES) : null;
+  const detailText = detail ? truncateResult(String(detail)) : null;
 
   return (
     <Box flexDirection="column" paddingLeft={2}>

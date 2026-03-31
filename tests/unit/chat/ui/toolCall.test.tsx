@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from 'ink-testing-library';
-import { ToolCall } from '../../../../src/chat/ui/ToolCall';
+import { ToolCall, truncateResult } from '../../../../src/chat/ui/ToolCall';
 
 // US-T.5: ToolCall renders spinner/success/failure states with truncated results
 describe('ToolCall', () => {
@@ -72,5 +72,41 @@ describe('ToolCall', () => {
     expect(output).toContain('line 1');
     expect(output).toContain('line 3');
     expect(output).not.toContain('...');
+  });
+
+  it('truncates single long line exceeding 500 chars', () => {
+    const longLine = 'x'.repeat(600);
+    const { lastFrame } = render(
+      <ToolCall name="event_create" status="success" result={longLine} />,
+    );
+    const output = lastFrame()!;
+    expect(output).toContain('...');
+    expect(output).not.toContain('x'.repeat(600));
+  });
+});
+
+describe('truncateResult', () => {
+  it('returns short text unchanged', () => {
+    expect(truncateResult('hello')).toBe('hello');
+  });
+
+  it('truncates text beyond 500 chars', () => {
+    const long = 'a'.repeat(600);
+    const result = truncateResult(long);
+    expect(result.length).toBeLessThan(600);
+    expect(result).toContain('...');
+  });
+
+  it('truncates lines beyond 3', () => {
+    const result = truncateResult('1\n2\n3\n4\n5');
+    expect(result).toContain('1');
+    expect(result).toContain('...');
+    expect(result).not.toContain('4');
+  });
+
+  it('applies char cap before line cap', () => {
+    const longSingleLine = 'z'.repeat(600);
+    const result = truncateResult(longSingleLine);
+    expect(result).toBe('z'.repeat(500) + '...');
   });
 });
