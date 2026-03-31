@@ -14,6 +14,10 @@ function safeErrorMessage(err: unknown): string {
   return 'Unknown error';
 }
 
+// Dual-mode function: when `engine` is provided, all output is emitted as typed
+// events (consumed by the Ink UI via useChatEngine). When `engine` is omitted,
+// output falls back to direct stdout writes via display.ts (batch mode and tests).
+// Both paths must stay in sync until batch mode is migrated to the engine pattern.
 export async function handleTurn(
   provider: AIProvider,
   messages: Message[],

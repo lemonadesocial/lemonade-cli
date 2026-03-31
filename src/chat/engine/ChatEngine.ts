@@ -10,8 +10,11 @@ export interface ChatEngineEvents {
   warning: { message: string };
 }
 
+const CONFIRMATION_TIMEOUT_MS = 60_000;
+
 export class ChatEngine extends EventEmitter {
   private pendingConfirmations = new Map<string, (confirmed: boolean) => void>();
+  private confirmationTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   emit<K extends keyof ChatEngineEvents>(event: K, data: ChatEngineEvents[K]): boolean;
   emit(event: string, ...args: unknown[]): boolean;
@@ -35,10 +38,21 @@ export class ChatEngine extends EventEmitter {
     return new Promise((resolve) => {
       this.pendingConfirmations.set(id, resolve);
       this.emit('confirm_request', { id, description });
+
+      const timer = setTimeout(() => {
+        this.confirmAction(id, false);
+      }, CONFIRMATION_TIMEOUT_MS);
+      this.confirmationTimers.set(id, timer);
     });
   }
 
   confirmAction(id: string, confirmed: boolean): void {
+    const timer = this.confirmationTimers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      this.confirmationTimers.delete(id);
+    }
+
     const resolver = this.pendingConfirmations.get(id);
     if (resolver) {
       this.pendingConfirmations.delete(id);

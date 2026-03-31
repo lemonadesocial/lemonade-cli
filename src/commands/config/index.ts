@@ -10,6 +10,14 @@ import {
 } from '../../auth/store.js';
 import { VALID_CONFIG_KEYS, ValidConfigKey } from '../../config/defaults.js';
 
+const SENSITIVE_KEYS = new Set(['anthropic_key', 'openai_key', 'access_token', 'refresh_token', 'api_key']);
+
+function redactValue(key: string, value: unknown): string {
+  const str = String(value);
+  if (!SENSITIVE_KEYS.has(key) || str.length <= 4) return str;
+  return str.slice(0, 3) + '...' + str.slice(-4);
+}
+
 export function registerConfigCommands(program: Command): void {
   const config = program
     .command('config')
@@ -50,10 +58,11 @@ export function registerConfigCommands(program: Command): void {
 
         setConfigValue(key as ValidConfigKey, value);
 
+        const displayValue = redactValue(key, value);
         if (opts.json) {
-          console.log(jsonSuccess({ key, value }));
+          console.log(jsonSuccess({ key, value: displayValue }));
         } else {
-          console.log(`Set ${key} = ${value}`);
+          console.log(`Set ${key} = ${displayValue}`);
         }
       } catch (error) {
         handleError(error, opts.json);
@@ -74,11 +83,16 @@ export function registerConfigCommands(program: Command): void {
 
         if (!key) {
           if (opts.json) {
-            console.log(jsonSuccess(cfg));
+            const redacted: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(cfg)) {
+              if (v === undefined) continue;
+              redacted[k] = SENSITIVE_KEYS.has(k) ? redactValue(k, v) : v;
+            }
+            console.log(jsonSuccess(redacted));
           } else {
             const entries = Object.entries(cfg).filter(([, v]) => v !== undefined);
             for (const [k, v] of entries) {
-              console.log(`${k} = ${v}`);
+              console.log(`${k} = ${redactValue(k, v)}`);
             }
           }
           return;
@@ -90,9 +104,9 @@ export function registerConfigCommands(program: Command): void {
         }
 
         if (opts.json) {
-          console.log(jsonSuccess({ key, value }));
+          console.log(jsonSuccess({ key, value: redactValue(key, value) }));
         } else {
-          console.log(String(value));
+          console.log(redactValue(key, value));
         }
       } catch (error) {
         handleError(error, opts.json);

@@ -34,6 +34,7 @@ export interface SystemMessage {
 
 export interface AIProvider {
   name: string;
+  model: string;
   formatTools(tools: ToolDef[]): unknown[];
   stream(params: {
     systemPrompt: SystemMessage[];

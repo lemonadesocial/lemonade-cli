@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import { colors } from './theme.js';
 import { VERSION } from '../index.js';
 
@@ -15,15 +15,23 @@ interface WelcomeBannerProps {
   providerName: string;
   modelName: string;
   firstName: string;
+  onSelectPrompt?: (text: string) => void;
 }
 
-const SUGGESTED_PROMPTS = [
+export const SUGGESTED_PROMPTS = [
   'create a techno event in Berlin next Saturday',
   'how are ticket sales for my warehouse party?',
   'find events near me this weekend',
 ];
 
-export function WelcomeBanner({ providerName, modelName, firstName }: WelcomeBannerProps): React.ReactElement {
+export function WelcomeBanner({ providerName, modelName, firstName, onSelectPrompt }: WelcomeBannerProps): React.ReactElement {
+  useInput((input) => {
+    const index = parseInt(input, 10) - 1;
+    if (index >= 0 && index < SUGGESTED_PROMPTS.length && onSelectPrompt) {
+      onSelectPrompt(SUGGESTED_PROMPTS[index]);
+    }
+  });
+
   return (
     <Box flexDirection="column" paddingX={1}>
       <Text color={colors.lemon}>{LOGO}</Text>
@@ -40,7 +48,7 @@ export function WelcomeBanner({ providerName, modelName, firstName }: WelcomeBan
       <Text>{''}</Text>
       <Text dimColor>  Type /help for commands, Ctrl+D to quit</Text>
       <Text>{''}</Text>
-      <Text dimColor>  Note: Tool results are sent to your AI provider.</Text>
+      <Text dimColor>  Note: Tool results (including event and guest data) are sent to your AI provider.</Text>
       <Box borderStyle="single" borderColor={colors.muted} borderTop={true} borderBottom={false} borderLeft={false} borderRight={false} marginTop={1} />
     </Box>
   );

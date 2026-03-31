@@ -124,7 +124,7 @@ function printWelcome(firstName: string): void {
 
   Type ${chalk.dim('"help"')} for tips, ${chalk.dim('"exit"')} to quit.
 `);
-  console.log(chalk.dim('  Note: Tool results are sent to your AI provider.\n'));
+  console.log(chalk.dim('  Note: Tool results (including event and guest data) are sent to your AI provider.\n'));
 }
 
 async function interactiveMode(
@@ -144,7 +144,9 @@ async function interactiveMode(
 
   // Simple-mode adapter: bridge engine events to display.ts + readline
   const { writeStreamToken, writeNewline, printWarning } = await import('./stream/display.js');
+  const ora = (await import('ora')).default;
   let textStarted = false;
+  let toolSpinner: ReturnType<typeof ora> | null = null;
 
   engine.on('text_delta', (data) => {
     if (!textStarted) {
@@ -152,6 +154,21 @@ async function interactiveMode(
       textStarted = true;
     }
     writeStreamToken(data.text, true);
+  });
+
+  engine.on('tool_start', (data) => {
+    toolSpinner = ora(`Running: ${data.name}...`).start();
+  });
+
+  engine.on('tool_done', (data) => {
+    if (toolSpinner) {
+      if (data.error) {
+        toolSpinner.fail(`Failed: ${data.name}`);
+      } else {
+        toolSpinner.succeed(`Done: ${data.name}`);
+      }
+      toolSpinner = null;
+    }
   });
 
   engine.on('warning', (data) => {

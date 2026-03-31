@@ -70,6 +70,42 @@ function ask(rl: readline.Interface, question: string): Promise<string> {
   });
 }
 
+function askSecret(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    process.stdout.write(question);
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw;
+    if (stdin.isTTY) stdin.setRawMode(true);
+
+    let input = '';
+    const onData = (data: Buffer) => {
+      const ch = data.toString();
+      if (ch === '\r' || ch === '\n') {
+        stdin.removeListener('data', onData);
+        if (stdin.isTTY && wasRaw !== undefined) stdin.setRawMode(wasRaw);
+        process.stdout.write('\n');
+        resolve(input);
+      } else if (ch === '\u0003') {
+        // Ctrl+C
+        stdin.removeListener('data', onData);
+        if (stdin.isTTY && wasRaw !== undefined) stdin.setRawMode(wasRaw);
+        process.stdout.write('\n');
+        process.exit(0);
+      } else if (ch === '\u007f' || ch === '\b') {
+        if (input.length > 0) {
+          input = input.slice(0, -1);
+          process.stdout.write('\b \b');
+        }
+      } else if (ch.charCodeAt(0) >= 32) {
+        input += ch;
+        process.stdout.write('*');
+      }
+    };
+    stdin.on('data', onData);
+    stdin.resume();
+  });
+}
+
 async function setupProviderKey(
   rl: readline.Interface,
   provider: string,
@@ -90,7 +126,7 @@ async function setupProviderKey(
     }
   }
 
-  const key = await ask(rl, `  ${info.name} API key: `);
+  const key = await askSecret(`  ${info.name} API key: `);
 
   if (!key.trim()) {
     console.log(chalk.dim('  Skipped.\n'));
