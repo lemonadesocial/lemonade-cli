@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.0...v1.0.1) (2026-03-31)
+
+
+### Bug Fixes
+
+* use unscoped package name for npm publish ([6d2fd81](https://github.com/lemonadesocial/lemonade-cli/commit/6d2fd8148b84b6e0f72ee0ae5fce10ef90028f01))
+
 ## 1.0.0 (2026-03-31)
 
 
