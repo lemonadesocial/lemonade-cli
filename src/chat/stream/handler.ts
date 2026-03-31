@@ -1,9 +1,9 @@
 import readline from 'readline';
-import { AIProvider, Message, ToolDef, SystemMessage } from '../providers/interface';
-import { SessionState } from '../session/state';
-import { truncateHistory } from '../session/history';
-import { executeToolCalls } from '../tools/executor';
-import { writeStreamToken, writeNewline, printWarning } from './display';
+import { AIProvider, Message, ToolDef, SystemMessage } from '../providers/interface.js';
+import { SessionState } from '../session/state.js';
+import { truncateHistory } from '../session/history.js';
+import { executeToolCalls } from '../tools/executor.js';
+import { writeStreamToken, writeNewline, printWarning } from './display.js';
 
 const TOKEN_WARN_THRESHOLD_ANTHROPIC = 150_000;
 const TOKEN_WARN_THRESHOLD_OPENAI = 90_000;

@@ -1,9 +1,9 @@
 import { Command } from 'commander';
-import { graphqlRequest } from '../../api/graphql';
-import { jsonSuccess } from '../../output/json';
-import { renderTable, renderKeyValue } from '../../output/table';
-import { handleError } from '../../output/error';
-import { setFlagApiKey } from '../../auth/store';
+import { graphqlRequest } from '../../api/graphql.js';
+import { jsonSuccess } from '../../output/json.js';
+import { renderTable, renderKeyValue } from '../../output/table.js';
+import { handleError } from '../../output/error.js';
+import { setFlagApiKey } from '../../auth/store.js';
 
 export function registerConnectorCommands(program: Command): void {
   const connectors = program

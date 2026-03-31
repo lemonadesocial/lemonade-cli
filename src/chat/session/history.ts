@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { Message } from '../providers/interface';
+import { Message } from '../providers/interface.js';
 
 const MAX_MESSAGES = 50;
 const KEEP_RECENT = 20;

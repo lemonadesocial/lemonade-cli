@@ -1,8 +1,8 @@
-import { ToolDef } from '../providers/interface';
-import { graphqlRequest } from '../../api/graphql';
-import { atlasRequest } from '../../api/atlas';
-import { registrySearch } from '../../api/registry';
-import { getDefaultSpace } from '../../auth/store';
+import { ToolDef } from '../providers/interface.js';
+import { graphqlRequest } from '../../api/graphql.js';
+import { atlasRequest } from '../../api/atlas.js';
+import { registrySearch } from '../../api/registry.js';
+import { getDefaultSpace } from '../../auth/store.js';
 
 export function buildToolRegistry(): Record<string, ToolDef> {
   const tools: Record<string, ToolDef> = {};

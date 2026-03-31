@@ -2,7 +2,7 @@ import { createServer } from 'http';
 import { createServer as createNetServer } from 'net';
 import { randomBytes, createHash } from 'crypto';
 import open from 'open';
-import { getHydraUrl, setTokens } from './store';
+import { getHydraUrl, setTokens } from './store.js';
 
 const CLIENT_ID = '0dd89e27-0c2d-4434-bafd-a9bcf369f1a2';
 const BASE_REDIRECT_PORT = 9876;

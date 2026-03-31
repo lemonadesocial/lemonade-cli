@@ -1,6 +1,6 @@
-import { GraphQLError } from '../api/graphql';
-import { AtlasError } from '../api/atlas';
-import { jsonError } from './json';
+import { GraphQLError } from '../api/graphql.js';
+import { AtlasError } from '../api/atlas.js';
+import { jsonError } from './json.js';
 
 export enum ExitCode {
   SUCCESS = 0,

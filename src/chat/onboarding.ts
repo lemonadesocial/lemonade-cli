@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import readline from 'readline';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { setConfigValue, getConfig } from '../auth/store';
+import { setConfigValue, getConfig } from '../auth/store.js';
 
 export function detectApiKey(provider: string): string | null {
   if (provider === 'openai') {

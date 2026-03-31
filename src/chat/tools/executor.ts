@@ -1,12 +1,12 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import readline from 'readline';
-import { ToolDef, ToolResultMessage } from '../providers/interface';
-import { SessionState, updateSession } from '../session/state';
-import { validateArgs } from './schema';
-import { printToolError } from '../stream/display';
-import { GraphQLError } from '../../api/graphql';
-import { AtlasError } from '../../api/atlas';
+import { ToolDef, ToolResultMessage } from '../providers/interface.js';
+import { SessionState, updateSession } from '../session/state.js';
+import { validateArgs } from './schema.js';
+import { printToolError } from '../stream/display.js';
+import { GraphQLError } from '../../api/graphql.js';
+import { AtlasError } from '../../api/atlas.js';
 
 interface ClassifiedError {
   fatal: boolean;

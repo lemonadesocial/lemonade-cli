@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 import open from 'open';
-import { graphqlRequest } from '../../api/graphql';
-import { jsonSuccess } from '../../output/json';
-import { renderTable, renderKeyValue } from '../../output/table';
-import { handleError } from '../../output/error';
-import { setFlagApiKey, getApiUrl } from '../../auth/store';
+import { graphqlRequest } from '../../api/graphql.js';
+import { jsonSuccess } from '../../output/json.js';
+import { renderTable, renderKeyValue } from '../../output/table.js';
+import { handleError } from '../../output/error.js';
+import { setFlagApiKey, getApiUrl } from '../../auth/store.js';
 
 export function registerSiteCommands(program: Command): void {
   const site = program

@@ -2,19 +2,19 @@
 
 import chalk from 'chalk';
 import readline from 'readline';
-import { graphqlRequest } from '../api/graphql';
-import { getAuthHeader, getDefaultSpace } from '../auth/store';
-import { AIProvider, Message, ToolDef } from './providers/interface';
-import { AnthropicProvider } from './providers/anthropic';
-import { OpenAIProvider } from './providers/openai';
-import { buildToolRegistry } from './tools/registry';
-import { createSessionState, SessionState } from './session/state';
-import { buildSystemMessages } from './session/cache';
-import { handleTurn } from './stream/handler';
-import { batchMode } from './batch';
-import { detectApiKey, detectProvider, onboardApiKey } from './onboarding';
+import { graphqlRequest } from '../api/graphql.js';
+import { getAuthHeader, getDefaultSpace } from '../auth/store.js';
+import { AIProvider, Message, ToolDef } from './providers/interface.js';
+import { AnthropicProvider } from './providers/anthropic.js';
+import { OpenAIProvider } from './providers/openai.js';
+import { buildToolRegistry } from './tools/registry.js';
+import { createSessionState, SessionState } from './session/state.js';
+import { buildSystemMessages } from './session/cache.js';
+import { handleTurn } from './stream/handler.js';
+import { batchMode } from './batch.js';
+import { detectApiKey, detectProvider, onboardApiKey } from './onboarding.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 const VALID_PROVIDERS = ['anthropic', 'openai'];
 
 function safeErrorMessage(err: unknown): string {

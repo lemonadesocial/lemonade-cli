@@ -1,4 +1,4 @@
-import { ToolParam, ParamType } from '../providers/interface';
+import { ToolParam, ParamType } from '../providers/interface.js';
 
 interface JsonSchema {
   type: string;

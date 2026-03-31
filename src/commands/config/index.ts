@@ -1,14 +1,14 @@
 import { Command } from 'commander';
-import { jsonSuccess } from '../../output/json';
-import { handleError } from '../../output/error';
+import { jsonSuccess } from '../../output/json.js';
+import { handleError } from '../../output/error.js';
 import {
   getConfig,
   getConfigPath,
   initConfig,
   setConfigValue,
   configExists,
-} from '../../auth/store';
-import { VALID_CONFIG_KEYS, ValidConfigKey } from '../../config/defaults';
+} from '../../auth/store.js';
+import { VALID_CONFIG_KEYS, ValidConfigKey } from '../../config/defaults.js';
 
 export function registerConfigCommands(program: Command): void {
   const config = program

@@ -31,7 +31,7 @@ function getOrCreateGroup(program: Command, name: string): Command {
   return program.command(name).description(`Manage ${name}`);
 }
 
-function loadModulesFromDir(dir: string): CommandModule[] {
+async function loadModulesFromDir(dir: string): Promise<CommandModule[]> {
   const modules: CommandModule[] = [];
 
   for (const file of safeReaddir(dir)) {
@@ -39,8 +39,7 @@ function loadModulesFromDir(dir: string): CommandModule[] {
     if (!file.endsWith('.ts') && !file.endsWith('.js')) continue;
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const mod = require(join(dir, file)) as CommandModule;
+      const mod = await import(join(dir, file)) as CommandModule;
       if (mod.group && mod.subcommand && typeof mod.register === 'function') {
         modules.push(mod);
       }
@@ -52,12 +51,10 @@ function loadModulesFromDir(dir: string): CommandModule[] {
   return modules;
 }
 
-export function loadGeneratedCommands(program: Command): void {
+export async function loadGeneratedCommands(program: Command): Promise<void> {
   const registered = new Set<string>();
 
   // Phase 1: Detect manual commands already registered
-  // Manual commands are registered before this function is called (in index.ts).
-  // We collect their command keys to avoid conflicts.
   for (const group of program.commands) {
     for (const cmd of group.commands) {
       const key = `${group.name()}:${cmd.name()}`;
@@ -67,8 +64,8 @@ export function loadGeneratedCommands(program: Command): void {
   }
 
   // Phase 2: Load MCP-generated commands (skip if manual override exists)
-  const generatedDir = join(__dirname, 'generated');
-  const generatedModules = loadModulesFromDir(generatedDir);
+  const generatedDir = join(import.meta.dirname, 'generated');
+  const generatedModules = await loadModulesFromDir(generatedDir);
 
   for (const mod of generatedModules) {
     const key = `${mod.group}:${mod.subcommand}`;
@@ -84,8 +81,8 @@ export function loadGeneratedCommands(program: Command): void {
   }
 
   // Phase 3: Load GraphQL-extended commands (skip if manual or MCP override exists)
-  const extendedDir = join(__dirname, 'extended');
-  const extendedModules = loadModulesFromDir(extendedDir);
+  const extendedDir = join(import.meta.dirname, 'extended');
+  const extendedModules = await loadModulesFromDir(extendedDir);
 
   for (const mod of extendedModules) {
     const key = `${mod.group}:${mod.subcommand}`;
@@ -103,23 +100,20 @@ export function loadGeneratedCommands(program: Command): void {
 
 export function checkSchemaVersion(): void {
   try {
-    const markerPath = join(__dirname, 'generated', '_schema-version.json');
+    const markerPath = join(import.meta.dirname, 'generated', '_schema-version.json');
     const marker = JSON.parse(readFileSync(markerPath, 'utf-8'));
     const builtVersion = marker.version as string;
 
     if (!builtVersion) return;
 
-    // Parse semver parts
     const [builtMajor] = builtVersion.split('.').map(Number);
     const cliVersion = process.env.npm_package_version || '0.0.0';
     const [cliMajor] = cliVersion.split('.').map(Number);
 
-    // Major version mismatch is a hard error
     if (builtMajor !== undefined && cliMajor !== undefined && builtMajor > 0 && cliMajor > 0) {
       // Version check is best-effort for now.
-      // Full runtime check against the live API happens via aiGetBackendVersion.
     }
   } catch {
-    // No schema version marker -- CLI works fine with committed files
+    // No schema version marker
   }
 }

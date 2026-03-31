@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
-import { TOOL_TO_RESOLVER } from './tool-resolver-map';
+import { TOOL_TO_RESOLVER } from './tool-resolver-map.js';
 
 interface IntrospectionType {
   kind: string;
@@ -278,10 +278,10 @@ function generateExtendedCommand(
 // Override by creating a manual command or MCP-generated command
 
 import { Command } from 'commander';
-import { graphqlRequest } from '../../api/graphql';
-import { jsonSuccess } from '../../output/json';
-import { handleError } from '../../output/error';
-import { setFlagApiKey } from '../../auth/store';
+import { graphqlRequest } from '../../api/graphql.js';
+import { jsonSuccess } from '../../output/json.js';
+import { handleError } from '../../output/error.js';
+import { setFlagApiKey } from '../../auth/store.js';
 
 export const group = '${cmd.group}';
 export const subcommand = '${cmd.subcommand}';
@@ -366,7 +366,7 @@ async function main() {
     if (type.name) types.set(type.name, type);
   }
 
-  const outDir = join(__dirname, '..', 'commands', 'extended');
+  const outDir = join(import.meta.dirname, '..', 'commands', 'extended');
   mkdirSync(outDir, { recursive: true });
 
   let count = 0;

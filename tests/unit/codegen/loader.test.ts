@@ -4,7 +4,7 @@ import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 
 // The loader scans src/commands/generated/ and src/commands/extended/
-// relative to its own __dirname (src/commands/).
+// relative to its own import.meta.dirname (src/commands/).
 // We create temporary files there for testing.
 
 const COMMANDS_DIR = join(__dirname, '..', '..', '..', 'src', 'commands');
@@ -13,10 +13,10 @@ const EXTENDED_DIR = join(COMMANDS_DIR, 'extended');
 
 function writeCommandModule(dir: string, filename: string, group: string, subcommand: string): void {
   const content = `
-    exports.group = '${group}';
-    exports.subcommand = '${subcommand}';
-    exports.description = 'test ${group} ${subcommand}';
-    exports.register = function(parent) {
+    export const group = '${group}';
+    export const subcommand = '${subcommand}';
+    export const description = 'test ${group} ${subcommand}';
+    export function register(parent) {
       parent.command('${subcommand}').description('test ${group} ${subcommand}');
     };
   `;
@@ -52,7 +52,7 @@ describe('loader priority', () => {
     eventGroup.command('search').description('manual search');
 
     const { loadGeneratedCommands } = await import('../../../src/commands/loader');
-    loadGeneratedCommands(program);
+    await loadGeneratedCommands(program);
 
     const event = program.commands.find((c) => c.name() === 'event');
     expect(event).toBeDefined();
@@ -67,7 +67,7 @@ describe('loader priority', () => {
     program.name('lemonade');
 
     const { loadGeneratedCommands } = await import('../../../src/commands/loader');
-    loadGeneratedCommands(program);
+    await loadGeneratedCommands(program);
 
     const group = program.commands.find((c) => c.name() === 'test-group');
     expect(group).toBeDefined();
@@ -82,7 +82,7 @@ describe('loader priority', () => {
     program.name('lemonade');
 
     const { loadGeneratedCommands } = await import('../../../src/commands/loader');
-    loadGeneratedCommands(program);
+    await loadGeneratedCommands(program);
 
     const group = program.commands.find((c) => c.name() === 'test-group');
     expect(group).toBeDefined();
