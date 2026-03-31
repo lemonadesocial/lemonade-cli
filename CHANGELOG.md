@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.3...v1.0.4) (2026-03-31)
+
+
+### Bug Fixes
+
+* trigger release ([de430d5](https://github.com/lemonadesocial/lemonade-cli/commit/de430d5cc8bbc3e753106e1341686d0e1cb2968e))
+
 ## [1.0.3](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.2...v1.0.3) (2026-03-31)
 
 
