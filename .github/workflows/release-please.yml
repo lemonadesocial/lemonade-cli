@@ -1,0 +1,47 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - id: generate-token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.PRIVATE_KEY }}
+
+      - uses: google-github-actions/release-please-action@v3
+        id: release
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          release-type: node
+          package-name: "@lemonade-social/cli"
+
+      - uses: actions/checkout@v4
+        if: ${{ steps.release.outputs.release_created }}
+
+      - uses: actions/setup-node@v4
+        if: ${{ steps.release.outputs.release_created }}
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile
+        if: ${{ steps.release.outputs.release_created }}
+
+      - run: yarn build
+        if: ${{ steps.release.outputs.release_created }}
+
+      - run: npm publish --provenance --access public
+        if: ${{ steps.release.outputs.release_created }}
