@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import readline from 'readline';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { setConfigValue, getConfig } from '../auth/store';
+import { setConfigValue, getConfig } from '../auth/store.js';
 
 export function detectApiKey(provider: string): string | null {
   if (provider === 'openai') {
@@ -56,20 +56,65 @@ const PROVIDER_INFO: Record<string, { name: string; consoleUrl: string; envVar: 
   },
 };
 
-export async function onboardApiKey(rl: readline.Interface, provider: string = 'anthropic'): Promise<string | null> {
+const LOGO = chalk.hex('#FDE047')(`
+ _                                      _
+| |    ___ _ __ ___   ___  _ __   __ _ | |  ___
+| |   / _ | '_ \` _ \\ / _ \\| '_ \\ / _\` || | / _ \\
+| |__|  __| | | | | | (_) | | | | (_| || ||  __/
+|_____\\___|_| |_| |_|\\___/|_| |_|\\__,_||_| \\___|
+`);
+
+function ask(rl: readline.Interface, question: string): Promise<string> {
+  return new Promise((resolve) => {
+    rl.question(question, resolve);
+  });
+}
+
+function askSecret(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    process.stdout.write(question);
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw;
+    if (stdin.isTTY) stdin.setRawMode(true);
+
+    let input = '';
+    const onData = (data: Buffer) => {
+      const ch = data.toString();
+      if (ch === '\r' || ch === '\n') {
+        stdin.removeListener('data', onData);
+        if (stdin.isTTY && wasRaw !== undefined) stdin.setRawMode(wasRaw);
+        process.stdout.write('\n');
+        resolve(input);
+      } else if (ch === '\u0003') {
+        // Ctrl+C
+        stdin.removeListener('data', onData);
+        if (stdin.isTTY && wasRaw !== undefined) stdin.setRawMode(wasRaw);
+        process.stdout.write('\n');
+        process.exit(0);
+      } else if (ch === '\u007f' || ch === '\b') {
+        if (input.length > 0) {
+          input = input.slice(0, -1);
+          process.stdout.write('\b \b');
+        }
+      } else if (ch.charCodeAt(0) >= 32) {
+        input += ch;
+        process.stdout.write('*');
+      }
+    };
+    stdin.on('data', onData);
+    stdin.resume();
+  });
+}
+
+async function setupProviderKey(
+  rl: readline.Interface,
+  provider: string,
+): Promise<string | null> {
   const info = PROVIDER_INFO[provider] || PROVIDER_INFO.anthropic;
 
-  console.log(chalk.bold('\n  Welcome to make-lemonade!\n'));
-  console.log(`  To use AI mode, you need an API key from ${info.name}.`);
-  if (provider === 'anthropic') {
-    console.log('  Anthropic is recommended (best tool-use support).');
-  }
-  console.log(`\n  1. Get a key at: ${info.consoleUrl}`);
-  console.log(`  2. Paste it below, or set ${info.envVar} in your environment.\n`);
+  console.log(`\n  Get a key at: ${info.consoleUrl}`);
 
-  const openBrowser = await new Promise<string>((resolve) => {
-    rl.question(`  Open the ${info.name} console in your browser? (yes/no) `, resolve);
-  });
+  const openBrowser = await ask(rl, `  Open ${info.name} console in your browser? (yes/no) `);
 
   if (['yes', 'y'].includes(openBrowser.trim().toLowerCase())) {
     try {
@@ -81,11 +126,12 @@ export async function onboardApiKey(rl: readline.Interface, provider: string = '
     }
   }
 
-  const key = await new Promise<string>((resolve) => {
-    rl.question(`  ${info.name} API key: `, resolve);
-  });
+  const key = await askSecret(`  ${info.name} API key: `);
 
-  if (!key.trim()) return null;
+  if (!key.trim()) {
+    console.log(chalk.dim('  Skipped.\n'));
+    return null;
+  }
 
   try {
     if (provider === 'openai') {
@@ -105,15 +151,67 @@ export async function onboardApiKey(rl: readline.Interface, provider: string = '
     }
 
     setConfigValue(info.configKey, key.trim());
-    console.log(chalk.green('  Key saved and verified.\n'));
+    console.log(chalk.hex('#10B981')('  Key saved and verified.\n'));
     return key.trim();
   } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError || (err instanceof OpenAI.AuthenticationError)) {
-      console.log(chalk.red(`  Invalid key. Try again or set ${info.envVar} manually.\n`));
-    } else {
-      const message = err instanceof Error ? err.message : String(err);
-      console.log(chalk.red(`  ${message}\n`));
+    const message = err instanceof Error ? err.message : String(err);
+    console.log(chalk.hex('#FF637E')(`  ${message}\n`));
+
+    const retry = await ask(rl, '  Try again? (yes/no) ');
+    if (['yes', 'y'].includes(retry.trim().toLowerCase())) {
+      return setupProviderKey(rl, provider);
     }
     return null;
   }
+}
+
+export async function onboardApiKey(
+  rl: readline.Interface,
+  _requestedProvider: string = 'anthropic',
+): Promise<string | null> {
+  console.log(LOGO);
+  console.log(chalk.bold('  Welcome to make-lemonade!\n'));
+  console.log(chalk.dim('  Your API keys are stored locally on your machine (~/.lemonade/config.json)'));
+  console.log(chalk.dim('  and sent directly to the AI provider. Lemonade never sees or stores your keys.\n'));
+
+  console.log('  Choose your AI provider:\n');
+  console.log('    1. Anthropic (Claude) -- recommended, best tool-use support');
+  console.log('    2. OpenAI (GPT-4o)');
+  console.log('    3. I have both -- set up both now\n');
+
+  const choice = await ask(rl, '  Enter 1, 2, or 3: ');
+  const selected = choice.trim();
+
+  let apiKey: string | null = null;
+
+  if (selected === '1' || selected === '') {
+    apiKey = await setupProviderKey(rl, 'anthropic');
+    if (apiKey) {
+      setConfigValue('ai_provider', 'anthropic');
+    }
+  } else if (selected === '2') {
+    apiKey = await setupProviderKey(rl, 'openai');
+    if (apiKey) {
+      setConfigValue('ai_provider', 'openai');
+    }
+  } else if (selected === '3') {
+    const anthropicKey = await setupProviderKey(rl, 'anthropic');
+    const openaiKey = await setupProviderKey(rl, 'openai');
+
+    // Default to Anthropic when both are set up
+    setConfigValue('ai_provider', 'anthropic');
+    apiKey = anthropicKey || openaiKey;
+  } else {
+    console.log(chalk.dim('  Invalid choice. Defaulting to Anthropic.\n'));
+    apiKey = await setupProviderKey(rl, 'anthropic');
+    if (apiKey) {
+      setConfigValue('ai_provider', 'anthropic');
+    }
+  }
+
+  if (apiKey) {
+    console.log('  You can switch providers anytime with /provider or Tab.\n');
+  }
+
+  return apiKey;
 }

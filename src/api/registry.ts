@@ -1,4 +1,4 @@
-import { getRegistryUrl } from '../auth/store';
+import { getRegistryUrl } from '../auth/store.js';
 
 const ATLAS_AGENT_ID = 'cli:lemonade-cli';
 const ATLAS_VERSION = '1.0';

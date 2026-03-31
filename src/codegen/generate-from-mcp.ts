@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { TOOL_TO_RESOLVER, TOOL_TO_COMMAND } from './tool-resolver-map';
+import { TOOL_TO_RESOLVER, TOOL_TO_COMMAND } from './tool-resolver-map.js';
 
 interface JsonSchemaProperty {
   type?: string;
@@ -168,10 +168,10 @@ function generateCommandFile(tool: McpToolSchema): string {
 // Override by creating a manual command in src/commands/${group}/
 
 import { Command } from 'commander';
-import { graphqlRequest } from '../../api/graphql';
-import { jsonSuccess } from '../../output/json';
-import { handleError } from '../../output/error';
-import { setFlagApiKey } from '../../auth/store';
+import { graphqlRequest } from '../../api/graphql.js';
+import { jsonSuccess } from '../../output/json.js';
+import { handleError } from '../../output/error.js';
+import { setFlagApiKey } from '../../auth/store.js';
 
 export const group = '${group}';
 export const subcommand = '${subcommand}';
@@ -226,7 +226,7 @@ function main() {
 
   const schema: McpSchema = JSON.parse(schemaData);
 
-  const outDir = join(__dirname, '..', 'commands', 'generated');
+  const outDir = join(import.meta.dirname, '..', 'commands', 'generated');
   mkdirSync(outDir, { recursive: true });
 
   let count = 0;

@@ -1,10 +1,10 @@
 import { Command } from 'commander';
-import { graphqlRequest } from '../../api/graphql';
-import { registrySearch } from '../../api/registry';
-import { jsonSuccess } from '../../output/json';
-import { renderTable, renderKeyValue } from '../../output/table';
-import { handleError } from '../../output/error';
-import { setFlagApiKey, getDefaultSpace } from '../../auth/store';
+import { graphqlRequest } from '../../api/graphql.js';
+import { registrySearch } from '../../api/registry.js';
+import { jsonSuccess } from '../../output/json.js';
+import { renderTable, renderKeyValue } from '../../output/table.js';
+import { handleError } from '../../output/error.js';
+import { setFlagApiKey, getDefaultSpace } from '../../auth/store.js';
 
 export function registerEventCommands(program: Command): void {
   const event = program

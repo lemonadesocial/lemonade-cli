@@ -1,10 +1,10 @@
 import { Command } from 'commander';
-import { graphqlRequest } from '../../api/graphql';
-import { jsonSuccess } from '../../output/json';
-import { renderKeyValue } from '../../output/table';
-import { handleError } from '../../output/error';
-import { setApiKey, setFlagApiKey } from '../../auth/store';
-import { loginWithBrowser } from '../../auth/oauth';
+import { graphqlRequest } from '../../api/graphql.js';
+import { jsonSuccess } from '../../output/json.js';
+import { renderKeyValue } from '../../output/table.js';
+import { handleError } from '../../output/error.js';
+import { setApiKey, setFlagApiKey } from '../../auth/store.js';
+import { loginWithBrowser } from '../../auth/oauth.js';
 
 interface MeResponse {
   aiGetMe: {

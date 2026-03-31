@@ -2,53 +2,28 @@
 
 import chalk from 'chalk';
 import readline from 'readline';
-import { graphqlRequest } from '../api/graphql';
-import { getAuthHeader, getDefaultSpace } from '../auth/store';
-import { AIProvider, Message, ToolDef } from './providers/interface';
-import { AnthropicProvider } from './providers/anthropic';
-import { OpenAIProvider } from './providers/openai';
-import { buildToolRegistry } from './tools/registry';
-import { createSessionState, SessionState } from './session/state';
-import { buildSystemMessages } from './session/cache';
-import { handleTurn } from './stream/handler';
-import { batchMode } from './batch';
-import { detectApiKey, detectProvider, onboardApiKey } from './onboarding';
+import { graphqlRequest } from '../api/graphql.js';
+import { getAuthHeader, getDefaultSpace } from '../auth/store.js';
+import { AIProvider, Message, ToolDef } from './providers/interface.js';
+import { AnthropicProvider } from './providers/anthropic.js';
+import { OpenAIProvider } from './providers/openai.js';
+import { buildToolRegistry } from './tools/registry.js';
+import { createSessionState, SessionState } from './session/state.js';
+import { buildSystemMessages } from './session/cache.js';
+import { handleTurn } from './stream/handler.js';
+import { batchMode } from './batch.js';
+import { detectApiKey, detectProvider, onboardApiKey } from './onboarding.js';
+import { ChatEngine } from './engine/ChatEngine.js';
+import { parseArgs } from './parseArgs.js';
+import { VERSION } from './version.js';
 
-const VERSION = '0.1.0';
+export { parseArgs } from './parseArgs.js';
+export { VERSION } from './version.js';
 const VALID_PROVIDERS = ['anthropic', 'openai'];
 
 function safeErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return 'Unknown error';
-}
-
-function parseArgs(argv: string[]): {
-  provider?: string;
-  model?: string;
-  json: boolean;
-  help: boolean;
-} {
-  const result = { provider: undefined as string | undefined, model: undefined as string | undefined, json: false, help: false };
-
-  for (let i = 2; i < argv.length; i++) {
-    switch (argv[i]) {
-      case '--provider':
-        result.provider = argv[++i];
-        break;
-      case '--model':
-        result.model = argv[++i];
-        break;
-      case '--json':
-        result.json = true;
-        break;
-      case '--help':
-      case '-h':
-        result.help = true;
-        break;
-    }
-  }
-
-  return result;
 }
 
 function printHelp(): void {
@@ -63,6 +38,7 @@ function printHelp(): void {
   ${chalk.bold('Options:')}
     --provider <name>   AI provider: anthropic (default), openai
     --model <model>     Model override (e.g. claude-sonnet-4-6, gpt-4o)
+    --simple            Use legacy readline mode (no Ink UI)
     --json              Output as JSON (batch mode)
     -h, --help          Show this help
 
@@ -74,6 +50,7 @@ function printHelp(): void {
 
   ${chalk.bold('Examples:')}
     make-lemonade
+    make-lemonade --simple
     echo "list my events" | make-lemonade
     echo "create event" | make-lemonade --json
 `);
@@ -111,7 +88,7 @@ function printWelcome(firstName: string): void {
 
   Type ${chalk.dim('"help"')} for tips, ${chalk.dim('"exit"')} to quit.
 `);
-  console.log(chalk.dim('  Note: Tool results are sent to your AI provider.\n'));
+  console.log(chalk.dim('  Note: Tool results (including event and guest data) are sent to your AI provider.\n'));
 }
 
 async function interactiveMode(
@@ -126,7 +103,59 @@ async function interactiveMode(
     prompt: chalk.green('> '),
   });
 
+  const engine = new ChatEngine();
   const messages: Message[] = [];
+
+  // Simple-mode adapter: bridge engine events to display.ts + readline
+  const { writeStreamToken, writeNewline, printWarning } = await import('./stream/display.js');
+  const ora = (await import('ora')).default;
+  let textStarted = false;
+  let toolSpinner: ReturnType<typeof ora> | null = null;
+
+  engine.on('text_delta', (data) => {
+    if (!textStarted) {
+      process.stdout.write('\n  ');
+      textStarted = true;
+    }
+    writeStreamToken(data.text, true);
+  });
+
+  engine.on('tool_start', (data) => {
+    toolSpinner = ora(`Running: ${data.name}...`).start();
+  });
+
+  engine.on('tool_done', (data) => {
+    if (toolSpinner) {
+      if (data.error) {
+        toolSpinner.fail(`Failed: ${data.name}`);
+      } else {
+        toolSpinner.succeed(`Done: ${data.name}`);
+      }
+      toolSpinner = null;
+    }
+  });
+
+  engine.on('warning', (data) => {
+    printWarning(data.message);
+  });
+
+  engine.on('error', (data) => {
+    if (textStarted) writeNewline();
+    printWarning(data.message);
+  });
+
+  engine.on('confirm_request', (data) => {
+    rl.question(chalk.yellow(`\n  Confirm: ${data.description}? (yes/no) `), (answer) => {
+      engine.confirmAction(data.id, ['yes', 'y'].includes(answer.trim().toLowerCase()));
+    });
+  });
+
+  engine.on('turn_done', () => {
+    if (textStarted) {
+      writeNewline();
+      textStarted = false;
+    }
+  });
 
   rl.prompt();
 
@@ -157,6 +186,7 @@ async function interactiveMode(
       continue;
     }
 
+    textStarted = false;
     messages.push({ role: 'user', content: input });
 
     const systemPrompt = buildSystemMessages(session, provider.name);
@@ -171,6 +201,7 @@ async function interactiveMode(
         registry,
         rl,
         true,
+        engine,
       );
     } catch (err) {
       const msg = safeErrorMessage(err);
@@ -247,10 +278,14 @@ async function main(): Promise<void> {
   const provider = createProvider(providerName, apiKey, args.model);
   const formattedTools = provider.formatTools(toolDefs);
 
-  if (isTTY) {
+  if (isTTY && !args.simple) {
+    // Ink UI mode (default for TTY)
+    const { renderApp } = await import('./ui/App.js');
+    await renderApp({ provider, session, registry, formattedTools, user });
+  } else if (isTTY) {
+    // --simple: legacy readline mode
     printWelcome(user.first_name || user.name);
 
-    // Handle Ctrl+C
     process.on('SIGINT', () => {
       console.log('\n  See you!\n');
       process.exit(0);

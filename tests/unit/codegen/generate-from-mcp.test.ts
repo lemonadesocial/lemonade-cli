@@ -16,7 +16,7 @@ describe('generate-from-mcp', () => {
 
     // Run the codegen
     execSync(
-      `npx ts-node src/codegen/generate-from-mcp.ts "${FIXTURE}"`,
+      `npx tsx src/codegen/generate-from-mcp.ts "${FIXTURE}"`,
       { cwd: PROJECT_ROOT, stdio: 'pipe' },
     );
   });

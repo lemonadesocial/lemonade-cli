@@ -1,4 +1,4 @@
-import { getApiUrl, getAuthHeader } from '../auth/store';
+import { getApiUrl, getAuthHeader } from '../auth/store.js';
 
 export interface GraphQLResponse<T> {
   data?: T;

@@ -1,11 +1,11 @@
 import { Command } from 'commander';
 import open from 'open';
-import { graphqlRequest } from '../../api/graphql';
-import { jsonSuccess } from '../../output/json';
-import { renderTable, renderKeyValue } from '../../output/table';
-import { handleError } from '../../output/error';
-import { setFlagApiKey } from '../../auth/store';
-import { TIER_LIMITS } from '../../config/defaults';
+import { graphqlRequest } from '../../api/graphql.js';
+import { jsonSuccess } from '../../output/json.js';
+import { renderTable, renderKeyValue } from '../../output/table.js';
+import { handleError } from '../../output/error.js';
+import { setFlagApiKey } from '../../auth/store.js';
+import { TIER_LIMITS } from '../../config/defaults.js';
 
 export function registerSpaceCommands(program: Command): void {
   const space = program

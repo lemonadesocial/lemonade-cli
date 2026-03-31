@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { registerAuthCommands } from './commands/auth';
-import { registerSpaceCommands } from './commands/space';
-import { registerEventCommands } from './commands/event';
-import { registerTicketCommands } from './commands/tickets';
-import { registerRewardCommands } from './commands/rewards';
-import { registerSiteCommands } from './commands/site';
-import { registerConnectorCommands } from './commands/connectors';
-import { registerConfigCommands } from './commands/config';
-import { loadGeneratedCommands, checkSchemaVersion } from './commands/loader';
-import { version } from '../package.json';
+import { registerAuthCommands } from './commands/auth/index.js';
+import { registerSpaceCommands } from './commands/space/index.js';
+import { registerEventCommands } from './commands/event/index.js';
+import { registerTicketCommands } from './commands/tickets/index.js';
+import { registerRewardCommands } from './commands/rewards/index.js';
+import { registerSiteCommands } from './commands/site/index.js';
+import { registerConnectorCommands } from './commands/connectors/index.js';
+import { registerConfigCommands } from './commands/config/index.js';
+import { loadGeneratedCommands, checkSchemaVersion } from './commands/loader.js';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { version } = require('../package.json');
 
 const program = new Command();
 
@@ -31,6 +33,6 @@ registerConfigCommands(program);
 // Load auto-generated commands (MCP + GraphQL) after manual commands.
 // Manual commands take priority: generated commands with the same group:subcommand are skipped.
 checkSchemaVersion();
-loadGeneratedCommands(program);
+await loadGeneratedCommands(program);
 
 program.parse();

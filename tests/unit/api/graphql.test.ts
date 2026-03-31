@@ -25,6 +25,8 @@ describe('GraphQL Client', () => {
       vi.restoreAllMocks();
     });
 
+    // TODO: This test has a mock isolation bug on main -- vi.doMock does not
+    // fully replace the module before re-import due to ESM caching.
     it('throws UNAUTHENTICATED when no auth available', async () => {
       // Clear all auth sources
       delete process.env.LEMONADE_API_KEY;

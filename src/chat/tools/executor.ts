@@ -1,12 +1,13 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import readline from 'readline';
-import { ToolDef, ToolResultMessage } from '../providers/interface';
-import { SessionState, updateSession } from '../session/state';
-import { validateArgs } from './schema';
-import { printToolError } from '../stream/display';
-import { GraphQLError } from '../../api/graphql';
-import { AtlasError } from '../../api/atlas';
+import { ToolDef, ToolResultMessage } from '../providers/interface.js';
+import { SessionState, updateSession } from '../session/state.js';
+import { validateArgs } from './schema.js';
+import { printToolError } from '../stream/display.js';
+import { GraphQLError } from '../../api/graphql.js';
+import { AtlasError } from '../../api/atlas.js';
+import { ChatEngine } from '../engine/ChatEngine.js';
 
 interface ClassifiedError {
   fatal: boolean;
@@ -65,6 +66,7 @@ export async function executeToolCalls(
   session: SessionState,
   rl: readline.Interface | null,
   isTTY: boolean,
+  engine?: ChatEngine,
 ): Promise<{ results: ToolResultMessage[]; fatal: boolean }> {
   const results: ToolResultMessage[] = [];
 
@@ -90,17 +92,29 @@ export async function executeToolCalls(
       continue;
     }
 
-    if (tool.destructive && rl && isTTY) {
+    if (tool.destructive && isTTY) {
       const desc = formatDestructiveDescription(tool, call.arguments);
-      const answer = await new Promise<string>((resolve) => {
-        rl.question(chalk.yellow(`\n  Confirm: ${desc}? (yes/no) `), resolve);
-      });
-      if (!['yes', 'y'].includes(answer.trim().toLowerCase())) {
-        results.push({
-          tool_use_id: call.id,
-          content: JSON.stringify({ cancelled: true, reason: 'User declined' }),
+
+      if (engine) {
+        const confirmed = await engine.requestConfirmation(call.id, desc);
+        if (!confirmed) {
+          results.push({
+            tool_use_id: call.id,
+            content: JSON.stringify({ cancelled: true, reason: 'User declined' }),
+          });
+          continue;
+        }
+      } else if (rl) {
+        const answer = await new Promise<string>((resolve) => {
+          rl.question(chalk.yellow(`\n  Confirm: ${desc}? (yes/no) `), resolve);
         });
-        continue;
+        if (!['yes', 'y'].includes(answer.trim().toLowerCase())) {
+          results.push({
+            tool_use_id: call.id,
+            content: JSON.stringify({ cancelled: true, reason: 'User declined' }),
+          });
+          continue;
+        }
       }
     } else if (tool.destructive && !isTTY) {
       results.push({
@@ -110,11 +124,18 @@ export async function executeToolCalls(
       continue;
     }
 
-    const spinner = isTTY ? ora(`Running: ${tool.displayName}...`).start() : null;
+    if (engine) {
+      engine.emit('tool_start', { id: call.id, name: tool.displayName });
+    }
+
+    const spinner = (!engine && isTTY) ? ora(`Running: ${tool.displayName}...`).start() : null;
 
     try {
       const result = await tool.execute(call.arguments);
       if (spinner) spinner.succeed(`Done: ${tool.displayName}`);
+      if (engine) {
+        engine.emit('tool_done', { id: call.id, name: tool.displayName, result });
+      }
 
       updateSession(session, call.name, result);
 
@@ -126,6 +147,11 @@ export async function executeToolCalls(
       if (spinner) spinner.fail(`Failed: ${tool.displayName}`);
 
       const classified = classifyError(err);
+
+      if (engine) {
+        engine.emit('tool_done', { id: call.id, name: tool.displayName, error: classified.message });
+      }
+
       results.push({
         tool_use_id: call.id,
         content: JSON.stringify({ error: classified.message }),
@@ -133,7 +159,11 @@ export async function executeToolCalls(
       });
 
       if (classified.fatal) {
-        printToolError(classified.message);
+        if (engine) {
+          engine.emit('error', { message: classified.message, fatal: true });
+        } else {
+          printToolError(classified.message);
+        }
         return { results, fatal: true };
       }
     }

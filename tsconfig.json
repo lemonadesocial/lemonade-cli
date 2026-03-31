@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "jsx": "react-jsx",
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "./src",
@@ -12,9 +14,8 @@
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true,
-    "moduleResolution": "node"
+    "sourceMap": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "tests"]
 }

@@ -14,7 +14,7 @@ describe('generate-from-graphql', () => {
     }
 
     execSync(
-      `npx ts-node src/codegen/generate-from-graphql.ts "${FIXTURE}"`,
+      `npx tsx src/codegen/generate-from-graphql.ts "${FIXTURE}"`,
       { cwd: PROJECT_ROOT, stdio: 'pipe' },
     );
   });

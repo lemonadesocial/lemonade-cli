@@ -1,9 +1,9 @@
 import readline from 'readline';
-import { AIProvider, Message, ToolDef, SystemMessage } from '../providers/interface';
-import { SessionState } from '../session/state';
-import { truncateHistory } from '../session/history';
-import { executeToolCalls } from '../tools/executor';
-import { writeStreamToken, writeNewline, printWarning } from './display';
+import { AIProvider, Message, ToolDef, SystemMessage } from '../providers/interface.js';
+import { SessionState } from '../session/state.js';
+import { truncateHistory } from '../session/history.js';
+import { executeToolCalls } from '../tools/executor.js';
+import { ChatEngine } from '../engine/ChatEngine.js';
 
 const TOKEN_WARN_THRESHOLD_ANTHROPIC = 150_000;
 const TOKEN_WARN_THRESHOLD_OPENAI = 90_000;
@@ -14,6 +14,10 @@ function safeErrorMessage(err: unknown): string {
   return 'Unknown error';
 }
 
+// Dual-mode function: when `engine` is provided, all output is emitted as typed
+// events (consumed by the Ink UI via useChatEngine). When `engine` is omitted,
+// output falls back to direct stdout writes via display.ts (batch mode and tests).
+// Both paths must stay in sync until batch mode is migrated to the engine pattern.
 export async function handleTurn(
   provider: AIProvider,
   messages: Message[],
@@ -23,6 +27,7 @@ export async function handleTurn(
   registry: Record<string, ToolDef>,
   rl: readline.Interface | null,
   isTTY: boolean,
+  engine?: ChatEngine,
 ): Promise<void> {
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
@@ -44,9 +49,14 @@ export async function handleTurn(
         switch (event.type) {
           case 'text_delta':
             if (event.text) {
-              if (!textStarted && isTTY) process.stdout.write('\n  ');
+              if (!textStarted && isTTY && !engine) process.stdout.write('\n  ');
               textStarted = true;
-              writeStreamToken(event.text, isTTY);
+              if (engine) {
+                engine.emit('text_delta', { text: event.text });
+              } else {
+                const { writeStreamToken } = await import('./display.js');
+                writeStreamToken(event.text, isTTY);
+              }
               accumulatedText += event.text;
             }
             break;
@@ -64,12 +74,23 @@ export async function handleTurn(
         }
       }
     } catch (err) {
-      if (textStarted) writeNewline();
-      printWarning(`Streaming error: ${safeErrorMessage(err)}`);
+      if (engine) {
+        engine.emit('error', { message: `Streaming error: ${safeErrorMessage(err)}`, fatal: false });
+      } else {
+        if (textStarted) {
+          const { writeNewline } = await import('./display.js');
+          writeNewline();
+        }
+        const { printWarning } = await import('./display.js');
+        printWarning(`Streaming error: ${safeErrorMessage(err)}`);
+      }
       return;
     }
 
-    if (textStarted) writeNewline();
+    if (!engine && textStarted) {
+      const { writeNewline } = await import('./display.js');
+      writeNewline();
+    }
 
     // Build assistant content blocks for history
     const contentBlocks: Array<Record<string, unknown>> = [];
@@ -93,9 +114,17 @@ export async function handleTurn(
         ? TOKEN_WARN_THRESHOLD_ANTHROPIC
         : TOKEN_WARN_THRESHOLD_OPENAI;
       if (lastUsage.input_tokens > threshold) {
-        printWarning(
-          `Session getting long (${lastUsage.input_tokens} tokens). Consider starting fresh soon.`,
-        );
+        const msg = `Session getting long (${lastUsage.input_tokens} tokens). Consider starting fresh soon.`;
+        if (engine) {
+          engine.emit('warning', { message: msg });
+        } else {
+          const { printWarning } = await import('./display.js');
+          printWarning(msg);
+        }
+      }
+
+      if (engine) {
+        engine.emit('turn_done', { usage: lastUsage });
       }
     }
 
@@ -109,6 +138,7 @@ export async function handleTurn(
       session,
       rl,
       isTTY,
+      engine,
     );
 
     if (fatal) return;

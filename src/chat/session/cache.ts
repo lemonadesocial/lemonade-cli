@@ -1,5 +1,5 @@
-import { SystemMessage } from '../providers/interface';
-import { SessionState, buildSessionBlock } from './state';
+import { SystemMessage } from '../providers/interface.js';
+import { SessionState, buildSessionBlock } from './state.js';
 
 const STATIC_SYSTEM_PROMPT = `You are Lemonade AI, a terminal assistant for managing events and communities on the Lemonade platform.
 

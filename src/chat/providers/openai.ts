@@ -1,11 +1,11 @@
 import OpenAI from 'openai';
-import { AIProvider, StreamEvent, ToolDef, SystemMessage, Message } from './interface';
-import { buildJsonSchema } from '../tools/schema';
+import { AIProvider, StreamEvent, ToolDef, SystemMessage, Message } from './interface.js';
+import { buildJsonSchema } from '../tools/schema.js';
 
 export class OpenAIProvider implements AIProvider {
   name = 'openai';
   private client: OpenAI;
-  private model: string;
+  model: string;
 
   constructor(apiKey: string, model?: string) {
     this.client = new OpenAI({ apiKey });

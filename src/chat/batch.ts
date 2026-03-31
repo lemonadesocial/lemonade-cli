@@ -1,8 +1,8 @@
 import readline from 'readline';
-import { Message, ToolDef, SystemMessage } from './providers/interface';
-import { AIProvider } from './providers/interface';
-import { SessionState } from './session/state';
-import { handleTurn } from './stream/handler';
+import { Message, ToolDef, SystemMessage } from './providers/interface.js';
+import { AIProvider } from './providers/interface.js';
+import { SessionState } from './session/state.js';
+import { handleTurn } from './stream/handler.js';
 
 function safeErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
