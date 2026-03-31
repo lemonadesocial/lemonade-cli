@@ -10,8 +10,8 @@ describe('WelcomeBanner', () => {
       <WelcomeBanner providerName="anthropic" modelName="claude-sonnet-4-6" firstName="Alice" agentName="Zesty" />,
     );
     const output = lastFrame()!;
-    expect(output).toContain('___');
-    expect(output).toContain('___|');
+    expect(output).toContain('⣿');
+    expect(output).toContain('⣀');
   });
 
   it('renders version and provider info', () => {
