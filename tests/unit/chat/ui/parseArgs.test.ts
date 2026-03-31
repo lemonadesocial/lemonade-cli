@@ -1,16 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { parseArgs } from '../../../../src/chat/parseArgs.js';
 
-// US-T.11, US-T.12: --simple flag in parseArgs
 describe('parseArgs', () => {
-  it('parses --simple flag', () => {
+  it('accepts --simple flag without error (ignored, readline is default)', () => {
     const args = parseArgs(['node', 'make-lemonade', '--simple']);
-    expect(args.simple).toBe(true);
-  });
-
-  it('defaults simple to false', () => {
-    const args = parseArgs(['node', 'make-lemonade']);
-    expect(args.simple).toBe(false);
+    // --simple is accepted but no longer part of the return type
+    expect(args.json).toBe(false);
   });
 
   it('parses --provider flag', () => {
@@ -40,7 +35,6 @@ describe('parseArgs', () => {
 
   it('parses multiple flags together', () => {
     const args = parseArgs(['node', 'make-lemonade', '--simple', '--provider', 'anthropic', '--model', 'claude-sonnet-4-6']);
-    expect(args.simple).toBe(true);
     expect(args.provider).toBe('anthropic');
     expect(args.model).toBe('claude-sonnet-4-6');
   });
