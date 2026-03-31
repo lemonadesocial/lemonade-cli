@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.8...v1.1.0) (2026-03-31)
+
+
+### Features
+
+* add rich rendering - markdown, streaming, thinking indicator (Phase B) ([74818dd](https://github.com/lemonadesocial/lemonade-cli/commit/74818dd6240e57bb74b81392aa0b640bd8413e81))
+* add rich terminal UI for make-lemonade (Phase A - ESM, ChatEngine, Ink foundation) ([27ad63b](https://github.com/lemonadesocial/lemonade-cli/commit/27ad63b0e13f66137cae4753fb137b5a988157e7))
+* add tool execution, slash commands, error display, confirm prompt (Phase C) ([3f83884](https://github.com/lemonadesocial/lemonade-cli/commit/3f8388490851657041c00a45f46ddb4d14c60631))
+
 ## [1.0.8](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.7...v1.0.8) (2026-03-31)
 
 
