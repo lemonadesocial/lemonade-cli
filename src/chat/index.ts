@@ -13,11 +13,21 @@ import { batchMode } from './batch.js';
 import { detectApiKey, detectProvider, onboardApiKey } from './onboarding.js';
 import { ChatEngine } from './engine/ChatEngine.js';
 import { parseArgs } from './parseArgs.js';
-import { VERSION } from './version.js';
 import { initAiMode, getAiModeDisplay } from './aiMode.js';
 import { parseSlashCommand } from './ui/SlashCommands.js';
 import { getAgentName } from './skills/loader.js';
 import { selectCreditsSpace, getCreditsSpaceId } from './spaceSelection.js';
+import { VERSION } from './version.js';
+import {
+  printWelcomeBanner,
+  printUserMessage,
+  printStatusLine,
+  printErrorMessage,
+  printToolResult,
+  startThinkingSpinner,
+  startToolSpinner,
+  SpinnerHandle,
+} from './richDisplay.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
@@ -40,7 +50,6 @@ function printHelp(): void {
   ${chalk.bold('Options:')}
     --provider <name>   AI provider: anthropic (default), openai
     --model <model>     Model override (e.g. claude-sonnet-4-6, gpt-4o)
-    --simple            Use legacy readline mode (no Ink UI)
     --json              Output as JSON (batch mode)
     -h, --help          Show this help
 
@@ -52,7 +61,6 @@ function printHelp(): void {
 
   ${chalk.bold('Examples:')}
     make-lemonade
-    make-lemonade --simple
     echo "list my events" | make-lemonade
     echo "create event" | make-lemonade --json
 `);
@@ -80,87 +88,92 @@ async function createProvider(providerName: string, apiKey: string, model?: stri
   throw new Error(`Unknown provider "${providerName}". Supported: ${VALID_PROVIDERS.join(', ')}`);
 }
 
-function printWelcome(firstName: string): void {
-  const modeDisplay = getAiModeDisplay();
-  const agentName = getAgentName();
-  console.log(`
-  ${chalk.bold('make-lemonade')} v${VERSION}  ${chalk.dim(`[${modeDisplay}]`)}
-
-  Hey ${firstName}! I'm ${agentName}, your event concierge. What would you like to do?
-
-  Try: ${chalk.dim('"create a techno event in Berlin next Saturday"')}
-       ${chalk.dim('"how are ticket sales for my warehouse party?"')}
-       ${chalk.dim('"find events near me this weekend"')}
-
-  Type ${chalk.dim('"help"')} for tips, ${chalk.dim('"exit"')} to quit.
-`);
-  console.log(chalk.dim('  Note: Tool results (including event and guest data) are sent to your AI provider.\n'));
-}
-
 async function interactiveMode(
   provider: AIProvider,
   formattedTools: unknown[],
   session: SessionState,
   registry: Record<string, ToolDef>,
+  displayOpts: {
+    spaceName?: string;
+    providerName: string;
+    modelName: string;
+  },
 ): Promise<void> {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: chalk.green('> '),
+    prompt: chalk.hex('#FDE047')('> '),
   });
 
   const engine = new ChatEngine();
   const messages: Message[] = [];
 
-  // Simple-mode adapter: bridge engine events to display.ts + readline
-  const { writeStreamToken, writeNewline, printWarning } = await import('./stream/display.js');
-  const ora = (await import('ora')).default;
   let textStarted = false;
-  let toolSpinner: ReturnType<typeof ora> | null = null;
+  let thinkingSpinner: SpinnerHandle | null = null;
+  let toolSpinner: SpinnerHandle | null = null;
+  let turnTokenCount = 0;
 
   engine.on('text_delta', (data) => {
+    if (thinkingSpinner) {
+      thinkingSpinner.stop();
+      thinkingSpinner = null;
+    }
     if (!textStarted) {
       process.stdout.write('\n  ');
       textStarted = true;
     }
-    writeStreamToken(data.text, true);
+    process.stdout.write(chalk.white(data.text));
   });
 
   engine.on('tool_start', (data) => {
-    toolSpinner = ora(`Running: ${data.name}...`).start();
+    if (thinkingSpinner) {
+      thinkingSpinner.stop();
+      thinkingSpinner = null;
+    }
+    toolSpinner = startToolSpinner(data.name);
   });
 
   engine.on('tool_done', (data) => {
     if (toolSpinner) {
-      if (data.error) {
-        toolSpinner.fail(`Failed: ${data.name}`);
-      } else {
-        toolSpinner.succeed(`Done: ${data.name}`);
-      }
+      toolSpinner.stop();
       toolSpinner = null;
     }
+    printToolResult(data.name, data.error, data.result);
   });
 
   engine.on('warning', (data) => {
-    printWarning(data.message);
+    console.log(chalk.yellow(`\n  ${data.message}`));
   });
 
   engine.on('error', (data) => {
-    if (textStarted) writeNewline();
-    printWarning(data.message);
+    if (textStarted) process.stdout.write('\n');
+    printErrorMessage(`  Error: ${data.message}`);
   });
 
   engine.on('confirm_request', (data) => {
-    rl.question(chalk.yellow(`\n  Confirm: ${data.description}? (yes/no) `), (answer) => {
+    if (toolSpinner) {
+      toolSpinner.stop();
+      toolSpinner = null;
+    }
+    rl.question(chalk.hex('#FDE047')(`\n  Confirm: ${data.description}? (yes/no) `), (answer) => {
       engine.confirmAction(data.id, ['yes', 'y'].includes(answer.trim().toLowerCase()));
     });
   });
 
-  engine.on('turn_done', () => {
+  engine.on('turn_done', (data) => {
+    if (thinkingSpinner) {
+      thinkingSpinner.stop();
+      thinkingSpinner = null;
+    }
     if (textStarted) {
-      writeNewline();
+      process.stdout.write('\n\n');
       textStarted = false;
     }
+    turnTokenCount = data.usage.input_tokens + data.usage.output_tokens;
+    printStatusLine({
+      ...displayOpts,
+      tokenCount: turnTokenCount,
+    });
   });
 
   rl.prompt();
@@ -217,7 +230,12 @@ async function interactiveMode(
         console.log(`\n  ${slashResult.output}\n`);
       } else if (slashResult.action === 'clear') {
         messages.length = 0;
-        console.log(chalk.dim('\n  Conversation cleared.\n'));
+        console.clear();
+        printWelcomeBanner({
+          firstName: session.user.first_name || session.user.name,
+          agentName: getAgentName(),
+          ...displayOpts,
+        });
       } else if (slashResult.action === 'exit') {
         console.log('\n  See you!\n');
         rl.close();
@@ -240,7 +258,9 @@ async function interactiveMode(
       continue;
     }
 
+    printUserMessage(input);
     textStarted = false;
+    thinkingSpinner = startThinkingSpinner();
     messages.push({ role: 'user', content: input });
 
     const systemPrompt = buildSystemMessages(session, provider.name);
@@ -258,11 +278,15 @@ async function interactiveMode(
         engine,
       );
     } catch (err) {
+      if (thinkingSpinner) {
+        thinkingSpinner.stop();
+        thinkingSpinner = null;
+      }
       const msg = safeErrorMessage(err);
       if (msg.includes('context length') || msg.includes('too many tokens')) {
-        console.log(chalk.red('\n  Session is too long. Start a new session: exit and run make-lemonade again.\n'));
+        printErrorMessage('\n  Session is too long. Start a new session: exit and run make-lemonade again.');
       } else {
-        console.error(chalk.red(`\n  Error: ${msg}\n`));
+        printErrorMessage(`\n  Error: ${msg}`);
       }
     }
 
@@ -448,20 +472,25 @@ async function main(): Promise<void> {
     }
   }
 
-  if (isTTY && !args.simple) {
-    // Ink UI mode (default for TTY)
-    const { renderApp } = await import('./ui/App.js');
-    await renderApp({ provider, session, registry, formattedTools, user, creditsSpaceName });
-  } else if (isTTY) {
-    // --simple: legacy readline mode
-    printWelcome(user.first_name || user.name);
+  if (isTTY) {
+    const displayOpts = {
+      spaceName: creditsSpaceName || session.defaultSpace || undefined,
+      providerName: provider.name,
+      modelName: provider.model,
+    };
+
+    printWelcomeBanner({
+      firstName: user.first_name || user.name,
+      agentName: getAgentName(),
+      ...displayOpts,
+    });
 
     process.on('SIGINT', () => {
       console.log('\n  See you!\n');
       process.exit(0);
     });
 
-    await interactiveMode(provider, formattedTools, session, registry);
+    await interactiveMode(provider, formattedTools, session, registry, displayOpts);
   } else {
     const systemPrompt = buildSystemMessages(session, provider.name);
     await batchMode(provider, formattedTools, systemPrompt, session, registry, args.json);

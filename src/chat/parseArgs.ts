@@ -3,7 +3,6 @@ export function parseArgs(argv: string[]): {
   model?: string;
   mode?: string;
   json: boolean;
-  simple: boolean;
   help: boolean;
 } {
   const result = {
@@ -11,7 +10,6 @@ export function parseArgs(argv: string[]): {
     model: undefined as string | undefined,
     mode: undefined as string | undefined,
     json: false,
-    simple: false,
     help: false,
   };
 
@@ -30,7 +28,7 @@ export function parseArgs(argv: string[]): {
         result.json = true;
         break;
       case '--simple':
-        result.simple = true;
+        // Ignored — readline mode is now the default and only mode
         break;
       case '--help':
       case '-h':
