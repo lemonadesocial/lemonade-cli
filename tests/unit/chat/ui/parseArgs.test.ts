@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseArgs } from '../../../../src/chat/index';
+import { parseArgs } from '../../../../src/chat/parseArgs.js';
 
 // US-T.11, US-T.12: --simple flag in parseArgs
 describe('parseArgs', () => {
