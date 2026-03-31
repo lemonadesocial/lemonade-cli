@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { render, Box, Text, useApp, useInput, useStdout } from 'ink';
 import { AIProvider, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
@@ -11,7 +11,7 @@ import { ToolCallGroup } from './ToolCallGroup.js';
 import { ConfirmPrompt } from './ConfirmPrompt.js';
 import { ErrorDisplay } from './ErrorDisplay.js';
 import { useChatEngine } from './hooks/useChatEngine.js';
-import { parseSlashCommand, getModelsForProvider } from './SlashCommands.js';
+import { parseSlashCommand, getModelsForProvider, SLASH_COMMANDS } from './SlashCommands.js';
 import { getAgentName, setAgentName } from '../skills/loader.js';
 import { formatUserMessage, formatAssistantMessage } from './writeMessage.js';
 
@@ -27,6 +27,8 @@ interface AppProps {
 // Header = 2 lines, InputArea = 3 lines, StatusBar = 2 lines
 const FIXED_CHROME_HEIGHT = 7;
 
+const ALL_SLASH_NAMES = SLASH_COMMANDS.map((c) => c.name);
+
 function App({ provider, session, registry, formattedTools, user, creditsSpaceName }: AppProps): React.ReactElement {
   const { exit } = useApp();
   const { stdout, write } = useStdout();
@@ -35,6 +37,8 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [slashOutput, setSlashOutput] = useState<string | null>(null);
   const [agentName, setAgentNameState] = useState(() => getAgentName());
+  const [modelName, setModelName] = useState(() => provider.model);
+  const [inputValue, setInputValue] = useState('');
 
   // Track how many messages have been flushed to stdout
   const flushedCountRef = useRef(0);
@@ -91,8 +95,19 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
     }
   });
 
+  // Bug 5: Slash command suggestions filtered by current input
+  const slashSuggestions = useMemo(() => {
+    if (!inputValue.startsWith('/')) return undefined;
+    return ALL_SLASH_NAMES.filter((name) => name.startsWith(inputValue));
+  }, [inputValue]);
+
+  const handleInputChange = useCallback((value: string) => {
+    setInputValue(value);
+  }, []);
+
   const handleSubmit = useCallback((text: string) => {
     setSlashOutput(null);
+    setInputValue('');
 
     const cmd = parseSlashCommand(text);
     if (cmd.handled) {
@@ -114,13 +129,14 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
           if (!cmd.args) {
             const models = getModelsForProvider(provider.name);
             const list = models
-              .map((m) => (m === provider.model ? `  * ${m} (current)` : `    ${m}`))
+              .map((m) => (m === modelName ? `  * ${m} (current)` : `    ${m}`))
               .join('\n');
             setSlashOutput(`Models for ${provider.name}:\n${list}`);
           } else {
             const models = getModelsForProvider(provider.name);
             if (models.includes(cmd.args)) {
               provider.model = cmd.args;
+              setModelName(cmd.args);
               setSlashOutput(`Switched to ${cmd.args}`);
             } else {
               setSlashOutput(`Unknown model: "${cmd.args}". Available: ${models.join(', ')}`);
@@ -161,7 +177,7 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
     if (showBanner) setShowBanner(false);
     setPendingPrompt(null);
     sendMessage(text);
-  }, [showBanner, sendMessage, exit, clearHistory, provider, session]);
+  }, [showBanner, sendMessage, exit, clearHistory, provider, session, modelName]);
 
   const handleSelectPrompt = useCallback((text: string) => {
     setPendingPrompt(text);
@@ -171,7 +187,7 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
     <Box flexDirection="column" height={rows}>
       <Header
         providerName={provider.name}
-        modelName={provider.model}
+        modelName={modelName}
         spaceName={session.currentSpace?.title}
         tokenCount={tokenCount}
       />
@@ -180,7 +196,7 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
         {showBanner && messages.length === 0 ? (
           <WelcomeBanner
             providerName={provider.name}
-            modelName={provider.model}
+            modelName={modelName}
             firstName={user.first_name || user.name}
             agentName={agentName}
             onSelectPrompt={handleSelectPrompt}
@@ -225,6 +241,8 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
           onSubmit={handleSubmit}
           disabled={isStreaming}
           defaultValue={pendingPrompt ?? undefined}
+          onChange={handleInputChange}
+          suggestions={slashSuggestions}
         />
       ) : null}
 
@@ -232,7 +250,7 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
         spaceName={session.currentSpace?.title}
         creditsSpaceName={creditsSpaceName}
         providerName={provider.name}
-        modelName={provider.model}
+        modelName={modelName}
         isStreaming={isStreaming}
         streamTokenCount={streamTokenCount}
         lastError={lastError}

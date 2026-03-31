@@ -12,6 +12,14 @@ const TIPS = [
   '/help shows all commands',
 ];
 
+const LEFT_WIDTH = 25;
+const RIGHT_WIDTH = 25;
+
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max - 3) + '...';
+}
+
 type StatusMode = 'tips' | 'streaming' | 'tool' | 'error';
 
 interface StatusBarProps {
@@ -64,35 +72,51 @@ export function StatusBar({
     }
   }, [lastToolName]);
 
-  let center: React.ReactElement;
+  let centerText: string;
+  let centerColor: string | undefined;
   let mode: StatusMode = 'tips';
 
   if (isStreaming) {
     mode = 'streaming';
-    center = <Text dimColor>streaming... {streamTokenCount} tokens</Text>;
+    centerText = `streaming... ${streamTokenCount} tokens`;
   } else if (showError && lastError) {
     mode = 'error';
-    center = <Text color="#FF637E">{lastError}</Text>;
+    centerText = lastError;
+    centerColor = '#FF637E';
   } else if (showTool && lastToolName) {
     mode = 'tool';
-    center = <Text dimColor>{lastToolName}</Text>;
+    centerText = lastToolName;
   } else {
-    center = <Text dimColor>Tip: {TIPS[tipIndex]}</Text>;
+    centerText = `Tip: ${TIPS[tipIndex]}`;
   }
 
   const showModel = mode !== 'tips';
 
+  const leftLabel = creditsSpaceName
+    ? `Space: ${spaceName || 'none'} | ${creditsSpaceName}`
+    : `Space: ${spaceName || 'none'}`;
+  const leftText = truncate(leftLabel, LEFT_WIDTH);
+
+  const rightText = showModel
+    ? truncate(`${providerName} | ${modelName}`, RIGHT_WIDTH)
+    : '';
+
   return (
     <Box flexDirection="column">
       <Text dimColor>{'─'.repeat(process.stdout.columns || 80)}</Text>
-      <Box justifyContent="space-between" paddingX={1}>
-        <Text dimColor>Space: {spaceName || 'none'}{creditsSpaceName ? ` | Credits: ${creditsSpaceName}` : ''}</Text>
-        {center}
-        {showModel ? (
-          <Text dimColor>{providerName} | {modelName}</Text>
-        ) : (
-          <Text> </Text>
-        )}
+      <Box paddingX={1}>
+        <Box width={LEFT_WIDTH}>
+          <Text dimColor>{leftText}</Text>
+        </Box>
+        <Box flexGrow={1} justifyContent="center">
+          {centerColor
+            ? <Text color={centerColor} wrap="truncate">{centerText}</Text>
+            : <Text dimColor wrap="truncate">{centerText}</Text>
+          }
+        </Box>
+        <Box width={RIGHT_WIDTH} justifyContent="flex-end">
+          <Text dimColor>{rightText}</Text>
+        </Box>
       </Box>
     </Box>
   );

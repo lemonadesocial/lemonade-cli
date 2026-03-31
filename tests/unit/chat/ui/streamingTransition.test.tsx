@@ -4,6 +4,7 @@ import { render } from 'ink-testing-library';
 import { Box } from 'ink';
 import { AssistantMessage } from '../../../../src/chat/ui/AssistantMessage';
 import { MessageArea } from '../../../../src/chat/ui/MessageArea';
+import { THINKING_WORDS } from '../../../../src/chat/ui/ThinkingIndicator';
 
 // L4: Integration test for streaming-to-markdown transition
 describe('streaming to markdown transition', () => {
@@ -33,7 +34,9 @@ describe('streaming to markdown transition', () => {
     const { lastFrame: thinkingFrame } = render(
       <MessageArea streamingText="" isStreaming={true} />,
     );
-    expect(thinkingFrame()!).toContain('Thinking...');
+    const output = thinkingFrame()!;
+    const hasThinkingWord = THINKING_WORDS.some((w) => output.includes(`${w}...`));
+    expect(hasThinkingWord).toBe(true);
 
     // Phase 2: first token arrived -> streaming text shown
     const { lastFrame: streamingFrame } = render(

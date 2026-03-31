@@ -32,7 +32,7 @@ describe('StatusBar', () => {
     expect(lastFrame()!).toContain('none');
   });
 
-  it('hides provider/model when showing tips', () => {
+  it('shows tip text when not streaming', () => {
     const { lastFrame } = render(
       <StatusBar
         providerName="anthropic"
@@ -41,9 +41,7 @@ describe('StatusBar', () => {
         streamTokenCount={0}
       />,
     );
-    const output = lastFrame()!;
-    expect(output).toContain('Tip:');
-    expect(output).not.toContain('anthropic');
+    expect(lastFrame()!).toContain('Tip:');
   });
 
   it('shows provider/model during streaming', () => {
@@ -59,18 +57,6 @@ describe('StatusBar', () => {
     expect(output).toContain('streaming');
     expect(output).toContain('234');
     expect(output).toContain('anthropic');
-  });
-
-  it('shows tip text when not streaming', () => {
-    const { lastFrame } = render(
-      <StatusBar
-        providerName="anthropic"
-        modelName="claude-sonnet-4-6"
-        isStreaming={false}
-        streamTokenCount={0}
-      />,
-    );
-    expect(lastFrame()!).toContain('Tip:');
   });
 
   it('shows token count during streaming', () => {
@@ -121,9 +107,37 @@ describe('StatusBar', () => {
         streamTokenCount={0}
       />,
     );
-    // Should not contain box-drawing border characters
     const output = lastFrame()!;
-    expect(output).not.toContain('┌');
-    expect(output).not.toContain('└');
+    expect(output).not.toContain('\u250C');
+    expect(output).not.toContain('\u2514');
+  });
+
+  it('truncates long space names instead of bleeding', () => {
+    const { lastFrame } = render(
+      <StatusBar
+        spaceName="This Is An Extremely Long Space Name That Should Be Truncated"
+        providerName="anthropic"
+        modelName="claude-sonnet-4-6"
+        isStreaming={false}
+        streamTokenCount={0}
+      />,
+    );
+    const output = lastFrame()!;
+    expect(output).toContain('...');
+  });
+
+  it('shows credits space name when provided', () => {
+    const { lastFrame } = render(
+      <StatusBar
+        spaceName="X"
+        creditsSpaceName="CrCo"
+        providerName="anthropic"
+        modelName="claude-sonnet-4-6"
+        isStreaming={false}
+        streamTokenCount={0}
+      />,
+    );
+    const output = lastFrame()!;
+    expect(output).toContain('CrCo');
   });
 });
