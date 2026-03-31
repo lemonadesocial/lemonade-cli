@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.1.0...v1.2.0) (2026-03-31)
+
+
+### Features
+
+* add 31 new tools, AI credits, subscriptions, and billing safety dual-mode ([8604303](https://github.com/lemonadesocial/lemonade-cli/commit/86043031224f20a4ea021b0676d6eb8c46039635))
+* add 34 new tools for events, co-hosts, broadcasting, email, guests, analytics, pages, templates ([ddb013d](https://github.com/lemonadesocial/lemonade-cli/commit/ddb013d52e5f304a8576a40c0d4146bfb5584920))
+* add Zesty skills system with 6 domain skill files and /name command ([701c042](https://github.com/lemonadesocial/lemonade-cli/commit/701c0429dfa74d2419be20d0cc0785fa4df6c20f))
+
 ## [1.1.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.8...v1.1.0) (2026-03-31)
 
 
