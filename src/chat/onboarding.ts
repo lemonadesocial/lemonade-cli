@@ -107,8 +107,13 @@ export async function onboardApiKey(rl: readline.Interface, provider: string = '
     setConfigValue(info.configKey, key.trim());
     console.log(chalk.green('  Key saved and verified.\n'));
     return key.trim();
-  } catch {
-    console.log(chalk.red(`  Invalid key. Try again or set ${info.envVar} manually.\n`));
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError || (err instanceof OpenAI.AuthenticationError)) {
+      console.log(chalk.red(`  Invalid key. Try again or set ${info.envVar} manually.\n`));
+    } else {
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(chalk.red(`  ${message}\n`));
+    }
     return null;
   }
 }

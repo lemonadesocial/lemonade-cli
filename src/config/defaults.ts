@@ -10,6 +10,6 @@ export const TIER_LIMITS: Record<string, Record<string, { enabled: boolean; limi
   newsletter_recipients:      { free: { enabled: false, limit: 0 }, pro: { enabled: true, limit: 1000 }, plus: { enabled: true, limit: 5000 }, max: { enabled: true, limit: 25000 }, enterprise: { enabled: true, limit: 0 } },
 };
 
-export const VALID_CONFIG_KEYS = ['default_space', 'output_format', 'api_url', 'registry_url'] as const;
+export const VALID_CONFIG_KEYS = ['default_space', 'output_format', 'api_url', 'hydra_url', 'registry_url'] as const;
 
 export type ValidConfigKey = typeof VALID_CONFIG_KEYS[number];
