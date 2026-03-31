@@ -22,6 +22,7 @@ import {
   printWelcomeBanner,
   printUserMessage,
   printStatusLine,
+  printInputBorder,
   printErrorMessage,
   printToolResult,
   startThinkingSpinner,
@@ -137,6 +138,7 @@ async function interactiveMode(
         textStarted = false;
       }
       console.log(chalk.dim('  (cancelled)'));
+      printInputBorder();
       rl.prompt();
     }
   });
@@ -171,6 +173,7 @@ async function interactiveMode(
 
   engine.on('warning', (data) => {
     console.log(chalk.yellow(`\n  ${data.message}`));
+    printInputBorder();
     rl.prompt();
   });
 
@@ -186,6 +189,7 @@ async function interactiveMode(
     process.stdout.write('\r\x1b[K');
     if (textStarted) process.stdout.write('\n');
     printErrorMessage(`  Error: ${data.message}`);
+    printInputBorder();
     rl.prompt();
   });
 
@@ -213,15 +217,19 @@ async function interactiveMode(
       ...displayOpts,
       tokenCount: turnTokenCount,
     });
+    printInputBorder();
     rl.prompt();
   });
 
+  printStatusLine(displayOpts);
+  printInputBorder();
   rl.prompt();
 
   for await (const line of rl) {
     const input = line.trim();
 
     if (!input) {
+      printInputBorder();
       rl.prompt();
       continue;
     }
@@ -276,11 +284,13 @@ async function interactiveMode(
           agentName: getAgentName(),
           ...displayOpts,
         });
+        printStatusLine(displayOpts);
       } else if (slashResult.action === 'exit') {
         console.log('\n  See you!\n');
         rl.close();
         return;
       }
+      printInputBorder();
       rl.prompt();
       continue;
     }
@@ -294,6 +304,7 @@ async function interactiveMode(
   - Destructive actions (cancel, delete) will ask for confirmation
   - Type "exit" or press Ctrl+D to quit
 `);
+      printInputBorder();
       rl.prompt();
       continue;
     }
@@ -330,12 +341,12 @@ async function interactiveMode(
       } else {
         printErrorMessage(`\n  Error: ${msg}`);
       }
+      printInputBorder();
       rl.prompt();
     }
     streamAbort = null;
 
     console.log('');
-    rl.prompt();
   }
 
   // Ctrl+D (EOF)
