@@ -204,9 +204,6 @@ export async function runTerminalUI(
 
   // Enable keypress events for Escape detection during streaming
   readline.emitKeypressEvents(process.stdin);
-  if (process.stdin.isTTY) {
-    process.stdin.setRawMode(false);
-  }
   process.stdin.on('keypress', (_ch: string, key: { name?: string; ctrl?: boolean }) => {
     if (key?.name === 'escape' && streamAbort) {
       streamAbort.abort();

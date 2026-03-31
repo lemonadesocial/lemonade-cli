@@ -52,8 +52,7 @@
     "commander": "^12.1.0",
     "figures": "^6",
 
-    "marked": "^15",
-    "marked-terminal": "^7",
+
     "open": "^10.1.0",
     "openai": "^6.33.0",
     "ora": "^8.2.0",
