@@ -28,6 +28,7 @@ export async function handleTurn(
   rl: readline.Interface | null,
   isTTY: boolean,
   engine?: ChatEngine,
+  signal?: AbortSignal,
 ): Promise<void> {
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
@@ -46,6 +47,7 @@ export async function handleTurn(
       });
 
       for await (const event of events) {
+        if (signal?.aborted) break;
         switch (event.type) {
           case 'text_delta':
             if (event.text) {
@@ -73,6 +75,7 @@ export async function handleTurn(
             break;
         }
       }
+      if (signal?.aborted) return;
     } catch (err) {
       if (engine) {
         engine.emit('error', { message: `Streaming error: ${safeErrorMessage(err)}`, fatal: false });

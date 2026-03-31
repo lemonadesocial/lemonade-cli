@@ -33,7 +33,7 @@ export function printWelcomeBanner(opts: {
   agentName: string;
   providerName: string;
   modelName: string;
-}): void {
+}): number {
   const lemonColor = chalk.hex('#FDE047');
   const lines: string[] = [''];
 
@@ -54,6 +54,7 @@ export function printWelcomeBanner(opts: {
   lines.push('');
 
   process.stdout.write(lines.join('\n') + '\n');
+  return lines.length;
 }
 
 export function printUserMessage(text: string): void {
