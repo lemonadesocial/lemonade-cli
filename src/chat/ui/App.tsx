@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { render, Box, useApp, useInput } from 'ink';
+import { render, Box, useApp } from 'ink';
 import { AIProvider, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
 import { Header } from './Header.js';
@@ -8,7 +8,6 @@ import { MessageArea } from './MessageArea.js';
 import { InputArea } from './InputArea.js';
 import { StatusBar } from './StatusBar.js';
 import { useChatEngine } from './hooks/useChatEngine.js';
-import { useScrollable } from './hooks/useScrollable.js';
 
 interface AppProps {
   provider: AIProvider;
@@ -22,7 +21,6 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
   const { exit } = useApp();
   const [showBanner, setShowBanner] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
-  const [inputEmpty, setInputEmpty] = useState(true);
 
   const {
     messages,
@@ -37,28 +35,6 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
     confirmAction,
   } = useChatEngine({ provider, session, registry, formattedTools });
 
-  const terminalHeight = process.stdout.rows || 24;
-  const viewportHeight = Math.max(terminalHeight - 6, 5);
-  const contentHeight = messages.length * 3 + (streamingText ? 3 : 0);
-
-  const { scrollOffset, scrollUp, scrollDown, pageUp, pageDown, scrollToBottom } = useScrollable({
-    contentHeight,
-    viewportHeight,
-    isStreaming,
-  });
-
-  useInput((input, key) => {
-    if (key.upArrow && inputEmpty && !isStreaming) {
-      scrollUp(1);
-    } else if (key.downArrow && inputEmpty && !isStreaming) {
-      scrollDown(1);
-    } else if (key.pageUp) {
-      pageUp();
-    } else if (key.pageDown) {
-      pageDown();
-    }
-  });
-
   const handleSubmit = useCallback((text: string) => {
     if (text === '/exit' || text === '/quit') {
       exit();
@@ -67,9 +43,8 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
 
     if (showBanner) setShowBanner(false);
     setPendingPrompt(null);
-    scrollToBottom();
     sendMessage(text);
-  }, [showBanner, sendMessage, exit, scrollToBottom]);
+  }, [showBanner, sendMessage, exit]);
 
   const handleSelectPrompt = useCallback((text: string) => {
     setPendingPrompt(text);
@@ -98,7 +73,6 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
           messages={messages}
           streamingText={streamingText}
           isStreaming={isStreaming}
-          scrollOffset={scrollOffset}
         />
 
         {pendingConfirmation ? (
@@ -121,7 +95,6 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
           onSubmit={handleSubmit}
           disabled={isStreaming}
           defaultValue={pendingPrompt ?? undefined}
-          onInputChange={setInputEmpty}
         />
       ) : null}
 

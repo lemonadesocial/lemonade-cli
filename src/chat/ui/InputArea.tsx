@@ -7,10 +7,9 @@ interface InputAreaProps {
   onSubmit: (text: string) => void;
   disabled: boolean;
   defaultValue?: string;
-  onInputChange?: (isEmpty: boolean) => void;
 }
 
-export function InputArea({ onSubmit, disabled, defaultValue, onInputChange }: InputAreaProps): React.ReactElement {
+export function InputArea({ onSubmit, disabled, defaultValue }: InputAreaProps): React.ReactElement {
   return (
     <Box flexDirection="column">
       <Box borderStyle="single" borderColor={colors.muted} borderTop={true} borderBottom={false} borderLeft={false} borderRight={false} />
@@ -23,7 +22,6 @@ export function InputArea({ onSubmit, disabled, defaultValue, onInputChange }: I
             onSubmit={onSubmit}
             placeholder="Type a message..."
             defaultValue={defaultValue}
-            onChange={(value) => onInputChange?.(value.length === 0)}
           />
         )}
       </Box>

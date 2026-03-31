@@ -14,7 +14,6 @@ interface MessageAreaProps {
   messages: ChatMessage[];
   streamingText: string;
   isStreaming: boolean;
-  scrollOffset?: number;
 }
 
 export function MessageArea({
@@ -25,7 +24,7 @@ export function MessageArea({
   const showThinking = isStreaming && !streamingText;
 
   return (
-    <Box flexDirection="column" flexGrow={1} overflow="hidden">
+    <Box flexDirection="column" flexGrow={1}>
       <Static items={messages}>
         {(msg) => (
           <Box key={msg.id}>
