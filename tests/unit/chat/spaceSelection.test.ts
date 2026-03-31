@@ -64,11 +64,11 @@ describe('Space Selection for Credits Mode', () => {
     expect(content).toContain('selectCreditsSpace');
   });
 
-  it('/mode credits triggers space selection in simple mode', async () => {
+  it('/mode credits triggers space selection in terminal UI', async () => {
     const fs = await import('fs');
     const path = await import('path');
-    const indexPath = path.join(process.cwd(), 'src/chat/index.ts');
-    const content = fs.readFileSync(indexPath, 'utf-8');
+    const terminalPath = path.join(process.cwd(), 'src/chat/terminal.ts');
+    const content = fs.readFileSync(terminalPath, 'utf-8');
 
     // When /mode credits is used, selectCreditsSpace must be called
     expect(content).toContain("slashResult.args === 'credits'");
