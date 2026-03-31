@@ -25,19 +25,17 @@ describe('GraphQL Client', () => {
       vi.restoreAllMocks();
     });
 
-    // TODO: This test has a mock isolation bug on main -- vi.doMock does not
-    // fully replace the module before re-import due to ESM caching.
     it('throws UNAUTHENTICATED when no auth available', async () => {
-      // Clear all auth sources
       delete process.env.LEMONADE_API_KEY;
-      vi.doMock('../../../src/auth/store', () => ({
-        getApiUrl: () => 'https://test.api',
-        getAuthHeader: () => undefined,
-      }));
 
-      // Re-import to get mocked version
-      const { graphqlRequest } = await import('../../../src/api/graphql');
+      // Mock getAuthHeader to return undefined (no auth)
+      const store = await import('../../../src/auth/store.js');
+      vi.spyOn(store, 'getAuthHeader').mockReturnValue(undefined);
+
+      const { graphqlRequest } = await import('../../../src/api/graphql.js');
       await expect(graphqlRequest('query { test }')).rejects.toThrow('Not authenticated');
+
+      vi.restoreAllMocks();
     });
 
     it('sends correct headers when auth is present', async () => {
