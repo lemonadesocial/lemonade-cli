@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.7](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.6...v1.0.7) (2026-03-31)
+
+
+### Bug Fixes
+
+* read version from package.json instead of hardcoded value ([c0773e3](https://github.com/lemonadesocial/lemonade-cli/commit/c0773e3f81938c0a95b5391a951275039f40c081))
+* use import instead of require for package.json ([6bfd469](https://github.com/lemonadesocial/lemonade-cli/commit/6bfd469eb0e3d4742652882a03ce870f5e76f918))
+
 ## [1.0.6](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.5...v1.0.6) (2026-03-31)
 
 
