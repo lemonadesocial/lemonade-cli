@@ -14,6 +14,7 @@ const TIPS = [
 ];
 
 interface StatusBarProps {
+  agentName: string;
   spaceName?: string;
   providerName: string;
   modelName: string;
@@ -24,6 +25,7 @@ interface StatusBarProps {
 }
 
 export function StatusBar({
+  agentName,
   spaceName,
   providerName,
   modelName,
@@ -76,7 +78,7 @@ export function StatusBar({
     <Box flexDirection="column">
       <Box borderStyle="single" borderColor={colors.muted} borderTop={true} borderBottom={false} borderLeft={false} borderRight={false} />
       <Box justifyContent="space-between" paddingX={1}>
-        <Text color={colors.violetLight}>Space: {spaceName || 'none'}</Text>
+        <Text color={colors.violetLight}>{agentName} | Space: {spaceName || 'none'}</Text>
         {center}
         <Text color={colors.violet}>{providerName} | {modelName}</Text>
       </Box>

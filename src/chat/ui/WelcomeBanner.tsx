@@ -15,16 +15,17 @@ interface WelcomeBannerProps {
   providerName: string;
   modelName: string;
   firstName: string;
+  agentName: string;
   onSelectPrompt?: (text: string) => void;
 }
 
 export const SUGGESTED_PROMPTS = [
-  'create a techno event in Berlin next Saturday',
+  'help me plan a techno event in Berlin next Saturday',
   'how are ticket sales for my warehouse party?',
-  'find events near me this weekend',
+  "let's build a community space for my meetup group",
 ];
 
-export function WelcomeBanner({ providerName, modelName, firstName, onSelectPrompt }: WelcomeBannerProps): React.ReactElement {
+export function WelcomeBanner({ providerName, modelName, firstName, agentName, onSelectPrompt }: WelcomeBannerProps): React.ReactElement {
   useInput((input) => {
     const index = parseInt(input, 10) - 1;
     if (index >= 0 && index < SUGGESTED_PROMPTS.length && onSelectPrompt) {
@@ -40,7 +41,7 @@ export function WelcomeBanner({ providerName, modelName, firstName, onSelectProm
         <Text dimColor> v{VERSION} | {providerName} | {modelName}</Text>
       </Text>
       <Text>{''}</Text>
-      <Text>Hey {firstName}! What would you like to do?</Text>
+      <Text>Hey {firstName}! I'm {agentName}, your event concierge. What would you like to do?</Text>
       <Text>{''}</Text>
       {SUGGESTED_PROMPTS.map((prompt, i) => (
         <Text key={i} dimColor>  {i + 1}. &quot;{prompt}&quot;</Text>

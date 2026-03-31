@@ -36,6 +36,7 @@
   },
   "files": [
     "dist/",
+    "src/chat/skills/*.md",
     "README.md",
     "LICENSE"
   ],
