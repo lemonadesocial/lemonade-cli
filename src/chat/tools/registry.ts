@@ -2402,6 +2402,854 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
+  // --- Token Gates (NT-36 through NT-39) ---
+
+  register({
+    name: 'event_token_gates_list',
+    displayName: 'event token gates list',
+    description: 'List token gates for an event with optional filters.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'networks', type: 'string[]', description: 'Filter by blockchain networks', required: false },
+      { name: 'ticket_types', type: 'string[]', description: 'Filter by gated ticket type IDs', required: false },
+      { name: 'search', type: 'string', description: 'Search by name', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = { event: args.event_id };
+      if (args.networks) vars.networks = args.networks;
+      if (args.ticket_types) vars.ticket_types = args.ticket_types;
+      if (args.search) vars.search = args.search;
+
+      const result = await graphqlRequest<{ listEventTokenGates: unknown }>(
+        `query($event: MongoID!, $networks: [String!], $ticket_types: [MongoID!], $search: String) {
+          listEventTokenGates(event: $event, networks: $networks, ticket_types: $ticket_types, search: $search) {
+            _id name token_address network decimals min_value max_value is_nft event gated_ticket_types
+          }
+        }`,
+        vars,
+      );
+      return result.listEventTokenGates;
+    },
+  });
+
+  register({
+    name: 'event_token_gate_create',
+    displayName: 'event token gate create',
+    description: 'Create a token gate for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'name', type: 'string', description: 'Display name of the token', required: true },
+      { name: 'token_address', type: 'string', description: 'Token contract address', required: true },
+      { name: 'network', type: 'string', description: 'Blockchain network', required: true },
+      { name: 'decimals', type: 'number', description: 'Token decimals (default 0)', required: false },
+      { name: 'min_value', type: 'string', description: 'Minimum token balance required', required: false },
+      { name: 'max_value', type: 'string', description: 'Maximum token balance', required: false },
+      { name: 'is_nft', type: 'boolean', description: 'ERC721 if true, else ERC20', required: false },
+      { name: 'gated_ticket_types', type: 'string[]', description: 'Ticket type IDs this gate applies to', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        name: args.name,
+        token_address: args.token_address,
+        network: args.network,
+      };
+      if (args.decimals !== undefined) input.decimals = args.decimals;
+      if (args.min_value) input.min_value = args.min_value;
+      if (args.max_value) input.max_value = args.max_value;
+      if (args.is_nft !== undefined) input.is_nft = args.is_nft;
+      if (args.gated_ticket_types) input.gated_ticket_types = args.gated_ticket_types;
+
+      const result = await graphqlRequest<{ createEventTokenGate: unknown }>(
+        `mutation($input: EventTokenGateInput!) {
+          createEventTokenGate(input: $input) {
+            _id name token_address network event gated_ticket_types
+          }
+        }`,
+        { input },
+      );
+      return result.createEventTokenGate;
+    },
+  });
+
+  register({
+    name: 'event_token_gate_update',
+    displayName: 'event token gate update',
+    description: 'Update an existing token gate.',
+    params: [
+      { name: 'token_gate_id', type: 'string', description: 'Token gate ObjectId', required: true },
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'name', type: 'string', description: 'Display name', required: false },
+      { name: 'min_value', type: 'string', description: 'Minimum token balance', required: false },
+      { name: 'max_value', type: 'string', description: 'Maximum token balance', required: false },
+      { name: 'gated_ticket_types', type: 'string[]', description: 'Ticket type IDs', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        _id: args.token_gate_id,
+        event: args.event_id,
+      };
+      if (args.name) input.name = args.name;
+      if (args.min_value) input.min_value = args.min_value;
+      if (args.max_value) input.max_value = args.max_value;
+      if (args.gated_ticket_types) input.gated_ticket_types = args.gated_ticket_types;
+
+      const result = await graphqlRequest<{ updateEventTokenGate: unknown }>(
+        `mutation($input: EventTokenGateInput!) {
+          updateEventTokenGate(input: $input) {
+            _id name token_address network gated_ticket_types
+          }
+        }`,
+        { input },
+      );
+      return result.updateEventTokenGate;
+    },
+  });
+
+  register({
+    name: 'event_token_gate_delete',
+    displayName: 'event token gate delete',
+    description: 'Delete a token gate from an event.',
+    params: [
+      { name: 'token_gate_id', type: 'string', description: 'Token gate ObjectId', required: true },
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      await graphqlRequest(
+        `mutation($_id: MongoID!, $event: MongoID!) {
+          deleteEventTokenGate(_id: $_id, event: $event)
+        }`,
+        { _id: args.token_gate_id, event: args.event_id },
+      );
+      return { deleted: true, token_gate_id: args.token_gate_id };
+    },
+  });
+
+  // --- POAP Drops (NT-40 through NT-43) ---
+
+  register({
+    name: 'event_poap_list',
+    displayName: 'event poap list',
+    description: 'List POAP drops for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ listPoapDrops: unknown }>(
+        `query($event: MongoID!) {
+          listPoapDrops(event: $event) {
+            _id name description amount image_url minting_network claim_count status
+          }
+        }`,
+        { event: args.event_id },
+      );
+      return result.listPoapDrops;
+    },
+  });
+
+  register({
+    name: 'event_poap_create',
+    displayName: 'event poap create',
+    description: 'Create a new POAP drop for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'name', type: 'string', description: 'POAP name', required: true },
+      { name: 'description', type: 'string', description: 'POAP description', required: true },
+      { name: 'amount', type: 'number', description: 'Number of POAPs to mint', required: true },
+      { name: 'image', type: 'string', description: 'File ObjectId (uploaded image)', required: true },
+      { name: 'claim_mode', type: 'string', description: 'Claim mode', required: true,
+        enum: ['check_in', 'registration'] },
+      { name: 'ticket_types', type: 'string[]', description: 'Ticket type IDs for registration claim mode', required: false },
+      { name: 'private', type: 'boolean', description: 'Whether POAP is private', required: false },
+      { name: 'minting_network', type: 'string', description: 'Chain ID for minting network', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        name: args.name,
+        description: args.description,
+        amount: args.amount,
+        image: args.image,
+        claim_mode: args.claim_mode,
+      };
+      if (args.ticket_types) input.ticket_types = args.ticket_types;
+      if (args.private !== undefined) input.private = args.private;
+      if (args.minting_network) input.minting_network = args.minting_network;
+
+      const result = await graphqlRequest<{ createPoapDrop: unknown }>(
+        `mutation($input: CreatePoapInput!) {
+          createPoapDrop(input: $input) {
+            _id name description amount status minting_network
+          }
+        }`,
+        { input },
+      );
+      return result.createPoapDrop;
+    },
+  });
+
+  register({
+    name: 'event_poap_update',
+    displayName: 'event poap update',
+    description: 'Update an existing POAP drop.',
+    params: [
+      { name: 'drop_id', type: 'string', description: 'PoapDrop ObjectId', required: true },
+      { name: 'name', type: 'string', description: 'POAP name', required: false },
+      { name: 'description', type: 'string', description: 'POAP description', required: false },
+      { name: 'amount', type: 'number', description: 'New total amount (must be >= current)', required: false },
+      { name: 'claim_mode', type: 'string', description: 'Claim mode', required: false,
+        enum: ['check_in', 'registration'] },
+      { name: 'ticket_types', type: 'string[]', description: 'Ticket type IDs', required: false },
+      { name: 'minting_network', type: 'string', description: 'Chain ID', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {};
+      if (args.name) input.name = args.name;
+      if (args.description) input.description = args.description;
+      if (args.amount !== undefined) input.amount = args.amount;
+      if (args.claim_mode) input.claim_mode = args.claim_mode;
+      if (args.ticket_types) input.ticket_types = args.ticket_types;
+      if (args.minting_network) input.minting_network = args.minting_network;
+
+      const result = await graphqlRequest<{ updatePoapDrop: unknown }>(
+        `mutation($drop: MongoID!, $input: UpdatePoapInput!) {
+          updatePoapDrop(drop: $drop, input: $input) {
+            _id name description amount status minting_network
+          }
+        }`,
+        { drop: args.drop_id, input },
+      );
+      return result.updatePoapDrop;
+    },
+  });
+
+  register({
+    name: 'event_poap_import',
+    displayName: 'event poap import',
+    description: 'Import an existing POAP drop from the POAP platform by external ID and edit code.',
+    params: [
+      { name: 'poap_id', type: 'number', description: 'External POAP drop ID', required: true },
+      { name: 'code', type: 'string', description: 'POAP edit code', required: true },
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'amount', type: 'number', description: 'Number of codes to have', required: true },
+      { name: 'claim_mode', type: 'string', description: 'Claim mode', required: true,
+        enum: ['check_in', 'registration'] },
+      { name: 'ticket_types', type: 'string[]', description: 'Ticket type IDs', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        amount: args.amount,
+        claim_mode: args.claim_mode,
+      };
+      if (args.ticket_types) input.ticket_types = args.ticket_types;
+
+      const result = await graphqlRequest<{ importPoapDrop: unknown }>(
+        `mutation($id: Int!, $code: String!, $input: ImportPoapInput!) {
+          importPoapDrop(id: $id, code: $code, input: $input) {
+            _id name description amount status
+          }
+        }`,
+        { id: args.poap_id, code: args.code, input },
+      );
+      return result.importPoapDrop;
+    },
+  });
+
+  // --- Ticket Categories (NT-44 through NT-48) ---
+
+  register({
+    name: 'event_ticket_categories_list',
+    displayName: 'event ticket categories list',
+    description: 'List ticket categories for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventTicketCategories: unknown }>(
+        `query($event: MongoID!) {
+          getEventTicketCategories(event: $event) {
+            _id event title description position
+          }
+        }`,
+        { event: args.event_id },
+      );
+      return result.getEventTicketCategories;
+    },
+  });
+
+  register({
+    name: 'event_ticket_category_create',
+    displayName: 'event ticket category create',
+    description: 'Create a ticket category for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'title', type: 'string', description: 'Category title', required: true },
+      { name: 'description', type: 'string', description: 'Category description', required: false },
+      { name: 'position', type: 'number', description: 'Display order', required: false },
+      { name: 'ticket_types', type: 'string[]', description: 'Ticket type IDs to assign', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        title: args.title,
+      };
+      if (args.description) input.description = args.description;
+      if (args.position !== undefined) input.position = args.position;
+      if (args.ticket_types) input.ticket_types = args.ticket_types;
+
+      const result = await graphqlRequest<{ createEventTicketCategory: unknown }>(
+        `mutation($input: CreateEventTicketCategoryInput!) {
+          createEventTicketCategory(input: $input) {
+            _id event title description position
+          }
+        }`,
+        { input },
+      );
+      return result.createEventTicketCategory;
+    },
+  });
+
+  register({
+    name: 'event_ticket_category_update',
+    displayName: 'event ticket category update',
+    description: 'Update a ticket category.',
+    params: [
+      { name: 'category_id', type: 'string', description: 'Category ObjectId', required: true },
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'title', type: 'string', description: 'Category title', required: false },
+      { name: 'description', type: 'string', description: 'Category description', required: false },
+      { name: 'position', type: 'number', description: 'Display order', required: false },
+      { name: 'ticket_types', type: 'string[]', description: 'New set of ticket type IDs', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        _id: args.category_id,
+        event: args.event_id,
+      };
+      if (args.title) input.title = args.title;
+      if (args.description) input.description = args.description;
+      if (args.position !== undefined) input.position = args.position;
+      if (args.ticket_types) input.ticket_types = args.ticket_types;
+
+      await graphqlRequest(
+        `mutation($input: UpdateTicketTypeCategoryInput!) {
+          updateEventTicketCategory(input: $input)
+        }`,
+        { input },
+      );
+      return { updated: true, category_id: args.category_id };
+    },
+  });
+
+  register({
+    name: 'event_ticket_category_delete',
+    displayName: 'event ticket category delete',
+    description: 'Delete one or more ticket categories from an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'category_ids', type: 'string[]', description: 'Array of category ObjectIds', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      await graphqlRequest(
+        `mutation($event: MongoID!, $categories: [MongoID!]!) {
+          deleteEventTicketCategory(event: $event, categories: $categories)
+        }`,
+        { event: args.event_id, categories: args.category_ids },
+      );
+      return { deleted: true, category_ids: args.category_ids };
+    },
+  });
+
+  register({
+    name: 'event_ticket_category_reorder',
+    displayName: 'event ticket category reorder',
+    description: 'Reorder ticket categories for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'categories', type: 'object[]', description: 'Array of { _id: string, position: number }', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      await graphqlRequest(
+        `mutation($event: MongoID!, $categories: [ReorderTicketTypeCategoryInput!]!) {
+          reorderTicketTypeCategories(event: $event, categories: $categories)
+        }`,
+        { event: args.event_id, categories: args.categories },
+      );
+      return { reordered: true };
+    },
+  });
+
+  // --- Space Tags (NT-49 through NT-52) ---
+
+  register({
+    name: 'space_tags_list',
+    displayName: 'space tags list',
+    description: 'List tags for a space with optional type filter.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ObjectId', required: true },
+      { name: 'type', type: 'string', description: 'Tag type filter', required: false,
+        enum: ['event', 'member'] },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = { space: args.space_id };
+      if (args.type) vars.type = args.type;
+
+      const result = await graphqlRequest<{ listSpaceTags: unknown }>(
+        `query($space: MongoID!, $type: SpaceTagType) {
+          listSpaceTags(space: $space, type: $type) {
+            _id space tag color type targets_count
+          }
+        }`,
+        vars,
+      );
+      return result.listSpaceTags;
+    },
+  });
+
+  register({
+    name: 'space_tag_upsert',
+    displayName: 'space tag upsert',
+    description: 'Create or update a space tag.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ObjectId', required: true },
+      { name: 'tag', type: 'string', description: 'Tag label', required: true },
+      { name: 'color', type: 'string', description: 'Tag color', required: true },
+      { name: 'type', type: 'string', description: 'Tag type', required: true,
+        enum: ['event', 'member'] },
+      { name: 'tag_id', type: 'string', description: 'Existing tag ObjectId (for update)', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        space: args.space_id,
+        tag: args.tag,
+        color: args.color,
+        type: args.type,
+      };
+      if (args.tag_id) input._id = args.tag_id;
+
+      const result = await graphqlRequest<{ insertSpaceTag: unknown }>(
+        `mutation($input: SpaceTagInput!) {
+          insertSpaceTag(input: $input) {
+            _id space tag color type
+          }
+        }`,
+        { input },
+      );
+      return result.insertSpaceTag;
+    },
+  });
+
+  register({
+    name: 'space_tag_delete',
+    displayName: 'space tag delete',
+    description: 'Delete a space tag.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ObjectId', required: true },
+      { name: 'tag_id', type: 'string', description: 'Tag ObjectId', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      await graphqlRequest(
+        `mutation($space: MongoID!, $_id: MongoID!) {
+          deleteSpaceTag(space: $space, _id: $_id)
+        }`,
+        { space: args.space_id, _id: args.tag_id },
+      );
+      return { deleted: true, tag_id: args.tag_id };
+    },
+  });
+
+  register({
+    name: 'space_tag_manage',
+    displayName: 'space tag manage',
+    description: 'Add or remove a target (event or member) from a space tag.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ObjectId', required: true },
+      { name: 'tag_id', type: 'string', description: 'Tag ObjectId', required: true },
+      { name: 'target', type: 'string', description: 'Target ID (event or user ObjectId/email)', required: true },
+      { name: 'tagged', type: 'boolean', description: 'true to add, false to remove', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      await graphqlRequest(
+        `mutation($space: MongoID!, $_id: MongoID!, $target: String!, $tagged: Boolean!) {
+          manageSpaceTag(space: $space, _id: $_id, target: $target, tagged: $tagged)
+        }`,
+        { space: args.space_id, _id: args.tag_id, target: args.target, tagged: args.tagged },
+      );
+      return { managed: true, tag_id: args.tag_id, target: args.target, tagged: args.tagged };
+    },
+  });
+
+  // --- Event Questions (NT-53 through NT-56) ---
+
+  register({
+    name: 'event_question_create',
+    displayName: 'event question create',
+    description: 'Post a question in an event Q&A session.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'question', type: 'string', description: 'Question text', required: true },
+      { name: 'session', type: 'string', description: 'Session ObjectId (if multiple sessions)', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        question: args.question,
+      };
+      if (args.session) input.session = args.session;
+
+      const result = await graphqlRequest<{ createEventQuestion: unknown }>(
+        `mutation($input: CreateEventQuestionsInput!) {
+          createEventQuestion(input: $input) {
+            _id event user question stamp likes
+          }
+        }`,
+        { input },
+      );
+      return result.createEventQuestion;
+    },
+  });
+
+  register({
+    name: 'event_question_delete',
+    displayName: 'event question delete',
+    description: 'Delete a question (soft delete).',
+    params: [
+      { name: 'question_id', type: 'string', description: 'Question ObjectId', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      await graphqlRequest(
+        `mutation($_id: MongoID!) {
+          deleteEventQuestion(_id: $_id)
+        }`,
+        { _id: args.question_id },
+      );
+      return { deleted: true, question_id: args.question_id };
+    },
+  });
+
+  register({
+    name: 'event_question_like',
+    displayName: 'event question like',
+    description: 'Toggle like on a question.',
+    params: [
+      { name: 'question_id', type: 'string', description: 'Question ObjectId', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      await graphqlRequest(
+        `mutation($_id: MongoID!) {
+          toggleEventQuestionLike(_id: $_id)
+        }`,
+        { _id: args.question_id },
+      );
+      return { toggled: true, question_id: args.question_id };
+    },
+  });
+
+  register({
+    name: 'event_questions_list',
+    displayName: 'event questions list',
+    description: 'List questions for an event with sorting and cursor-based pagination.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'sort', type: 'string', description: 'Sort field', required: false,
+        enum: ['_id', 'likes'] },
+      { name: 'limit', type: 'number', description: 'Max results (default 20)', required: false },
+      { name: 'id_lt', type: 'string', description: 'Cursor: return questions with _id less than this', required: false },
+      { name: 'session', type: 'string', description: 'Session ObjectId filter', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        limit: (args.limit as number) || 20,
+        sort: (args.sort as string) || '_id',
+      };
+      if (args.id_lt) input.id_lt = args.id_lt;
+
+      const result = await graphqlRequest<{ getEventQuestions: unknown }>(
+        `query($input: GetEventQuestionsInput!) {
+          getEventQuestions(input: $input) {
+            _id event user question stamp likes liked user_expanded { _id name image_avatar }
+          }
+        }`,
+        { input },
+      );
+      return result.getEventQuestions;
+    },
+  });
+
+  // --- AI Credits & Usage (NT-57 through NT-62) ---
+
+  register({
+    name: 'credits_balance',
+    displayName: 'credits balance',
+    description: 'Check AI credit balance for a community, including subscription tier, purchased credits, and renewal date.',
+    params: [
+      { name: 'stand_id', type: 'string', description: 'Community/stand ObjectId', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getStandCredits: unknown }>(
+        `query($stand_id: String!) {
+          getStandCredits(stand_id: $stand_id) {
+            credits subscription_tier subscription_credits purchased_credits subscription_renewal_date subscription_status credits_high_water_mark estimated_depletion_date
+          }
+        }`,
+        { stand_id: args.stand_id },
+      );
+      return result.getStandCredits;
+    },
+  });
+
+  register({
+    name: 'credits_usage',
+    displayName: 'credits usage',
+    description: 'Get usage analytics for a community over a date range: daily usage, breakdown by model, top users, and totals.',
+    params: [
+      { name: 'stand_id', type: 'string', description: 'Community/stand ObjectId', required: true },
+      { name: 'start_date', type: 'string', description: 'Start date ISO 8601', required: true },
+      { name: 'end_date', type: 'string', description: 'End date ISO 8601', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getUsageAnalytics: unknown }>(
+        `query($stand_id: String!, $start_date: DateTime!, $end_date: DateTime!) {
+          getUsageAnalytics(stand_id: $stand_id, start_date: $start_date, end_date: $end_date) {
+            daily_usage { date requests credits }
+            by_model { model tier requests credits percentage }
+            top_users { user_id requests credits percentage }
+            totals { requests credits avg_credits_per_request }
+          }
+        }`,
+        { stand_id: args.stand_id, start_date: args.start_date, end_date: args.end_date },
+      );
+      return result.getUsageAnalytics;
+    },
+  });
+
+  register({
+    name: 'credits_buy',
+    displayName: 'credits buy',
+    description: 'Purchase a credit top-up package. Returns a Stripe checkout URL.',
+    params: [
+      { name: 'stand_id', type: 'string', description: 'Community/stand ObjectId', required: true },
+      { name: 'package', type: 'string', description: 'Credit package', required: true,
+        enum: ['5', '10', '25', '50', '100'] },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ purchaseCredits: unknown }>(
+        `mutation($input: PurchaseCreditInput!) {
+          purchaseCredits(input: $input) {
+            checkout_url session_id
+          }
+        }`,
+        { input: { stand_id: args.stand_id, package: args.package } },
+      );
+      return result.purchaseCredits;
+    },
+  });
+
+  register({
+    name: 'available_models',
+    displayName: 'available models',
+    description: 'List AI models available for the current subscription tier.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ObjectId (optional for tier filtering)', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = {};
+      if (args.space_id) vars.spaceId = args.space_id;
+
+      const result = await graphqlRequest<{ getAvailableModels: unknown }>(
+        `query($spaceId: String) {
+          getAvailableModels(spaceId: $spaceId) {
+            id provider name tier minimum_credits_per_request capabilities is_default
+          }
+        }`,
+        vars,
+      );
+      return result.getAvailableModels;
+    },
+  });
+
+  register({
+    name: 'set_preferred_model',
+    displayName: 'set preferred model',
+    description: 'Set the current user preferred AI model.',
+    params: [
+      { name: 'model_id', type: 'string', description: 'Model ID string (from available_models)', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ setPreferredModel: unknown }>(
+        `mutation($input: SetPreferredModelInput!) {
+          setPreferredModel(input: $input) {
+            id provider name tier minimum_credits_per_request capabilities is_default
+          }
+        }`,
+        { input: { model_id: args.model_id } },
+      );
+      return result.setPreferredModel;
+    },
+  });
+
+  register({
+    name: 'set_space_default_model',
+    displayName: 'set space default model',
+    description: 'Set a community default AI model.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ObjectId', required: true },
+      { name: 'model_id', type: 'string', description: 'Model ID string', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ setSpaceDefaultModel: unknown }>(
+        `mutation($input: SetSpaceDefaultModelInput!) {
+          setSpaceDefaultModel(input: $input) {
+            id provider name tier minimum_credits_per_request capabilities is_default
+          }
+        }`,
+        { input: { spaceId: args.space_id, modelId: args.model_id } },
+      );
+      return result.setSpaceDefaultModel;
+    },
+  });
+
+  // --- Subscriptions (NT-63 through NT-67) ---
+
+  register({
+    name: 'subscription_status',
+    displayName: 'subscription status',
+    description: 'Get current subscription status for a community, including subscription record, detail items, and pending payment info.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ObjectId', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getSpaceSubscription: unknown }>(
+        `query($space: MongoID!) {
+          getSpaceSubscription(space: $space) {
+            subscription { _id space status current_period_start current_period_end cancel_at_period_end }
+            items { _id type active }
+            payment { client_secret publishable_key }
+          }
+        }`,
+        { space: args.space_id },
+      );
+      return result.getSpaceSubscription;
+    },
+  });
+
+  register({
+    name: 'subscription_features',
+    displayName: 'subscription features',
+    description: 'List all subscription features and their tier-level configuration.',
+    params: [],
+    destructive: false,
+    execute: async () => {
+      const result = await graphqlRequest<{ listSubscriptionFeatureConfigs: unknown }>(
+        `query {
+          listSubscriptionFeatureConfigs {
+            feature_code feature_type description display_label tiers
+          }
+        }`,
+      );
+      return result.listSubscriptionFeatureConfigs;
+    },
+  });
+
+  register({
+    name: 'subscription_plans',
+    displayName: 'subscription plans',
+    description: 'List available subscription plans with pricing and AI credit allocations.',
+    params: [],
+    destructive: false,
+    execute: async () => {
+      const result = await graphqlRequest<{ listSubscriptionItems: unknown }>(
+        `query {
+          listSubscriptionItems {
+            type title pricing { price annual_price currency decimals } credits_per_month
+          }
+        }`,
+      );
+      return result.listSubscriptionItems;
+    },
+  });
+
+  register({
+    name: 'subscription_upgrade',
+    displayName: 'subscription upgrade',
+    description: 'Purchase or upgrade a community subscription tier. Returns a Stripe checkout URL.',
+    params: [
+      { name: 'stand_id', type: 'string', description: 'Community/stand ObjectId', required: true },
+      { name: 'tier', type: 'string', description: 'Subscription tier', required: true,
+        enum: ['pro', 'plus', 'max'] },
+      { name: 'annual', type: 'boolean', description: 'Annual billing if true', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        stand_id: args.stand_id,
+        tier: args.tier,
+      };
+      if (args.annual !== undefined) input.annual = args.annual;
+
+      const result = await graphqlRequest<{ purchaseSubscription: unknown }>(
+        `mutation($input: PurchaseSubscriptionInput!) {
+          purchaseSubscription(input: $input) {
+            checkout_url session_id
+          }
+        }`,
+        { input },
+      );
+      return result.purchaseSubscription;
+    },
+  });
+
+  register({
+    name: 'subscription_cancel',
+    displayName: 'subscription cancel',
+    description: 'Cancel an AI credit subscription for a community.',
+    params: [
+      { name: 'stand_id', type: 'string', description: 'Community/stand ObjectId', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ cancelSubscription: unknown }>(
+        `mutation($input: CancelSubscriptionInput!) {
+          cancelSubscription(input: $input) {
+            success effective_date
+          }
+        }`,
+        { input: { stand_id: args.stand_id } },
+      );
+      return result.cancelSubscription;
+    },
+  });
+
   // --- My Tickets ---
 
   register({

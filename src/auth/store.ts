@@ -15,6 +15,7 @@ export interface LemonadeConfig {
   anthropic_key?: string;
   openai_key?: string;
   ai_provider?: string;
+  ai_mode?: 'credits' | 'own_key';
 }
 
 const CONFIG_DIR = join(homedir(), '.lemonade');

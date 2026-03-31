@@ -16,6 +16,7 @@ import { detectApiKey, detectProvider, onboardApiKey } from './onboarding.js';
 import { ChatEngine } from './engine/ChatEngine.js';
 import { parseArgs } from './parseArgs.js';
 import { VERSION } from './version.js';
+import { initAiMode, getAiModeDisplay } from './aiMode.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
@@ -77,8 +78,9 @@ function createProvider(providerName: string, apiKey: string, model?: string): A
 }
 
 function printWelcome(firstName: string): void {
+  const modeDisplay = getAiModeDisplay();
   console.log(`
-  ${chalk.bold('make-lemonade')} v${VERSION}
+  ${chalk.bold('make-lemonade')} v${VERSION}  ${chalk.dim(`[${modeDisplay}]`)}
 
   Hey ${firstName}! What would you like to do?
 
@@ -237,28 +239,89 @@ async function main(): Promise<void> {
 
   const isTTY = process.stdin.isTTY === true;
 
-  // Determine provider
-  const providerName = args.provider || detectProvider();
+  // Initialize AI mode (locked for entire session)
+  const aiMode = initAiMode();
 
-  // Validate provider name
-  if (!VALID_PROVIDERS.includes(providerName)) {
-    console.error(chalk.red(`  Unknown provider "${providerName}". Supported: ${VALID_PROVIDERS.join(', ')}`));
-    process.exit(2);
-  }
+  let apiKey: string | null = null;
+  let provider: AIProvider;
 
-  let apiKey = detectApiKey(providerName);
+  if (aiMode === 'own_key') {
+    // Mode 1: Own API Key -- SDK providers only, no lemonade-ai contact
+    const providerName = args.provider || detectProvider();
 
-  // Onboarding if no API key
-  if (!apiKey && isTTY) {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    apiKey = await onboardApiKey(rl, providerName);
-    rl.close();
-    if (!apiKey) {
+    if (!VALID_PROVIDERS.includes(providerName)) {
+      console.error(chalk.red(`  Unknown provider "${providerName}". Supported: ${VALID_PROVIDERS.join(', ')}`));
       process.exit(2);
     }
-  } else if (!apiKey) {
-    console.error('No AI API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.');
-    process.exit(2);
+
+    apiKey = detectApiKey(providerName);
+
+    if (!apiKey && isTTY) {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      apiKey = await onboardApiKey(rl, providerName);
+      rl.close();
+      if (!apiKey) {
+        process.exit(2);
+      }
+    } else if (!apiKey) {
+      console.error('No AI API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.');
+      process.exit(2);
+    }
+
+    provider = createProvider(providerName, apiKey!, args.model);
+  } else {
+    // Mode 2: Lemonade AI Credits -- no SDK imports, only lemonade-ai endpoint
+    const { LemonadeAIProvider } = await import('./providers/lemonade-ai.js');
+    const defaultSpace = getDefaultSpace();
+
+    if (!defaultSpace) {
+      console.error(chalk.red('  No default space set. Run "lemonade space switch" to select a community.'));
+      process.exit(2);
+    }
+
+    // Check credit balance before starting
+    try {
+      const balanceResult = await graphqlRequest<{ getStandCredits: { credits: number; subscription_tier: string; subscription_renewal_date?: string } | null }>(
+        `query($stand_id: String!) {
+          getStandCredits(stand_id: $stand_id) {
+            credits subscription_tier subscription_renewal_date
+          }
+        }`,
+        { stand_id: defaultSpace },
+      );
+
+      const credits = balanceResult.getStandCredits;
+
+      if (!credits || (credits.credits <= 0 && credits.subscription_tier === 'free')) {
+        console.error(chalk.red('  Your community is on the free plan with no AI credits.'));
+        console.error(chalk.dim('  Upgrade your plan or use your own API key (run with ai_mode: own_key).'));
+        process.exit(2);
+      }
+
+      if (credits.credits <= 0) {
+        console.log(chalk.yellow(`  Your community has 0 credits remaining. Credits renew on ${credits.subscription_renewal_date || 'next billing cycle'}.`));
+        console.log(chalk.dim('  You can buy more credits with "credits buy" or switch to your own API key.'));
+      }
+    } catch {
+      // Non-fatal: continue even if balance check fails
+    }
+
+    // Fetch available model info for display
+    let modelName = 'Lemonade AI';
+    try {
+      const modelsResult = await graphqlRequest<{ getAvailableModels: Array<{ name: string; is_default: boolean }> }>(
+        `query($spaceId: String) {
+          getAvailableModels(spaceId: $spaceId) { name is_default }
+        }`,
+        { spaceId: defaultSpace },
+      );
+      const defaultModel = modelsResult.getAvailableModels.find((m) => m.is_default);
+      if (defaultModel) modelName = defaultModel.name;
+    } catch {
+      // Non-fatal
+    }
+
+    provider = new LemonadeAIProvider(modelName, defaultSpace);
   }
 
   // Fetch user profile
@@ -275,7 +338,6 @@ async function main(): Promise<void> {
   const registry = buildToolRegistry();
   const toolDefs = Object.values(registry);
   const session = createSessionState(user, getDefaultSpace());
-  const provider = createProvider(providerName, apiKey, args.model);
   const formattedTools = provider.formatTools(toolDefs);
 
   if (isTTY && !args.simple) {
