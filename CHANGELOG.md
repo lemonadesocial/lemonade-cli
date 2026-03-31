@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.2...v1.0.3) (2026-03-31)
+
+
+### Bug Fixes
+
+* revert package name to @lemonade-social/cli ([9f20cd8](https://github.com/lemonadesocial/lemonade-cli/commit/9f20cd8946bc5c354a01b75d1d14688ac43c7dee))
+
 ## [1.0.2](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.1...v1.0.2) (2026-03-31)
 
 
