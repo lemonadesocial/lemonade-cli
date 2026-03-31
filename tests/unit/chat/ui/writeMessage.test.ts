@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { formatUserMessage, formatAssistantMessage } from '../../../../src/chat/ui/writeMessage';
 
 describe('formatUserMessage', () => {
-  it('includes "You" prefix', () => {
+  it('includes > prefix', () => {
     const output = formatUserMessage('hello');
     // Strip ANSI for content check
     const plain = output.replace(/\u001b\[[0-9;]*m/g, '');
-    expect(plain).toContain('You');
+    expect(plain).toContain('> hello');
   });
 
   it('includes the message text', () => {

@@ -112,6 +112,34 @@ async function interactiveMode(
   let thinkingSpinner: SpinnerHandle | null = null;
   let toolSpinner: SpinnerHandle | null = null;
   let turnTokenCount = 0;
+  let streamAbort: AbortController | null = null;
+
+  // Enable keypress events for Escape detection
+  readline.emitKeypressEvents(process.stdin);
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(false); // readline manages raw mode
+  }
+  process.stdin.on('keypress', (_ch: string, key: { name?: string; ctrl?: boolean }) => {
+    if (key?.name === 'escape' && streamAbort) {
+      streamAbort.abort();
+      streamAbort = null;
+      if (thinkingSpinner) {
+        thinkingSpinner.stop();
+        thinkingSpinner = null;
+      }
+      if (toolSpinner) {
+        toolSpinner.stop();
+        toolSpinner = null;
+      }
+      process.stdout.write('\r\x1b[K');
+      if (textStarted) {
+        process.stdout.write('\n');
+        textStarted = false;
+      }
+      console.log(chalk.dim('  (cancelled)'));
+      rl.prompt();
+    }
+  });
 
   engine.on('text_delta', (data) => {
     if (thinkingSpinner) {
@@ -143,11 +171,22 @@ async function interactiveMode(
 
   engine.on('warning', (data) => {
     console.log(chalk.yellow(`\n  ${data.message}`));
+    rl.prompt();
   });
 
   engine.on('error', (data) => {
+    if (thinkingSpinner) {
+      thinkingSpinner.stop();
+      thinkingSpinner = null;
+    }
+    if (toolSpinner) {
+      toolSpinner.stop();
+      toolSpinner = null;
+    }
+    process.stdout.write('\r\x1b[K');
     if (textStarted) process.stdout.write('\n');
     printErrorMessage(`  Error: ${data.message}`);
+    rl.prompt();
   });
 
   engine.on('confirm_request', (data) => {
@@ -174,6 +213,7 @@ async function interactiveMode(
       ...displayOpts,
       tokenCount: turnTokenCount,
     });
+    rl.prompt();
   });
 
   rl.prompt();
@@ -265,6 +305,7 @@ async function interactiveMode(
 
     const systemPrompt = buildSystemMessages(session, provider.name);
 
+    streamAbort = new AbortController();
     try {
       await handleTurn(
         provider,
@@ -276,6 +317,7 @@ async function interactiveMode(
         rl,
         true,
         engine,
+        streamAbort.signal,
       );
     } catch (err) {
       if (thinkingSpinner) {
@@ -288,7 +330,9 @@ async function interactiveMode(
       } else {
         printErrorMessage(`\n  Error: ${msg}`);
       }
+      rl.prompt();
     }
+    streamAbort = null;
 
     console.log('');
     rl.prompt();
@@ -479,11 +523,17 @@ async function main(): Promise<void> {
       modelName: provider.model,
     };
 
-    printWelcomeBanner({
+    const bannerLineCount = printWelcomeBanner({
       firstName: user.first_name || user.name,
       agentName: getAgentName(),
       ...displayOpts,
     });
+
+    // Push prompt to bottom of terminal on launch
+    const padding = Math.max(0, (process.stdout.rows || 24) - bannerLineCount - 2);
+    if (padding > 0) {
+      process.stdout.write('\n'.repeat(padding));
+    }
 
     process.on('SIGINT', () => {
       console.log('\n  See you!\n');
