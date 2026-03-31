@@ -1467,6 +1467,941 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
+  // --- Event Cloning & Recurring ---
+
+  register({
+    name: 'event_clone',
+    displayName: 'event clone',
+    description: 'Clone an existing event to one or more new dates. Returns array of new event IDs.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Source event ObjectId', required: true },
+      { name: 'dates', type: 'string[]', description: 'Array of ISO 8601 start dates for cloned events', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ cloneEvent: string[] }>(
+        `mutation($input: CloneEventInput!) {
+          cloneEvent(input: $input)
+        }`,
+        { input: { event: args.event_id, dates: args.dates } },
+      );
+      return result.cloneEvent;
+    },
+  });
+
+  register({
+    name: 'event_generate_recurring_dates',
+    displayName: 'event recurring dates',
+    description: 'Generate a list of recurring dates based on a pattern. Use to preview dates before cloning.',
+    params: [
+      { name: 'start', type: 'string', description: 'Start date ISO 8601', required: true },
+      { name: 'utc_offset_minutes', type: 'number', description: 'UTC offset in minutes', required: true },
+      { name: 'repeat', type: 'string', description: 'Repeat pattern', required: true,
+        enum: ['daily', 'weekly', 'monthly'] },
+      { name: 'day_of_weeks', type: 'number[]', description: 'Days of week (0-6) for weekly repeat', required: false },
+      { name: 'end', type: 'string', description: 'End date ISO 8601 (max 3 years from start)', required: false },
+      { name: 'count', type: 'number', description: 'Number of occurrences (max 100)', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        start: args.start,
+        utcOffsetMinutes: args.utc_offset_minutes,
+        repeat: args.repeat,
+      };
+      if (args.day_of_weeks) input.dayOfWeeks = args.day_of_weeks;
+      if (args.end) input.end = args.end;
+      if (args.count !== undefined) input.count = args.count;
+
+      const result = await graphqlRequest<{ generateRecurringDates: string[] }>(
+        `query($input: GenerateRecurringDatesInput!) {
+          generateRecurringDates(input: $input)
+        }`,
+        { input },
+      );
+      return result.generateRecurringDates;
+    },
+  });
+
+  // --- Co-host Management ---
+
+  register({
+    name: 'event_list_cohost_requests',
+    displayName: 'event cohost requests',
+    description: 'List co-host requests/invitations for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'state', type: 'string', description: 'Filter by state', required: false,
+        enum: ['DECLINED', 'ACCEPTED', 'PENDING'] },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = { event: args.event_id };
+      if (args.state) input.state = args.state;
+
+      const result = await graphqlRequest<{ getEventCohostRequests: unknown }>(
+        `query($input: GetEventCohostRequestsInput!) {
+          getEventCohostRequests(input: $input) {
+            _id from to to_email state event_role stamp
+          }
+        }`,
+        { input },
+      );
+      return result.getEventCohostRequests;
+    },
+  });
+
+  register({
+    name: 'event_add_cohost',
+    displayName: 'event add cohost',
+    description: 'Add a co-host, gatekeeper, or representative to an event by email or user ID.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'email', type: 'string', description: 'Target email', required: false },
+      { name: 'user_id', type: 'string', description: 'Target user ObjectId', required: false },
+      { name: 'role', type: 'string', description: 'Role to assign', required: false,
+        enum: ['cohost', 'gatekeeper', 'representative'] },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        decision: true,
+      };
+      if (args.email) input.to_email = args.email;
+      if (args.user_id) input.to = args.user_id;
+      if (args.role) input.event_role = args.role;
+
+      const result = await graphqlRequest<{ manageEventCohostRequests: boolean }>(
+        `mutation($input: ManageEventCohostRequestsInput!) {
+          manageEventCohostRequests(input: $input)
+        }`,
+        { input },
+      );
+      return result.manageEventCohostRequests;
+    },
+  });
+
+  register({
+    name: 'event_remove_cohost',
+    displayName: 'event remove cohost',
+    description: 'Remove a co-host from an event by email or user ID.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'email', type: 'string', description: 'Target email', required: false },
+      { name: 'user_id', type: 'string', description: 'Target user ObjectId', required: false },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        decision: false,
+      };
+      if (args.email) input.to_email = args.email;
+      if (args.user_id) input.to = args.user_id;
+
+      const result = await graphqlRequest<{ manageEventCohostRequests: boolean }>(
+        `mutation($input: ManageEventCohostRequestsInput!) {
+          manageEventCohostRequests(input: $input)
+        }`,
+        { input },
+      );
+      return result.manageEventCohostRequests;
+    },
+  });
+
+  // --- Broadcasting ---
+
+  register({
+    name: 'event_broadcast_create',
+    displayName: 'event broadcast create',
+    description: 'Create a broadcast/livestream for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'provider', type: 'string', description: 'Broadcast provider', required: true,
+        enum: ['embed', 'local', 'twitch', 'video', 'youtube', 'zoom'] },
+      { name: 'provider_id', type: 'string', description: 'Provider-specific stream ID', required: true },
+      { name: 'title', type: 'string', description: 'Broadcast title', required: true },
+      { name: 'scheduled_start_time', type: 'string', description: 'ISO 8601 scheduled start', required: false },
+      { name: 'scheduled_end_time', type: 'string', description: 'ISO 8601 scheduled end', required: false },
+      { name: 'description', type: 'string', description: 'Broadcast description', required: false },
+      { name: 'position', type: 'number', description: 'Display order', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        provider: args.provider,
+        provider_id: args.provider_id,
+        title: args.title,
+      };
+      if (args.scheduled_start_time) input.scheduled_start_time = args.scheduled_start_time;
+      if (args.scheduled_end_time) input.scheduled_end_time = args.scheduled_end_time;
+      if (args.description) input.description = args.description;
+      if (args.position !== undefined) input.position = args.position;
+
+      const result = await graphqlRequest<{ createEventBroadcast: boolean }>(
+        `mutation($event: MongoID!, $input: CreateEventBroadcastInput!) {
+          createEventBroadcast(event: $event, input: $input)
+        }`,
+        { event: args.event_id, input },
+      );
+      return result.createEventBroadcast;
+    },
+  });
+
+  register({
+    name: 'event_broadcast_update',
+    displayName: 'event broadcast update',
+    description: "Update a broadcast's settings.",
+    params: [
+      { name: 'broadcast_id', type: 'string', description: 'Broadcast ObjectId', required: true },
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'description', type: 'string', description: 'New description', required: false },
+      { name: 'position', type: 'number', description: 'New display order', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {};
+      if (args.description) input.description = args.description;
+      if (args.position !== undefined) input.position = args.position;
+
+      const result = await graphqlRequest<{ updateEventBroadcast: boolean }>(
+        `mutation($_id: MongoID!, $event: MongoID!, $input: UpdateEventBroadcastInput!) {
+          updateEventBroadcast(_id: $_id, event: $event, input: $input)
+        }`,
+        { _id: args.broadcast_id, event: args.event_id, input },
+      );
+      return result.updateEventBroadcast;
+    },
+  });
+
+  register({
+    name: 'event_broadcast_delete',
+    displayName: 'event broadcast delete',
+    description: 'Delete a broadcast from an event.',
+    params: [
+      { name: 'broadcast_id', type: 'string', description: 'Broadcast ObjectId', required: true },
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ deleteEventBroadcast: boolean }>(
+        `mutation($_id: MongoID!, $event: MongoID!) {
+          deleteEventBroadcast(_id: $_id, event: $event)
+        }`,
+        { _id: args.broadcast_id, event: args.event_id },
+      );
+      return result.deleteEventBroadcast;
+    },
+  });
+
+  // --- Email Workflows ---
+
+  register({
+    name: 'event_emails_list',
+    displayName: 'event emails list',
+    description: 'List email settings/workflows configured for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'system', type: 'boolean', description: 'Include system email templates', required: false },
+      { name: 'scheduled', type: 'boolean', description: 'Filter by scheduled emails', required: false },
+      { name: 'sent', type: 'boolean', description: 'Filter by sent emails', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = { event: args.event_id };
+      if (args.system !== undefined) vars.system = args.system;
+      if (args.scheduled !== undefined) vars.scheduled = args.scheduled;
+      if (args.sent !== undefined) vars.sent = args.sent;
+
+      const result = await graphqlRequest<{ listEventEmailSettings: unknown }>(
+        `query($event: MongoID!, $system: Boolean, $scheduled: Boolean, $sent: Boolean) {
+          listEventEmailSettings(event: $event, system: $system, scheduled: $scheduled, sent: $sent) {
+            _id type is_system_email subject_preview body_preview disabled scheduled_at
+          }
+        }`,
+        vars,
+      );
+      return result.listEventEmailSettings;
+    },
+  });
+
+  register({
+    name: 'event_email_create',
+    displayName: 'event email create',
+    description: 'Create a custom email setting for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'type', type: 'string', description: 'EmailTemplateType enum value', required: true },
+      { name: 'custom_subject_html', type: 'string', description: 'Custom email subject', required: false },
+      { name: 'custom_body_html', type: 'string', description: 'Custom email body HTML', required: false },
+      { name: 'scheduled_at', type: 'string', description: 'ISO 8601 scheduled send time', required: false },
+      { name: 'disabled', type: 'boolean', description: 'Start disabled', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        type: args.type,
+      };
+      if (args.custom_subject_html) input.custom_subject_html = args.custom_subject_html;
+      if (args.custom_body_html) input.custom_body_html = args.custom_body_html;
+      if (args.scheduled_at) input.scheduled_at = args.scheduled_at;
+      if (args.disabled !== undefined) input.disabled = args.disabled;
+
+      const result = await graphqlRequest<{ createEventEmailSetting: unknown }>(
+        `mutation($input: CreateEventEmailSettingInput!) {
+          createEventEmailSetting(input: $input) {
+            _id type is_system_email subject_preview disabled
+          }
+        }`,
+        { input },
+      );
+      return result.createEventEmailSetting;
+    },
+  });
+
+  register({
+    name: 'event_email_update',
+    displayName: 'event email update',
+    description: 'Update an existing email setting.',
+    params: [
+      { name: 'email_setting_id', type: 'string', description: 'Email setting ObjectId', required: true },
+      { name: 'custom_subject_html', type: 'string', description: 'Updated subject HTML', required: false },
+      { name: 'custom_body_html', type: 'string', description: 'Updated body HTML', required: false },
+      { name: 'disabled', type: 'boolean', description: 'Enable/disable', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = { _id: args.email_setting_id };
+      if (args.custom_subject_html) input.custom_subject_html = args.custom_subject_html;
+      if (args.custom_body_html) input.custom_body_html = args.custom_body_html;
+      if (args.disabled !== undefined) input.disabled = args.disabled;
+
+      const result = await graphqlRequest<{ updateEventEmailSetting: unknown }>(
+        `mutation($input: UpdateEventEmailSettingInput!) {
+          updateEventEmailSetting(input: $input) {
+            _id type disabled subject_preview
+          }
+        }`,
+        { input },
+      );
+      return result.updateEventEmailSetting;
+    },
+  });
+
+  register({
+    name: 'event_email_delete',
+    displayName: 'event email delete',
+    description: 'Delete an email setting.',
+    params: [
+      { name: 'email_setting_id', type: 'string', description: 'Email setting ObjectId', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ deleteEventEmailSetting: boolean }>(
+        `mutation($_id: MongoID!) {
+          deleteEventEmailSetting(_id: $_id)
+        }`,
+        { _id: args.email_setting_id },
+      );
+      return result.deleteEventEmailSetting;
+    },
+  });
+
+  register({
+    name: 'event_email_toggle',
+    displayName: 'event email toggle',
+    description: 'Enable or disable multiple email settings at once.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'email_setting_ids', type: 'string[]', description: 'Array of email setting ObjectIds', required: true },
+      { name: 'disabled', type: 'boolean', description: 'true to disable, false to enable', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ toggleEventEmailSettings: boolean }>(
+        `mutation($event: MongoID!, $ids: [MongoID!]!, $disabled: Boolean!) {
+          toggleEventEmailSettings(event: $event, ids: $ids, disabled: $disabled)
+        }`,
+        { event: args.event_id, ids: args.email_setting_ids, disabled: args.disabled },
+      );
+      return result.toggleEventEmailSettings;
+    },
+  });
+
+  register({
+    name: 'event_email_test',
+    displayName: 'event email test',
+    description: 'Send test emails for a specific email template type.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: false },
+      { name: 'type', type: 'string', description: 'EmailTemplateType enum value', required: false },
+      { name: 'test_recipients', type: 'string[]', description: 'Email addresses to send test to', required: true },
+      { name: 'email_setting_id', type: 'string', description: 'Existing setting ID to test', required: false },
+      { name: 'custom_subject_html', type: 'string', description: 'Override subject for test', required: false },
+      { name: 'custom_body_html', type: 'string', description: 'Override body for test', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        test_recipients: args.test_recipients,
+      };
+      if (args.event_id) input.event = args.event_id;
+      if (args.type) input.type = args.type;
+      if (args.email_setting_id) input._id = args.email_setting_id;
+      if (args.custom_subject_html) input.custom_subject_html = args.custom_subject_html;
+      if (args.custom_body_html) input.custom_body_html = args.custom_body_html;
+
+      const result = await graphqlRequest<{ sendEventEmailSettingTestEmails: boolean }>(
+        `mutation($input: SendEventEmailSettingTestEmailsInput!) {
+          sendEventEmailSettingTestEmails(input: $input)
+        }`,
+        { input },
+      );
+      return result.sendEventEmailSettingTestEmails;
+    },
+  });
+
+  // --- Guest Management Enhanced ---
+
+  register({
+    name: 'event_ticket_statistics',
+    displayName: 'event ticket statistics',
+    description: 'Get ticket statistics for an event (all, checked in, cancelled, per ticket type).',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getTicketStatistics: unknown }>(
+        `query($id: MongoID!) {
+          getTicketStatistics(id: $id) {
+            all checked_in not_checked_in invited issued cancelled
+            applicants { state count }
+            ticket_types { ticket_type ticket_type_title count }
+          }
+        }`,
+        { id: args.event_id },
+      );
+      return result.getTicketStatistics;
+    },
+  });
+
+  register({
+    name: 'event_export_guests',
+    displayName: 'event export guests',
+    description: 'Export detailed guest/ticket list with filters.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'ticket_type_ids', type: 'string[]', description: 'Filter by ticket type IDs', required: false },
+      { name: 'search_text', type: 'string', description: 'Search text', required: false },
+      { name: 'checked_in', type: 'boolean', description: 'Filter by check-in status', required: false },
+      { name: 'limit', type: 'number', description: 'Pagination limit', required: false },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = { _id: args.event_id };
+      if (args.ticket_type_ids) vars.ticket_type_ids = args.ticket_type_ids;
+      if (args.search_text) vars.search_text = args.search_text;
+      if (args.checked_in !== undefined) vars.checked_in = args.checked_in;
+      if (args.limit !== undefined || args.skip !== undefined) {
+        vars.pagination = {
+          limit: args.limit as number | undefined,
+          skip: args.skip as number | undefined,
+        };
+      }
+
+      const result = await graphqlRequest<{ exportEventTickets: unknown }>(
+        `query($_id: MongoID!, $ticket_type_ids: [MongoID!], $search_text: String, $checked_in: Boolean, $pagination: PaginationInput) {
+          exportEventTickets(_id: $_id, ticket_type_ids: $ticket_type_ids, search_text: $search_text, checked_in: $checked_in, pagination: $pagination) {
+            count
+            tickets { _id shortid buyer_name buyer_email ticket_type quantity payment_amount currency discount_code purchase_date checkin_date active cancelled_by }
+          }
+        }`,
+        vars,
+      );
+      return result.exportEventTickets;
+    },
+  });
+
+  register({
+    name: 'event_guest_detail',
+    displayName: 'event guest detail',
+    description: 'Get detailed info about a specific guest (ticket, payment, join request, application).',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'user_id', type: 'string', description: 'Guest user ObjectId', required: false },
+      { name: 'email', type: 'string', description: 'Guest email', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = { event: args.event_id };
+      if (args.user_id) vars.user = args.user_id;
+      if (args.email) vars.email = args.email;
+
+      const result = await graphqlRequest<{ getEventGuestDetail: unknown }>(
+        `query($event: MongoID!, $user: MongoID, $email: String) {
+          getEventGuestDetail(event: $event, user: $user, email: $email) {
+            user { _id name email image_avatar }
+            ticket { _id type }
+            payment { _id amount currency }
+            join_request { _id state }
+            application { question answer }
+          }
+        }`,
+        vars,
+      );
+      return result.getEventGuestDetail;
+    },
+  });
+
+  register({
+    name: 'event_guests_statistics',
+    displayName: 'event guests statistics',
+    description: 'Get detailed guest statistics (going, pending, declined, checked in, per ticket type).',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventGuestsStatistics: unknown }>(
+        `query($event: MongoID!) {
+          getEventGuestsStatistics(event: $event) {
+            going pending_approval pending_invite declined checked_in
+            ticket_types { ticket_type ticket_type_title guests_count }
+          }
+        }`,
+        { event: args.event_id },
+      );
+      return result.getEventGuestsStatistics;
+    },
+  });
+
+  register({
+    name: 'event_guests_list',
+    displayName: 'event guests list',
+    description: 'List event guests with filters and pagination.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'search', type: 'string', description: 'Search by name/email', required: false },
+      { name: 'ticket_types', type: 'string[]', description: 'Filter by ticket type IDs', required: false },
+      { name: 'going', type: 'boolean', description: 'Filter going guests', required: false },
+      { name: 'pending_approval', type: 'boolean', description: 'Filter pending approval', required: false },
+      { name: 'pending_invite', type: 'boolean', description: 'Filter pending invites', required: false },
+      { name: 'declined', type: 'boolean', description: 'Filter declined', required: false },
+      { name: 'checked_in', type: 'boolean', description: 'Filter checked-in', required: false },
+      { name: 'sort_by', type: 'string', description: 'Sort field', required: false,
+        enum: ['name', 'email', 'approval_status', 'register_time'] },
+      { name: 'sort_order', type: 'string', description: 'Sort direction', required: false,
+        enum: ['asc', 'desc'] },
+      { name: 'limit', type: 'number', description: 'Pagination limit', required: false },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = { event: args.event_id };
+      if (args.search) vars.search = args.search;
+      if (args.ticket_types) vars.ticket_types = args.ticket_types;
+      if (args.going !== undefined) vars.going = args.going;
+      if (args.pending_approval !== undefined) vars.pending_approval = args.pending_approval;
+      if (args.pending_invite !== undefined) vars.pending_invite = args.pending_invite;
+      if (args.declined !== undefined) vars.declined = args.declined;
+      if (args.checked_in !== undefined) vars.checked_in = args.checked_in;
+      if (args.sort_by) vars.sort_by = args.sort_by;
+      if (args.sort_order) vars.sort_order = args.sort_order;
+      if (args.limit !== undefined) vars.limit = args.limit;
+      if (args.skip !== undefined) vars.skip = args.skip;
+
+      const result = await graphqlRequest<{ listEventGuests: unknown }>(
+        `query($event: MongoID!, $search: String, $ticket_types: [MongoID!], $going: Boolean, $pending_approval: Boolean, $pending_invite: Boolean, $declined: Boolean, $checked_in: Boolean, $sort_by: ListEventGuestsSortBy, $sort_order: SortOrder, $limit: Int, $skip: Int) {
+          listEventGuests(event: $event, search: $search, ticket_types: $ticket_types, going: $going, pending_approval: $pending_approval, pending_invite: $pending_invite, declined: $declined, checked_in: $checked_in, sort_by: $sort_by, sort_order: $sort_order, limit: $limit, skip: $skip) {
+            total
+            items { user { _id name email } ticket { _id type } join_request { state } }
+          }
+        }`,
+        vars,
+      );
+      return result.listEventGuests;
+    },
+  });
+
+  // --- Invitation Statistics ---
+
+  register({
+    name: 'event_invite_stats',
+    displayName: 'event invite stats',
+    description: 'Get invitation tracking statistics with guest-level detail.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'search', type: 'string', description: 'Search invitees', required: false },
+      { name: 'limit', type: 'number', description: 'Limit number of guest entries', required: false },
+      { name: 'statuses', type: 'string[]', description: 'Filter by invitation response status', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = { _id: args.event_id };
+      if (args.search) vars.search = args.search;
+      if (args.limit !== undefined) vars.limit = args.limit;
+      if (args.statuses) vars.statuses = args.statuses;
+
+      const result = await graphqlRequest<{ getEventInvitedStatistics: unknown }>(
+        `query($_id: MongoID!, $search: String, $limit: Float, $statuses: [InvitationResponse!]) {
+          getEventInvitedStatistics(_id: $_id, search: $search, limit: $limit, statuses: $statuses) {
+            total total_joined total_declined emails_opened top_inviter
+            guests { invitation invited_by joined declined pending user email }
+          }
+        }`,
+        vars,
+      );
+      return result.getEventInvitedStatistics;
+    },
+  });
+
+  register({
+    name: 'event_cancel_invitations',
+    displayName: 'event cancel invitations',
+    description: 'Cancel pending invitations for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'invitation_ids', type: 'string[]', description: 'Array of invitation ObjectIds to cancel', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ cancelEventInvitations: boolean }>(
+        `mutation($input: CancelEventInvitationsInput!) {
+          cancelEventInvitations(input: $input)
+        }`,
+        { input: { event: args.event_id, invitations: args.invitation_ids } },
+      );
+      return result.cancelEventInvitations;
+    },
+  });
+
+  // --- Analytics Charts ---
+
+  register({
+    name: 'event_sales_chart',
+    displayName: 'event sales chart',
+    description: 'Get ticket sales data over a time range for charting.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'start', type: 'string', description: 'Start date ISO 8601', required: true },
+      { name: 'end', type: 'string', description: 'End date ISO 8601', required: true },
+      { name: 'ticket_type_ids', type: 'string[]', description: 'Filter by ticket type IDs', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = {
+        event: args.event_id,
+        start: args.start,
+        end: args.end,
+      };
+      if (args.ticket_type_ids) vars.types = args.ticket_type_ids;
+
+      const result = await graphqlRequest<{ getEventTicketSoldChartData: unknown }>(
+        `query($event: MongoID!, $start: DateTime!, $end: DateTime!, $types: [MongoID!]) {
+          getEventTicketSoldChartData(event: $event, start: $start, end: $end, types: $types) {
+            items { created_at type }
+          }
+        }`,
+        vars,
+      );
+      return result.getEventTicketSoldChartData;
+    },
+  });
+
+  register({
+    name: 'event_checkin_chart',
+    displayName: 'event checkin chart',
+    description: 'Get check-in data over a time range for charting.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'start', type: 'string', description: 'Start date ISO 8601', required: true },
+      { name: 'end', type: 'string', description: 'End date ISO 8601', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventCheckinChartData: unknown }>(
+        `query($event: MongoID!, $start: DateTime!, $end: DateTime!) {
+          getEventCheckinChartData(event: $event, start: $start, end: $end) {
+            items { created_at }
+          }
+        }`,
+        { event: args.event_id, start: args.start, end: args.end },
+      );
+      return result.getEventCheckinChartData;
+    },
+  });
+
+  register({
+    name: 'event_views_chart',
+    displayName: 'event views chart',
+    description: 'Get page view data over a time range for charting.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'start', type: 'string', description: 'Start date ISO 8601', required: true },
+      { name: 'end', type: 'string', description: 'End date ISO 8601', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventViewChartData: unknown }>(
+        `query($event: MongoID!, $start: DateTime!, $end: DateTime!) {
+          getEventViewChartData(event: $event, start: $start, end: $end) {
+            items { date }
+          }
+        }`,
+        { event: args.event_id, start: args.start, end: args.end },
+      );
+      return result.getEventViewChartData;
+    },
+  });
+
+  register({
+    name: 'event_view_stats',
+    displayName: 'event view stats',
+    description: 'Get view counts for multiple date ranges (for comparison).',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'ranges', type: 'object[]', description: 'Array of { start, end } date ranges', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventViewStats: unknown }>(
+        `query($event: MongoID!, $ranges: [DateRangeInput!]!) {
+          getEventViewStats(event: $event, ranges: $ranges) {
+            counts
+          }
+        }`,
+        { event: args.event_id, ranges: args.ranges },
+      );
+      return result.getEventViewStats;
+    },
+  });
+
+  register({
+    name: 'event_top_views',
+    displayName: 'event top views',
+    description: 'Get top traffic sources and cities for an event, plus total views.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'city_limit', type: 'number', description: 'Max cities to return', required: true },
+      { name: 'source_limit', type: 'number', description: 'Max sources to return', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventTopViews: unknown }>(
+        `query($event: MongoID!, $city_limit: Int!, $source_limit: Int!) {
+          getEventTopViews(event: $event, city_limit: $city_limit, source_limit: $source_limit) {
+            total
+            by_city { geoip_city geoip_region geoip_country count }
+            by_source { utm_source count }
+          }
+        }`,
+        { event: args.event_id, city_limit: args.city_limit, source_limit: args.source_limit },
+      );
+      return result.getEventTopViews;
+    },
+  });
+
+  register({
+    name: 'event_top_inviters',
+    displayName: 'event top inviters',
+    description: 'Get top inviters ranked by successful invitations.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
+      { name: 'limit', type: 'number', description: 'Pagination limit', required: false },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = { event: args.event_id };
+      if (args.limit !== undefined) vars.limit = args.limit;
+      if (args.skip !== undefined) vars.skip = args.skip;
+
+      const result = await graphqlRequest<{ getEventTopInviters: unknown }>(
+        `query($event: MongoID!, $limit: Int, $skip: Int) {
+          getEventTopInviters(event: $event, limit: $limit, skip: $skip) {
+            total
+            items { inviter { _id name image_avatar } count }
+          }
+        }`,
+        vars,
+      );
+      return result.getEventTopInviters;
+    },
+  });
+
+  // --- Page Configuration ---
+
+  register({
+    name: 'page_archive',
+    displayName: 'page archive',
+    description: 'Archive a page configuration.',
+    params: [
+      { name: 'page_id', type: 'string', description: 'PageConfig ObjectId', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ archivePageConfig: unknown }>(
+        `mutation($id: MongoID!) {
+          archivePageConfig(id: $id) { _id name status }
+        }`,
+        { id: args.page_id },
+      );
+      return result.archivePageConfig;
+    },
+  });
+
+  register({
+    name: 'page_save_version',
+    displayName: 'page save version',
+    description: 'Save a named version snapshot of a page configuration.',
+    params: [
+      { name: 'config_id', type: 'string', description: 'PageConfig ObjectId', required: true },
+      { name: 'name', type: 'string', description: 'Version name', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = { config_id: args.config_id };
+      if (args.name) vars.name = args.name;
+
+      const result = await graphqlRequest<{ saveConfigVersion: unknown }>(
+        `mutation($config_id: MongoID!, $name: String) {
+          saveConfigVersion(config_id: $config_id, name: $name) {
+            _id config_id version name
+          }
+        }`,
+        vars,
+      );
+      return result.saveConfigVersion;
+    },
+  });
+
+  register({
+    name: 'page_restore_version',
+    displayName: 'page restore version',
+    description: 'Restore a page configuration to a previous version.',
+    params: [
+      { name: 'config_id', type: 'string', description: 'PageConfig ObjectId', required: true },
+      { name: 'version', type: 'number', description: 'Version number to restore', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ restoreConfigVersion: unknown }>(
+        `mutation($config_id: MongoID!, $version: Float!) {
+          restoreConfigVersion(config_id: $config_id, version: $version) {
+            _id name status version
+          }
+        }`,
+        { config_id: args.config_id, version: args.version },
+      );
+      return result.restoreConfigVersion;
+    },
+  });
+
+  register({
+    name: 'page_list_versions',
+    displayName: 'page list versions',
+    description: 'List saved versions of a page configuration.',
+    params: [
+      { name: 'config_id', type: 'string', description: 'PageConfig ObjectId', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ listConfigVersions: unknown }>(
+        `query($config_id: MongoID!) {
+          listConfigVersions(config_id: $config_id) {
+            _id config_id version name
+          }
+        }`,
+        { config_id: args.config_id },
+      );
+      return result.listConfigVersions;
+    },
+  });
+
+  register({
+    name: 'page_section_catalog',
+    displayName: 'page section catalog',
+    description: 'Get the catalog of available section types for page building.',
+    params: [],
+    destructive: false,
+    execute: async () => {
+      const result = await graphqlRequest<{ getSectionCatalog: unknown }>(
+        `query {
+          getSectionCatalog { type name description category supports_children }
+        }`,
+      );
+      return result.getSectionCatalog;
+    },
+  });
+
+  // --- Templates ---
+
+  register({
+    name: 'template_list',
+    displayName: 'template list',
+    description: 'List available page templates with optional filters.',
+    params: [
+      { name: 'category', type: 'string', description: 'Filter by category', required: false },
+      { name: 'target', type: 'string', description: 'Filter by target (event, space, universal)', required: false },
+      { name: 'search', type: 'string', description: 'Search text', required: false },
+      { name: 'featured', type: 'boolean', description: 'Filter featured only', required: false },
+      { name: 'tier_max', type: 'string', description: 'Max subscription tier', required: false },
+      { name: 'creator_id', type: 'string', description: 'Filter by creator', required: false },
+      { name: 'limit', type: 'number', description: 'Pagination limit', required: false },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const vars: Record<string, unknown> = {};
+      if (args.category) vars.category = args.category;
+      if (args.target) vars.target = args.target;
+      if (args.search) vars.search = args.search;
+      if (args.featured !== undefined) vars.featured = args.featured;
+      if (args.tier_max) vars.tier_max = args.tier_max;
+      if (args.creator_id) vars.creator_id = args.creator_id;
+      if (args.limit !== undefined) vars.limit = args.limit;
+      if (args.skip !== undefined) vars.skip = args.skip;
+
+      const result = await graphqlRequest<{ listTemplates: unknown }>(
+        `query($category: String, $target: String, $search: String, $featured: Boolean, $tier_max: String, $creator_id: MongoID, $limit: Int, $skip: Int) {
+          listTemplates(category: $category, target: $target, search: $search, featured: $featured, tier_max: $tier_max, creator_id: $creator_id, limit: $limit, skip: $skip) {
+            _id name slug description category tags thumbnail_url target visibility
+          }
+        }`,
+        vars,
+      );
+      return result.listTemplates;
+    },
+  });
+
+  register({
+    name: 'template_clone_to_config',
+    displayName: 'template clone to config',
+    description: 'Clone a template to create a new page configuration for an event or space.',
+    params: [
+      { name: 'template_id', type: 'string', description: 'Template ObjectId', required: true },
+      { name: 'owner_type', type: 'string', description: 'Owner type', required: true,
+        enum: ['event', 'space'] },
+      { name: 'owner_id', type: 'string', description: 'Event or space ObjectId', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ cloneTemplateToConfig: unknown }>(
+        `mutation($template_id: MongoID!, $owner_type: String!, $owner_id: MongoID!) {
+          cloneTemplateToConfig(template_id: $template_id, owner_type: $owner_type, owner_id: $owner_id) {
+            _id name status version
+          }
+        }`,
+        { template_id: args.template_id, owner_type: args.owner_type, owner_id: args.owner_id },
+      );
+      return result.cloneTemplateToConfig;
+    },
+  });
+
   // --- My Tickets ---
 
   register({

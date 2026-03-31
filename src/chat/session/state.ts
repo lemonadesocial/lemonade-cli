@@ -34,6 +34,15 @@ export function updateSession(
       session.currentEvent = session.lastCreatedEvent;
       break;
 
+    case 'event_clone': {
+      const ids = data as unknown as string[];
+      if (Array.isArray(ids) && ids.length > 0) {
+        session.lastCreatedEvent = { _id: String(ids[0]), title: 'Cloned event' };
+        session.currentEvent = session.lastCreatedEvent;
+      }
+      break;
+    }
+
     case 'event_get':
       session.currentEvent = { _id: String(data._id), title: String(data.title) };
       break;
