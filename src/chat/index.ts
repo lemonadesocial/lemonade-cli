@@ -5,8 +5,6 @@ import readline from 'readline';
 import { graphqlRequest } from '../api/graphql.js';
 import { getAuthHeader, getDefaultSpace } from '../auth/store.js';
 import { AIProvider, Message, ToolDef } from './providers/interface.js';
-import { AnthropicProvider } from './providers/anthropic.js';
-import { OpenAIProvider } from './providers/openai.js';
 import { buildToolRegistry } from './tools/registry.js';
 import { createSessionState, SessionState } from './session/state.js';
 import { buildSystemMessages } from './session/cache.js';
@@ -17,6 +15,7 @@ import { ChatEngine } from './engine/ChatEngine.js';
 import { parseArgs } from './parseArgs.js';
 import { VERSION } from './version.js';
 import { initAiMode, getAiModeDisplay } from './aiMode.js';
+import { parseSlashCommand } from './ui/SlashCommands.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
@@ -64,13 +63,15 @@ async function fetchUser(): Promise<{ _id: string; name: string; email: string; 
   return result.aiGetMe.user;
 }
 
-function createProvider(providerName: string, apiKey: string, model?: string): AIProvider {
+async function createProvider(providerName: string, apiKey: string, model?: string): Promise<AIProvider> {
   const resolvedModel = model || process.env.MAKE_LEMONADE_MODEL;
 
   if (providerName === 'openai') {
+    const { OpenAIProvider } = await import('./providers/openai.js');
     return new OpenAIProvider(apiKey, resolvedModel);
   }
   if (providerName === 'anthropic') {
+    const { AnthropicProvider } = await import('./providers/anthropic.js');
     return new AnthropicProvider(apiKey, resolvedModel);
   }
 
@@ -175,6 +176,28 @@ async function interactiveMode(
       return;
     }
 
+    // Handle slash commands
+    const slashResult = parseSlashCommand(input);
+    if (slashResult.handled) {
+      if (slashResult.action === 'mode') {
+        const currentMode = getAiModeDisplay();
+        console.log(`\n  Current AI mode: ${chalk.bold(currentMode)}`);
+        console.log(chalk.dim('  To switch modes, exit and relaunch with the other mode configured.'));
+        console.log(chalk.dim('  Set ai_mode in ~/.lemonade/config.json to "credits" or "own_key".\n'));
+      } else if (slashResult.output) {
+        console.log(`\n  ${slashResult.output}\n`);
+      } else if (slashResult.action === 'clear') {
+        messages.length = 0;
+        console.log(chalk.dim('\n  Conversation cleared.\n'));
+      } else if (slashResult.action === 'exit') {
+        console.log('\n  See you!\n');
+        rl.close();
+        return;
+      }
+      rl.prompt();
+      continue;
+    }
+
     if (input.toLowerCase() === 'help') {
       console.log(`
   ${chalk.bold('Tips:')}
@@ -257,8 +280,32 @@ async function main(): Promise<void> {
     apiKey = detectApiKey(providerName);
 
     if (!apiKey && isTTY) {
+      // Check if user has community credits available for the dual-mode choice
+      let hasCredits = false;
+      try {
+        const spacesResult = await graphqlRequest<{ aiListMySpaces: { items: Array<{ _id: string }> } }>(
+          'query { aiListMySpaces { items { _id } } }',
+        );
+        const spaces = spacesResult.aiListMySpaces.items;
+        if (spaces.length > 0) {
+          const spaceId = getDefaultSpace() || spaces[0]._id;
+          const creditsResult = await graphqlRequest<{ getStandCredits: { credits: number; subscription_tier: string } | null }>(
+            `query($stand_id: String!) {
+              getStandCredits(stand_id: $stand_id) { credits subscription_tier }
+            }`,
+            { stand_id: spaceId },
+          );
+          const info = creditsResult.getStandCredits;
+          if (info && (info.credits > 0 || info.subscription_tier !== 'free')) {
+            hasCredits = true;
+          }
+        }
+      } catch {
+        // Non-fatal: fall through to own-key-only onboarding
+      }
+
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-      apiKey = await onboardApiKey(rl, providerName);
+      apiKey = await onboardApiKey(rl, providerName, hasCredits);
       rl.close();
       if (!apiKey) {
         process.exit(2);
@@ -268,7 +315,7 @@ async function main(): Promise<void> {
       process.exit(2);
     }
 
-    provider = createProvider(providerName, apiKey!, args.model);
+    provider = await createProvider(providerName, apiKey!, args.model);
   } else {
     // Mode 2: Lemonade AI Credits -- no SDK imports, only lemonade-ai endpoint
     const { LemonadeAIProvider } = await import('./providers/lemonade-ai.js');

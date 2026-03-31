@@ -2986,6 +2986,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         sort: (args.sort as string) || '_id',
       };
       if (args.id_lt) input.id_lt = args.id_lt;
+      if (args.session) input.session = args.session;
 
       const result = await graphqlRequest<{ getEventQuestions: unknown }>(
         `query($input: GetEventQuestionsInput!) {

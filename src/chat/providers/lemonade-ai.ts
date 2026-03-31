@@ -75,7 +75,7 @@ export class LemonadeAIProvider implements AIProvider {
     }
 
     const body = await response.json() as {
-      data?: { run?: { message?: string; metadata?: unknown } };
+      data?: { run?: { message?: string; metadata?: Record<string, unknown>; sourceDocuments?: unknown } };
       errors?: Array<{ message: string }>;
     };
 
@@ -83,6 +83,12 @@ export class LemonadeAIProvider implements AIProvider {
       yield { type: 'text_delta', text: body.errors[0].message };
       yield { type: 'done', stopReason: 'end_turn' };
       return;
+    }
+
+    // Store session ID from response for multi-turn continuity
+    const metadata = body.data?.run?.metadata;
+    if (metadata && typeof metadata.session === 'string') {
+      this.sessionId = metadata.session;
     }
 
     const text = body.data?.run?.message || 'No response from Lemonade AI.';

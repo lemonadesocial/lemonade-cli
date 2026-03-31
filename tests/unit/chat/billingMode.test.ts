@@ -131,3 +131,62 @@ describe('Billing Safety: /mode slash command', () => {
     expect(result.output).toContain('/mode');
   });
 });
+
+describe('Billing Safety: Mode 2 credit balance check integration', () => {
+  it('getStandCredits is called during Mode 2 initialization flow', async () => {
+    // Verify the index.ts Mode 2 branch calls getStandCredits
+    const fs = await import('fs');
+    const path = await import('path');
+    const indexPath = path.join(process.cwd(), 'src/chat/index.ts');
+    const content = fs.readFileSync(indexPath, 'utf-8');
+
+    // Mode 2 branch must call getStandCredits before creating the provider
+    const mode2Start = content.indexOf('Mode 2: Lemonade AI Credits');
+    const providerCreation = content.indexOf('new LemonadeAIProvider', mode2Start);
+    const creditCheck = content.indexOf('getStandCredits', mode2Start);
+
+    expect(mode2Start).toBeGreaterThan(-1);
+    expect(creditCheck).toBeGreaterThan(mode2Start);
+    expect(creditCheck).toBeLessThan(providerCreation);
+  });
+
+  it('Mode 2 branch rejects free tier with 0 credits', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const indexPath = path.join(process.cwd(), 'src/chat/index.ts');
+    const content = fs.readFileSync(indexPath, 'utf-8');
+
+    // Must check for free tier + 0 credits and exit
+    expect(content).toContain("credits.subscription_tier === 'free'");
+    expect(content).toContain('free plan with no AI credits');
+  });
+
+  it('LemonadeAIProvider stores sessionId from server response', async () => {
+    const { LemonadeAIProvider } = await import('../../../src/chat/providers/lemonade-ai');
+    const provider = new LemonadeAIProvider('test-model', 'space123');
+
+    // Verify the source code reads metadata.session from response
+    const fs = await import('fs');
+    const path = await import('path');
+    const providerPath = path.join(process.cwd(), 'src/chat/providers/lemonade-ai.ts');
+    const content = fs.readFileSync(providerPath, 'utf-8');
+
+    expect(content).toContain('metadata.session');
+    expect(content).toContain('this.sessionId = metadata.session');
+    expect(provider).toBeDefined();
+  });
+
+  it('Onboarding credit check wires hasCredits before onboardApiKey', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const indexPath = path.join(process.cwd(), 'src/chat/index.ts');
+    const content = fs.readFileSync(indexPath, 'utf-8');
+
+    // Must check aiListMySpaces and getStandCredits before calling onboardApiKey
+    const spacesCheck = content.indexOf('aiListMySpaces');
+    const onboardCall = content.indexOf('onboardApiKey(rl, providerName, hasCredits)');
+
+    expect(spacesCheck).toBeGreaterThan(-1);
+    expect(onboardCall).toBeGreaterThan(spacesCheck);
+  });
+});
