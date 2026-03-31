@@ -17,6 +17,7 @@ import { VERSION } from './version.js';
 import { initAiMode, getAiModeDisplay } from './aiMode.js';
 import { parseSlashCommand } from './ui/SlashCommands.js';
 import { getAgentName } from './skills/loader.js';
+import { selectCreditsSpace, getCreditsSpaceId } from './spaceSelection.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
@@ -183,9 +184,26 @@ async function interactiveMode(
     if (slashResult.handled) {
       if (slashResult.action === 'mode') {
         const currentMode = getAiModeDisplay();
-        console.log(`\n  Current AI mode: ${chalk.bold(currentMode)}`);
-        console.log(chalk.dim('  To switch modes, exit and relaunch with the other mode configured.'));
-        console.log(chalk.dim('  Set ai_mode in ~/.lemonade/config.json to "credits" or "own_key".\n'));
+        if (slashResult.args === 'credits') {
+          const spaceId = await selectCreditsSpace(rl);
+          if (spaceId) {
+            const { setAiModeConfig } = await import('./aiMode.js');
+            setAiModeConfig('credits');
+            console.log(chalk.dim('  Restart the session to use credits mode.\n'));
+          }
+        } else if (slashResult.args === 'own_key') {
+          const { setAiModeConfig } = await import('./aiMode.js');
+          setAiModeConfig('own_key');
+          console.log(chalk.dim('  Restart the session to use own API key mode.\n'));
+        } else {
+          console.log(`\n  Current AI mode: ${chalk.bold(currentMode)}`);
+          const creditsSpace = getCreditsSpaceId();
+          if (creditsSpace) {
+            console.log(chalk.dim(`  Credits space: ${creditsSpace}`));
+          }
+          console.log(chalk.dim('  Usage: /mode credits  or  /mode own_key'));
+          console.log(chalk.dim('  Mode changes take effect after restarting the session.\n'));
+        }
       } else if (slashResult.action === 'name') {
         if (slashResult.args) {
           const { setAgentName } = await import('./skills/loader.js');
@@ -330,10 +348,11 @@ async function main(): Promise<void> {
   } else {
     // Mode 2: Lemonade AI Credits -- no SDK imports, only lemonade-ai endpoint
     const { LemonadeAIProvider } = await import('./providers/lemonade-ai.js');
-    const defaultSpace = getDefaultSpace();
+    const creditsSpace = getCreditsSpaceId();
+    const defaultSpace = creditsSpace || getDefaultSpace();
 
     if (!defaultSpace) {
-      console.error(chalk.red('  No default space set. Run "lemonade space switch" to select a community.'));
+      console.error(chalk.red('  No credits space configured. Run /mode credits to select a space, or "lemonade space switch".'));
       process.exit(2);
     }
 
@@ -398,10 +417,24 @@ async function main(): Promise<void> {
   const session = createSessionState(user, getDefaultSpace());
   const formattedTools = provider.formatTools(toolDefs);
 
+  // Resolve credits space name for display
+  let creditsSpaceName: string | undefined;
+  const creditsSpaceId = getCreditsSpaceId();
+  if (creditsSpaceId && aiMode === 'credits') {
+    try {
+      const { fetchMySpaces } = await import('./spaceSelection.js');
+      const spaces = await fetchMySpaces();
+      const match = spaces.find((s) => s._id === creditsSpaceId);
+      if (match) creditsSpaceName = match.title;
+    } catch {
+      // Non-fatal
+    }
+  }
+
   if (isTTY && !args.simple) {
     // Ink UI mode (default for TTY)
     const { renderApp } = await import('./ui/App.js');
-    await renderApp({ provider, session, registry, formattedTools, user });
+    await renderApp({ provider, session, registry, formattedTools, user, creditsSpaceName });
   } else if (isTTY) {
     // --simple: legacy readline mode
     printWelcome(user.first_name || user.name);

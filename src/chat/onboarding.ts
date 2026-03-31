@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { setConfigValue, getConfig } from '../auth/store.js';
 import { setAiModeConfig } from './aiMode.js';
+import { selectCreditsSpace } from './spaceSelection.js';
 
 export function detectApiKey(provider: string): string | null {
   if (provider === 'openai') {
@@ -185,10 +186,15 @@ export async function onboardApiKey(
     const modeSelected = modeChoice.trim();
 
     if (modeSelected === '1') {
-      setAiModeConfig('credits');
-      console.log(chalk.hex('#10B981')('  Mode set: Community AI Credits\n'));
-      console.log('  You can switch modes anytime with /mode.\n');
-      return 'credits-mode';
+      const spaceId = await selectCreditsSpace(rl);
+      if (!spaceId) {
+        console.log(chalk.dim('  Falling back to own API key mode.\n'));
+      } else {
+        setAiModeConfig('credits');
+        console.log(chalk.hex('#10B981')('  Mode set: Community AI Credits\n'));
+        console.log('  You can switch modes anytime with /mode.\n');
+        return 'credits-mode';
+      }
     }
   }
 

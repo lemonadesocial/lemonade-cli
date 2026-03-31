@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { render, Box, Text, useApp, useInput, useStdout } from 'ink';
 import { AIProvider, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
@@ -13,6 +13,7 @@ import { ErrorDisplay } from './ErrorDisplay.js';
 import { useChatEngine } from './hooks/useChatEngine.js';
 import { parseSlashCommand, getModelsForProvider } from './SlashCommands.js';
 import { getAgentName, setAgentName } from '../skills/loader.js';
+import { formatUserMessage, formatAssistantMessage } from './writeMessage.js';
 
 interface AppProps {
   provider: AIProvider;
@@ -20,20 +21,23 @@ interface AppProps {
   registry: Record<string, ToolDef>;
   formattedTools: unknown[];
   user: { _id: string; name: string; email: string; first_name: string };
+  creditsSpaceName?: string;
 }
 
 // Header = 2 lines, InputArea = 3 lines, StatusBar = 2 lines
 const FIXED_CHROME_HEIGHT = 7;
 
-function App({ provider, session, registry, formattedTools, user }: AppProps): React.ReactElement {
+function App({ provider, session, registry, formattedTools, user, creditsSpaceName }: AppProps): React.ReactElement {
   const { exit } = useApp();
-  const { stdout } = useStdout();
+  const { stdout, write } = useStdout();
   const [rows, setRows] = useState(() => stdout.rows || 24);
   const [showBanner, setShowBanner] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [slashOutput, setSlashOutput] = useState<string | null>(null);
   const [agentName, setAgentNameState] = useState(() => getAgentName());
-  const [scrollOffset, setScrollOffset] = useState(0);
+
+  // Track how many messages have been flushed to stdout
+  const flushedCountRef = useRef(0);
 
   useEffect(() => {
     const onResize = () => setRows(stdout.rows || 24);
@@ -60,35 +64,30 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
 
   const messageAreaHeight = Math.max(rows - FIXED_CHROME_HEIGHT, 3);
 
-  // Auto-scroll to bottom during streaming
+  // Flush completed messages to stdout as they appear.
+  // This gives us natural terminal scrollback instead of viewport slicing.
   useEffect(() => {
-    if (isStreaming) {
-      setScrollOffset(0);
+    const newMessages = messages.slice(flushedCountRef.current);
+    for (const msg of newMessages) {
+      if (msg.role === 'user') {
+        write(formatUserMessage(msg.text));
+      } else {
+        write(formatAssistantMessage(msg.text));
+      }
     }
-  }, [isStreaming, streamingText]);
+    flushedCountRef.current = messages.length;
+  }, [messages, write]);
 
-  const pageSize = Math.max(Math.floor(messageAreaHeight / 2), 3);
+  // Reset flushed count when history is cleared
+  useEffect(() => {
+    if (messages.length === 0) {
+      flushedCountRef.current = 0;
+    }
+  }, [messages.length]);
 
   useInput((input, key) => {
     if (key.escape && isStreaming) {
       cancelStream();
-    }
-    if (key.upArrow && !isStreaming) {
-      setScrollOffset((prev) => prev + 1);
-    }
-    if (key.downArrow && !isStreaming) {
-      setScrollOffset((prev) => Math.max(prev - 1, 0));
-    }
-    // Page Up / Page Down via [ and ] keys (Ink does not expose pageUp/pageDown)
-    if (input === '[' && !isStreaming) {
-      setScrollOffset((prev) => prev + pageSize);
-    }
-    if (input === ']' && !isStreaming) {
-      setScrollOffset((prev) => Math.max(prev - pageSize, 0));
-    }
-    // End key resets scroll
-    if (key.return && !input && !isStreaming) {
-      setScrollOffset(0);
     }
   });
 
@@ -161,7 +160,6 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
 
     if (showBanner) setShowBanner(false);
     setPendingPrompt(null);
-    setScrollOffset(0);
     sendMessage(text);
   }, [showBanner, sendMessage, exit, clearHistory, provider, session]);
 
@@ -190,11 +188,8 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
         ) : null}
 
         <MessageArea
-          messages={messages}
           streamingText={streamingText}
           isStreaming={isStreaming}
-          maxHeight={messageAreaHeight}
-          scrollOffset={scrollOffset}
         />
 
         {toolCalls.length > 0 ? <ToolCallGroup calls={toolCalls} /> : null}
@@ -235,6 +230,7 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
 
       <StatusBar
         spaceName={session.currentSpace?.title}
+        creditsSpaceName={creditsSpaceName}
         providerName={provider.name}
         modelName={provider.model}
         isStreaming={isStreaming}

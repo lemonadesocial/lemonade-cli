@@ -16,6 +16,7 @@ type StatusMode = 'tips' | 'streaming' | 'tool' | 'error';
 
 interface StatusBarProps {
   spaceName?: string;
+  creditsSpaceName?: string;
   providerName: string;
   modelName: string;
   isStreaming: boolean;
@@ -26,6 +27,7 @@ interface StatusBarProps {
 
 export function StatusBar({
   spaceName,
+  creditsSpaceName,
   providerName,
   modelName,
   isStreaming,
@@ -84,7 +86,7 @@ export function StatusBar({
     <Box flexDirection="column">
       <Text dimColor>{'─'.repeat(process.stdout.columns || 80)}</Text>
       <Box justifyContent="space-between" paddingX={1}>
-        <Text dimColor>Space: {spaceName || 'none'}</Text>
+        <Text dimColor>Space: {spaceName || 'none'}{creditsSpaceName ? ` | Credits: ${creditsSpaceName}` : ''}</Text>
         {center}
         {showModel ? (
           <Text dimColor>{providerName} | {modelName}</Text>
