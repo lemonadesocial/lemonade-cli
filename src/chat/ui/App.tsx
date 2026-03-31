@@ -1,19 +1,18 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { render, Box, Text, useApp, useInput, useStdout } from 'ink';
+import { render, Box, Text, useApp, useInput } from 'ink';
 import { AIProvider, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
-import { Header } from './Header.js';
-import { WelcomeBanner } from './WelcomeBanner.js';
-import { MessageArea } from './MessageArea.js';
 import { InputArea } from './InputArea.js';
 import { StatusBar } from './StatusBar.js';
 import { ToolCallGroup } from './ToolCallGroup.js';
 import { ConfirmPrompt } from './ConfirmPrompt.js';
 import { ErrorDisplay } from './ErrorDisplay.js';
+import { ThinkingIndicator } from './ThinkingIndicator.js';
 import { useChatEngine } from './hooks/useChatEngine.js';
 import { parseSlashCommand, getModelsForProvider, SLASH_COMMANDS } from './SlashCommands.js';
 import { getAgentName, setAgentName } from '../skills/loader.js';
 import { formatUserMessage, formatAssistantMessage } from './writeMessage.js';
+import { formatWelcomeBanner } from './WelcomeBanner.js';
 import { getAiModeDisplay } from '../aiMode.js';
 
 interface AppProps {
@@ -25,36 +24,71 @@ interface AppProps {
   creditsSpaceName?: string;
 }
 
-// Header = 2 lines, InputArea = 3 lines, StatusBar = 2 lines
-const FIXED_CHROME_HEIGHT = 7;
-
 const ALL_SLASH_NAMES = SLASH_COMMANDS.map((c) => c.name);
+
+/*
+ * RENDERING ARCHITECTURE: split stdout + Ink
+ *
+ * Completed messages and the welcome banner are written directly to
+ * process.stdout.write(). This produces natural terminal scrollback that
+ * the user can scroll with their terminal emulator.
+ *
+ * Ink renders ONLY the live/interactive elements at the bottom:
+ *   - ThinkingIndicator (while waiting for first token)
+ *   - Streaming text (tokens arriving in real-time)
+ *   - ToolCallGroup (active tool calls)
+ *   - ConfirmPrompt (destructive-action confirmation)
+ *   - InputArea (user text input)
+ *   - StatusBar (tips, streaming status, errors)
+ *
+ * NO height prop on the root Box — Ink renders at the cursor position
+ * (always at the bottom after stdout writes).
+ *
+ * Scenario verification:
+ *
+ * 1. Short message + short response:
+ *    User msg written to stdout, response written to stdout after streaming
+ *    completes. Both visible in terminal scrollback above Ink input.
+ *    Works because stdout.write() appends to scrollback and Ink sits below.
+ *
+ * 2. 50-line streaming response:
+ *    Tokens render in Ink's streaming <Text>. Terminal grows naturally as
+ *    Ink re-renders. When done, full text flushed to stdout, Ink clears
+ *    streaming state. Scrollback contains the full response.
+ *    Works because Ink has no height constraint — it just renders at cursor.
+ *
+ * 3. 20+ messages:
+ *    All completed messages live in terminal scrollback. User scrolls with
+ *    terminal (mouse wheel, Shift+PgUp). Ink stays at bottom.
+ *    Works because messages are stdout output, not Ink-managed.
+ *
+ * 4. User scrolls up then sends new message:
+ *    stdout.write() appends at bottom, terminal auto-scrolls to new output.
+ *    Works because stdout writes always go to the end of scrollback.
+ *
+ * 5. Streaming tokens:
+ *    Ink re-renders the streaming <Text> on each delta. Always visible
+ *    because Ink is at the cursor position (bottom of terminal).
+ *    Works because Ink's default non-fullscreen mode tracks the cursor.
+ */
 
 function App({ provider, session, registry, formattedTools, user, creditsSpaceName }: AppProps): React.ReactElement {
   const { exit } = useApp();
-  const { stdout, write } = useStdout();
-  const [rows, setRows] = useState(() => stdout.rows || 24);
-  const [showBanner, setShowBanner] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [slashOutput, setSlashOutput] = useState<string | null>(null);
   const [agentName, setAgentNameState] = useState(() => getAgentName());
   const [modelName, setModelName] = useState(() => provider.model);
   const [inputValue, setInputValue] = useState('');
+  const [showBanner, setShowBanner] = useState(true);
 
   // Track how many messages have been flushed to stdout
   const flushedCountRef = useRef(0);
-
-  useEffect(() => {
-    const onResize = () => setRows(stdout.rows || 24);
-    stdout.on('resize', onResize);
-    return () => { stdout.off('resize', onResize); };
-  }, [stdout]);
+  const bannerWrittenRef = useRef(false);
 
   const {
     messages,
     streamingText,
     isStreaming,
-    tokenCount,
     streamTokenCount,
     lastError,
     classifiedError,
@@ -67,21 +101,33 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
     confirmAction,
   } = useChatEngine({ provider, session, registry, formattedTools });
 
-  const messageAreaHeight = Math.max(rows - FIXED_CHROME_HEIGHT, 3);
+  // Write the welcome banner to stdout once on first render
+  useEffect(() => {
+    if (!bannerWrittenRef.current) {
+      bannerWrittenRef.current = true;
+      const banner = formatWelcomeBanner({
+        providerName: provider.name,
+        modelName: provider.model,
+        firstName: user.first_name || user.name,
+        agentName,
+      });
+      process.stdout.write(banner);
+    }
+  }, []);
 
   // Flush completed messages to stdout as they appear.
-  // This gives us natural terminal scrollback instead of viewport slicing.
+  // This gives us natural terminal scrollback instead of Ink fullscreen.
   useEffect(() => {
     const newMessages = messages.slice(flushedCountRef.current);
     for (const msg of newMessages) {
       if (msg.role === 'user') {
-        write(formatUserMessage(msg.text));
+        process.stdout.write(formatUserMessage(msg.text));
       } else {
-        write(formatAssistantMessage(msg.text));
+        process.stdout.write(formatAssistantMessage(msg.text));
       }
     }
     flushedCountRef.current = messages.length;
-  }, [messages, write]);
+  }, [messages]);
 
   // Reset flushed count when history is cleared
   useEffect(() => {
@@ -96,7 +142,7 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
     }
   });
 
-  // Bug 5: Slash command suggestions filtered by current input
+  // Slash command suggestions filtered by current input
   const slashSuggestions = useMemo(() => {
     if (!inputValue.startsWith('/')) return undefined;
     return ALL_SLASH_NAMES.filter((name) => name.startsWith(inputValue));
@@ -120,6 +166,18 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
         case 'clear':
           clearHistory();
           setShowBanner(true);
+          bannerWrittenRef.current = false;
+          // Re-write the banner
+          {
+            const banner = formatWelcomeBanner({
+              providerName: provider.name,
+              modelName: modelName,
+              firstName: user.first_name || user.name,
+              agentName,
+            });
+            process.stdout.write(banner);
+            bannerWrittenRef.current = true;
+          }
           return;
 
         case 'help':
@@ -190,64 +248,43 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
     if (showBanner) setShowBanner(false);
     setPendingPrompt(null);
     sendMessage(text);
-  }, [showBanner, sendMessage, exit, clearHistory, provider, session, modelName]);
-
-  const handleSelectPrompt = useCallback((text: string) => {
-    setPendingPrompt(text);
-  }, []);
+  }, [showBanner, sendMessage, exit, clearHistory, provider, session, modelName, agentName, user]);
 
   return (
-    <Box flexDirection="column" height={rows}>
-      <Header
-        providerName={provider.name}
-        modelName={modelName}
-        spaceName={session.currentSpace?.title}
-        tokenCount={tokenCount}
-      />
+    <Box flexDirection="column">
+      {isStreaming && !streamingText ? <ThinkingIndicator /> : null}
+      {isStreaming && streamingText ? (
+        <Box paddingX={1} marginTop={1}>
+          <Text>{streamingText}</Text>
+        </Box>
+      ) : null}
 
-      <Box flexDirection="column" height={messageAreaHeight} overflow="hidden">
-        {showBanner && messages.length === 0 ? (
-          <WelcomeBanner
-            providerName={provider.name}
-            modelName={modelName}
-            firstName={user.first_name || user.name}
-            agentName={agentName}
-            onSelectPrompt={handleSelectPrompt}
-          />
-        ) : null}
+      {toolCalls.length > 0 ? <ToolCallGroup calls={toolCalls} /> : null}
 
-        <MessageArea
-          streamingText={streamingText}
-          isStreaming={isStreaming}
+      {classifiedError ? (
+        <ErrorDisplay
+          type={classifiedError.type}
+          message={classifiedError.message}
+          retryAfter={classifiedError.retryAfter}
         />
+      ) : null}
 
-        {toolCalls.length > 0 ? <ToolCallGroup calls={toolCalls} /> : null}
-
-        {classifiedError ? (
-          <ErrorDisplay
-            type={classifiedError.type}
-            message={classifiedError.message}
-            retryAfter={classifiedError.retryAfter}
-          />
-        ) : null}
-
-        {slashOutput ? (
-          <Box paddingX={2} marginY={0}>
-            <Box flexDirection="column">
-              {slashOutput.split('\n').map((line, i) => (
-                <Text key={i} dimColor>{line}</Text>
-              ))}
-            </Box>
+      {slashOutput ? (
+        <Box paddingX={2} marginY={0}>
+          <Box flexDirection="column">
+            {slashOutput.split('\n').map((line, i) => (
+              <Text key={i} dimColor>{line}</Text>
+            ))}
           </Box>
-        ) : null}
+        </Box>
+      ) : null}
 
-        {pendingConfirmation ? (
-          <ConfirmPrompt
-            description={pendingConfirmation.description}
-            onConfirm={(confirmed) => confirmAction(pendingConfirmation.id, confirmed)}
-          />
-        ) : null}
-      </Box>
+      {pendingConfirmation ? (
+        <ConfirmPrompt
+          description={pendingConfirmation.description}
+          onConfirm={(confirmed) => confirmAction(pendingConfirmation.id, confirmed)}
+        />
+      ) : null}
 
       {!pendingConfirmation ? (
         <InputArea
