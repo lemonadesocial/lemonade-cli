@@ -2047,7 +2047,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.statuses) vars.statuses = args.statuses;
 
       const result = await graphqlRequest<{ getEventInvitedStatistics: unknown }>(
-        `query($_id: MongoID!, $search: String, $limit: Int, $statuses: [InvitationResponse!]) {
+        `query($_id: MongoID!, $search: String, $limit: Float, $statuses: [InvitationResponse!]) {
           getEventInvitedStatistics(_id: $_id, search: $search, limit: $limit, statuses: $statuses) {
             total total_joined total_declined emails_opened top_inviter
             guests { invitation invited_by joined declined pending user email }
