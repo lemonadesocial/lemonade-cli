@@ -3,6 +3,7 @@ import readline from 'readline';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { setConfigValue, getConfig } from '../auth/store.js';
+import { setAiModeConfig } from './aiMode.js';
 
 export function detectApiKey(provider: string): string | null {
   if (provider === 'openai') {
@@ -168,9 +169,32 @@ async function setupProviderKey(
 export async function onboardApiKey(
   rl: readline.Interface,
   _requestedProvider: string = 'anthropic',
+  hasCredits: boolean = false,
 ): Promise<string | null> {
   console.log(LOGO);
   console.log(chalk.bold('  Welcome to make-lemonade!\n'));
+
+  if (hasCredits) {
+    console.log('  How would you like to power the AI assistant?\n');
+    console.log('    1. Use my community\'s AI credits (no API key needed)');
+    console.log(chalk.dim('       Your community\'s subscription includes AI credits.\n'));
+    console.log('    2. Use my own API key (Anthropic or OpenAI)');
+    console.log(chalk.dim('       Your key stays local. Lemonade never sees it.\n'));
+
+    const modeChoice = await ask(rl, '  Enter 1 or 2: ');
+    const modeSelected = modeChoice.trim();
+
+    if (modeSelected === '1') {
+      setAiModeConfig('credits');
+      console.log(chalk.hex('#10B981')('  Mode set: Community AI Credits\n'));
+      console.log('  You can switch modes anytime with /mode.\n');
+      return 'credits-mode';
+    }
+  }
+
+  // Own API key flow
+  setAiModeConfig('own_key');
+
   console.log(chalk.dim('  Your API keys are stored locally on your machine (~/.lemonade/config.json)'));
   console.log(chalk.dim('  and sent directly to the AI provider. Lemonade never sees or stores your keys.\n'));
 
