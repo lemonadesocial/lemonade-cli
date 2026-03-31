@@ -80,10 +80,10 @@ function printHelp(): void {
 }
 
 async function fetchUser(): Promise<{ _id: string; name: string; email: string; first_name: string }> {
-  const result = await graphqlRequest<{ aiGetMe: { _id: string; name: string; email: string; first_name: string } }>(
-    'query { aiGetMe { _id name email first_name } }',
+  const result = await graphqlRequest<{ aiGetMe: { user: { _id: string; name: string; email: string; first_name: string } } }>(
+    'query { aiGetMe { user { _id name email first_name } } }',
   );
-  return result.aiGetMe;
+  return result.aiGetMe.user;
 }
 
 function createProvider(providerName: string, apiKey: string, model?: string): AIProvider {

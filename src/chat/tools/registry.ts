@@ -20,10 +20,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     params: [],
     destructive: false,
     execute: async () => {
-      const result = await graphqlRequest<{ aiGetMe: unknown }>(
-        'query { aiGetMe { _id name email first_name last_name } }',
+      const result = await graphqlRequest<{ aiGetMe: { user: unknown } }>(
+        'query { aiGetMe { user { _id name email first_name last_name } } }',
       );
-      return result.aiGetMe;
+      return result.aiGetMe.user;
     },
   });
 
