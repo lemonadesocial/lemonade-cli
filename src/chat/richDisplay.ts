@@ -61,16 +61,37 @@ export function printUserMessage(text: string): void {
   process.stdout.write(formatUserMessage(text));
 }
 
+const TIPS = [
+  'say "switch to my Berlin space"',
+  '/help shows all commands',
+  'chain actions: "create event, add ticket, publish"',
+  'press Escape to cancel a response',
+  'type "exit" or Ctrl+D to quit',
+  '"how are ticket sales?" works naturally',
+  '/clear starts a fresh session',
+  '/mode credits to use community credits',
+];
+
+function randomTip(): string {
+  return TIPS[Math.floor(Math.random() * TIPS.length)];
+}
+
+export function printInputBorder(): void {
+  const width = process.stdout.columns || 80;
+  process.stdout.write(chalk.dim('─'.repeat(width)) + '\n');
+}
+
 export function printStatusLine(opts: {
   spaceName?: string;
   providerName: string;
   modelName: string;
-  tokenCount: number;
+  tokenCount?: number;
 }): void {
   const spaceLabel = opts.spaceName || 'none';
-  process.stdout.write(
-    chalk.dim(`  Space: ${spaceLabel} | ${opts.providerName} | ${opts.modelName} | ${opts.tokenCount} tokens`) + '\n',
-  );
+  const parts = [`Space: ${spaceLabel}`, opts.modelName];
+  if (opts.tokenCount) parts.push(`${opts.tokenCount} tokens`);
+  parts.push(`Tip: ${randomTip()}`);
+  process.stdout.write(chalk.dim(`  ${parts.join(' | ')}`) + '\n');
 }
 
 export function printErrorMessage(message: string): void {
