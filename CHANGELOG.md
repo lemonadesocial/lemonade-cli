@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.1](https://github.com/lemonadesocial/lemonade-cli/compare/v1.2.0...v1.2.1) (2026-03-31)
+
+
+### Bug Fixes
+
+* improve StatusBar, message distinction, scroll, and space handling ([d68eb61](https://github.com/lemonadesocial/lemonade-cli/commit/d68eb614fde6d7865edac0cbbf67abc44f96b209))
+* replace ASCII text logo with braille lemon art ([6101b08](https://github.com/lemonadesocial/lemonade-cli/commit/6101b08da53af16205f90c5e4423084db89d560b))
+* resolve Ink UI layout, scroll, and tool result format bugs ([5759cff](https://github.com/lemonadesocial/lemonade-cli/commit/5759cffeda43062965bfc402a40de785c3c2573a))
+* resolve scroll, billing, message distinction, model switch, autocomplete, thinking words, StatusBar layout ([10d5f88](https://github.com/lemonadesocial/lemonade-cli/commit/10d5f88e93ddd120a23a28a58a7764ad3be4447e))
+
 ## [1.2.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.1.0...v1.2.0) (2026-03-31)
 
 
