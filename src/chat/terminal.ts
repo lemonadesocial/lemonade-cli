@@ -1,32 +1,19 @@
 // Terminal UI for make-lemonade.
 //
-// Claude Code uses Ink (React for CLI) with ink-box, ink-link, ink-text, etc.
-// We take a simpler approach: pure readline + chalk + raw stdout writes.
-// No React, no virtual DOM, no Ink. Just a readline prompt with ANSI escape
-// sequences for spinners and streaming output.
-//
-// Architecture:
-//   - readline.createInterface for input (handles arrow keys, history, cursor)
-//   - process.stdout.write for all output (streaming tokens, spinners, etc.)
-//   - Spinners use \r\x1b[K to overwrite the current line in-place
-//   - Streaming tokens are written character by character via text_delta events
-//   - Escape key cancels streaming (detected via keypress events on stdin)
+// Uses Ink (React for CLI) in fullscreen mode with an alternate screen buffer.
+// Layout: scrollable message area (top), bordered input field (bottom), status toolbar.
+// ChatEngine events are wired to React state via the useChatEngine hook.
 
-import readline from 'readline';
+import React from 'react';
+import { render } from 'ink';
 import chalk from 'chalk';
 import { VERSION } from './version.js';
 import { LEMON, SUGGESTED_PROMPTS } from './ui/WelcomeBanner.js';
 import { THINKING_WORDS } from './ui/ThinkingIndicator.js';
 import { truncateResult } from './ui/ToolCall.js';
-import { parseSlashCommand } from './ui/SlashCommands.js';
-import { getAgentName } from './skills/loader.js';
 import { ChatEngine } from './engine/ChatEngine.js';
 import { AIProvider, Message, ToolDef } from './providers/interface.js';
 import { SessionState } from './session/state.js';
-import { buildSystemMessages } from './session/cache.js';
-import { handleTurn } from './stream/handler.js';
-import { getAiModeDisplay } from './aiMode.js';
-import { selectCreditsSpace, getCreditsSpaceId } from './spaceSelection.js';
 
 const SPINNER_FRAMES = ['\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'];
 
@@ -171,11 +158,6 @@ export function printToolResult(name: string, error?: string, result?: unknown):
   }
 }
 
-function safeErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Unknown error';
-}
-
 export async function runTerminalUI(
   provider: AIProvider,
   formattedTools: unknown[],
@@ -187,253 +169,38 @@ export async function runTerminalUI(
     modelName: string;
   },
 ): Promise<void> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: chalk.hex('#FDE047')('> '),
-  });
-
   const engine = new ChatEngine();
   const messages: Message[] = [];
 
-  let textStarted = false;
-  let thinkingSpinner: SpinnerHandle | null = null;
-  let toolSpinner: SpinnerHandle | null = null;
-  let turnTokenCount = 0;
-  let streamAbort: AbortController | null = null;
+  // Enter alternate screen buffer for fullscreen mode
+  process.stdout.write('\x1b[?1049h');
+  // Hide cursor (Ink manages its own cursor)
+  process.stdout.write('\x1b[?25l');
 
-  // Enable keypress events for Escape detection during streaming
-  readline.emitKeypressEvents(process.stdin);
-  process.stdin.on('keypress', (_ch: string, key: { name?: string; ctrl?: boolean }) => {
-    if (key?.name === 'escape' && streamAbort) {
-      streamAbort.abort();
-      streamAbort = null;
-      if (thinkingSpinner) {
-        thinkingSpinner.stop();
-        thinkingSpinner = null;
-      }
-      if (toolSpinner) {
-        toolSpinner.stop();
-        toolSpinner = null;
-      }
-      process.stdout.write('\r\x1b[K');
-      if (textStarted) {
-        process.stdout.write('\n');
-        textStarted = false;
-      }
-      console.log(chalk.dim('  (cancelled)'));
-      printInputBorder();
-      rl.prompt();
-    }
-  });
+  const { App } = await import('./ui/App.js');
 
-  // Stream text tokens directly to stdout
-  engine.on('text_delta', (data) => {
-    if (thinkingSpinner) {
-      thinkingSpinner.stop();
-      thinkingSpinner = null;
-    }
-    if (!textStarted) {
-      process.stdout.write('\n  ');
-      textStarted = true;
-    }
-    process.stdout.write(chalk.white(data.text));
-  });
+  const instance = render(
+    React.createElement(App, {
+      engine,
+      provider,
+      formattedTools,
+      session,
+      registry,
+      messages,
+      displayOpts,
+    }),
+    {
+      exitOnCtrlC: false,
+      patchConsole: true,
+    },
+  );
 
-  engine.on('tool_start', (data) => {
-    if (thinkingSpinner) {
-      thinkingSpinner.stop();
-      thinkingSpinner = null;
-    }
-    toolSpinner = startToolSpinner(data.name);
-  });
-
-  engine.on('tool_done', (data) => {
-    if (toolSpinner) {
-      toolSpinner.stop();
-      toolSpinner = null;
-    }
-    printToolResult(data.name, data.error, data.result);
-  });
-
-  engine.on('warning', (data) => {
-    console.log(chalk.yellow(`\n  ${data.message}`));
-    printInputBorder();
-    rl.prompt();
-  });
-
-  engine.on('error', (data) => {
-    if (thinkingSpinner) {
-      thinkingSpinner.stop();
-      thinkingSpinner = null;
-    }
-    if (toolSpinner) {
-      toolSpinner.stop();
-      toolSpinner = null;
-    }
-    process.stdout.write('\r\x1b[K');
-    if (textStarted) process.stdout.write('\n');
-    printErrorMessage(`  Error: ${data.message}`);
-    printInputBorder();
-    rl.prompt();
-  });
-
-  engine.on('confirm_request', (data) => {
-    if (toolSpinner) {
-      toolSpinner.stop();
-      toolSpinner = null;
-    }
-    rl.question(chalk.hex('#FDE047')(`\n  Confirm: ${data.description}? (yes/no) `), (answer) => {
-      engine.confirmAction(data.id, ['yes', 'y'].includes(answer.trim().toLowerCase()));
-    });
-  });
-
-  engine.on('turn_done', (data) => {
-    if (thinkingSpinner) {
-      thinkingSpinner.stop();
-      thinkingSpinner = null;
-    }
-    if (textStarted) {
-      process.stdout.write('\n\n');
-      textStarted = false;
-    }
-    turnTokenCount = data.usage.input_tokens + data.usage.output_tokens;
-    printStatusLine({
-      ...displayOpts,
-      tokenCount: turnTokenCount,
-    });
-    printInputBorder();
-    rl.prompt();
-  });
-
-  printStatusLine(displayOpts);
-  printInputBorder();
-  rl.prompt();
-
-  for await (const line of rl) {
-    const input = line.trim();
-
-    if (!input) {
-      printInputBorder();
-      rl.prompt();
-      continue;
-    }
-
-    if (['exit', 'quit', 'bye'].includes(input.toLowerCase())) {
-      console.log('\n  See you!\n');
-      rl.close();
-      return;
-    }
-
-    // Slash commands
-    const slashResult = parseSlashCommand(input);
-    if (slashResult.handled) {
-      if (slashResult.action === 'mode') {
-        const currentMode = getAiModeDisplay();
-        if (slashResult.args === 'credits') {
-          const spaceId = await selectCreditsSpace(rl);
-          if (spaceId) {
-            const { setAiModeConfig } = await import('./aiMode.js');
-            setAiModeConfig('credits');
-            console.log(chalk.dim('  Restart the session to use credits mode.\n'));
-          }
-        } else if (slashResult.args === 'own_key') {
-          const { setAiModeConfig } = await import('./aiMode.js');
-          setAiModeConfig('own_key');
-          console.log(chalk.dim('  Restart the session to use own API key mode.\n'));
-        } else {
-          console.log(`\n  Current AI mode: ${chalk.bold(currentMode)}`);
-          const creditsSpace = getCreditsSpaceId();
-          if (creditsSpace) {
-            console.log(chalk.dim(`  Credits space: ${creditsSpace}`));
-          }
-          console.log(chalk.dim('  Usage: /mode credits  or  /mode own_key'));
-          console.log(chalk.dim('  Mode changes take effect after restarting the session.\n'));
-        }
-      } else if (slashResult.action === 'name') {
-        if (slashResult.args) {
-          const { setAgentName } = await import('./skills/loader.js');
-          setAgentName(slashResult.args.trim());
-          console.log(chalk.dim(`\n  Agent renamed to "${slashResult.args.trim()}".\n`));
-        } else {
-          const agentName = getAgentName();
-          console.log(`\n  Agent name: ${chalk.bold(agentName)}\n`);
-        }
-      } else if (slashResult.output) {
-        console.log(`\n  ${slashResult.output}\n`);
-      } else if (slashResult.action === 'clear') {
-        messages.length = 0;
-        console.clear();
-        printWelcomeBanner({
-          firstName: session.user.first_name || session.user.name,
-          agentName: getAgentName(),
-          ...displayOpts,
-        });
-        printStatusLine(displayOpts);
-      } else if (slashResult.action === 'exit') {
-        console.log('\n  See you!\n');
-        rl.close();
-        return;
-      }
-      printInputBorder();
-      rl.prompt();
-      continue;
-    }
-
-    if (input.toLowerCase() === 'help') {
-      console.log(`
-  ${chalk.bold('Tips:')}
-  - Ask in natural language: "create an event called Demo Night tomorrow at 7pm"
-  - Chain actions: "create an event, add a free ticket, and publish it"
-  - Reference context: "add tickets to it" (refers to the last event)
-  - Destructive actions (cancel, delete) will ask for confirmation
-  - Type "exit" or press Ctrl+D to quit
-`);
-      printInputBorder();
-      rl.prompt();
-      continue;
-    }
-
-    printUserMessage(input);
-    textStarted = false;
-    thinkingSpinner = startThinkingSpinner();
-    messages.push({ role: 'user', content: input });
-
-    const systemPrompt = buildSystemMessages(session, provider.name);
-
-    streamAbort = new AbortController();
-    try {
-      await handleTurn(
-        provider,
-        messages,
-        formattedTools,
-        systemPrompt,
-        session,
-        registry,
-        rl,
-        true,
-        engine,
-        streamAbort.signal,
-      );
-    } catch (err) {
-      if (thinkingSpinner) {
-        thinkingSpinner.stop();
-        thinkingSpinner = null;
-      }
-      const msg = safeErrorMessage(err);
-      if (msg.includes('context length') || msg.includes('too many tokens')) {
-        printErrorMessage('\n  Session is too long. Start a new session: exit and run make-lemonade again.');
-      } else {
-        printErrorMessage(`\n  Error: ${msg}`);
-      }
-      printInputBorder();
-      rl.prompt();
-    }
-    streamAbort = null;
-
-    console.log('');
+  try {
+    await instance.waitUntilExit();
+  } finally {
+    // Restore main screen buffer
+    process.stdout.write('\x1b[?25h'); // Show cursor
+    process.stdout.write('\x1b[?1049l'); // Leave alternate screen
+    console.log('\n  See you!\n');
   }
-
-  // Ctrl+D (EOF)
-  console.log('\n  See you!\n');
 }
