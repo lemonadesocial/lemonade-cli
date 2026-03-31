@@ -10,10 +10,6 @@ export interface ChatEngineEvents {
   warning: { message: string };
 }
 
-type EventMap = {
-  [K in keyof ChatEngineEvents]: [ChatEngineEvents[K]];
-};
-
 export class ChatEngine extends EventEmitter {
   private pendingConfirmations = new Map<string, (confirmed: boolean) => void>();
 

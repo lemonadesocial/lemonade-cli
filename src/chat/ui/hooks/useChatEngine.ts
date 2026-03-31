@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatEngine } from '../../engine/ChatEngine.js';
-import { AIProvider, Message, ToolDef, SystemMessage } from '../../providers/interface.js';
+import { AIProvider, Message, ToolDef } from '../../providers/interface.js';
 import { SessionState } from '../../session/state.js';
 import { buildSystemMessages } from '../../session/cache.js';
 import { handleTurn } from '../../stream/handler.js';
