@@ -1,7 +1,7 @@
 export interface SlashCommandResult {
   handled: boolean;
   output?: string;
-  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode';
+  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name';
   args?: string;
 }
 
@@ -14,6 +14,7 @@ export const SLASH_COMMANDS = [
   { name: '/exit', description: 'Exit the app' },
   { name: '/quit', description: 'Exit the app' },
   { name: '/mode', description: 'Show or switch AI mode (credits / own_key)' },
+  { name: '/name', description: 'Set agent name' },
 ] as const;
 
 const HELP_TABLE = `
@@ -26,6 +27,8 @@ Commands:
   /space             Show current space
   /mode              Show current AI mode (credits / own_key)
   /mode <mode>       Switch AI mode (restarts session)
+  /name              Show agent name
+  /name <name>       Rename the agent
   /exit, /quit       Exit the app
 
 Keyboard shortcuts:
@@ -85,6 +88,9 @@ export function parseSlashCommand(input: string): SlashCommandResult {
 
     case '/mode':
       return { handled: true, action: 'mode', args: rest || undefined };
+
+    case '/name':
+      return { handled: true, action: 'name', args: rest || undefined };
 
     case '/exit':
     case '/quit':

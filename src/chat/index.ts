@@ -16,6 +16,7 @@ import { parseArgs } from './parseArgs.js';
 import { VERSION } from './version.js';
 import { initAiMode, getAiModeDisplay } from './aiMode.js';
 import { parseSlashCommand } from './ui/SlashCommands.js';
+import { getAgentName } from './skills/loader.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
@@ -80,10 +81,11 @@ async function createProvider(providerName: string, apiKey: string, model?: stri
 
 function printWelcome(firstName: string): void {
   const modeDisplay = getAiModeDisplay();
+  const agentName = getAgentName();
   console.log(`
   ${chalk.bold('make-lemonade')} v${VERSION}  ${chalk.dim(`[${modeDisplay}]`)}
 
-  Hey ${firstName}! What would you like to do?
+  Hey ${firstName}! I'm ${agentName}, your event concierge. What would you like to do?
 
   Try: ${chalk.dim('"create a techno event in Berlin next Saturday"')}
        ${chalk.dim('"how are ticket sales for my warehouse party?"')}
@@ -184,6 +186,15 @@ async function interactiveMode(
         console.log(`\n  Current AI mode: ${chalk.bold(currentMode)}`);
         console.log(chalk.dim('  To switch modes, exit and relaunch with the other mode configured.'));
         console.log(chalk.dim('  Set ai_mode in ~/.lemonade/config.json to "credits" or "own_key".\n'));
+      } else if (slashResult.action === 'name') {
+        if (slashResult.args) {
+          const { setAgentName } = await import('./skills/loader.js');
+          setAgentName(slashResult.args.trim());
+          console.log(chalk.dim(`\n  Agent renamed to "${slashResult.args.trim()}".\n`));
+        } else {
+          const agentName = getAgentName();
+          console.log(`\n  Agent name: ${chalk.bold(agentName)}\n`);
+        }
       } else if (slashResult.output) {
         console.log(`\n  ${slashResult.output}\n`);
       } else if (slashResult.action === 'clear') {

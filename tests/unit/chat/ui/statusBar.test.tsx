@@ -8,6 +8,7 @@ describe('StatusBar', () => {
   it('renders space name when provided', () => {
     const { lastFrame } = render(
       <StatusBar
+        agentName="Zesty"
         spaceName="Berlin Techno"
         providerName="anthropic"
         modelName="claude-sonnet-4-6"
@@ -17,24 +18,27 @@ describe('StatusBar', () => {
     );
     const output = lastFrame()!;
     // Space name renders in the left section (may be truncated by terminal width)
-    expect(output).toContain('Berlin Techn');
+    expect(output).toContain('Zesty | Space:');
+    expect(output).toContain('Berlin');
   });
 
   it('renders "none" when no space', () => {
     const { lastFrame } = render(
       <StatusBar
+        agentName="Zesty"
         providerName="anthropic"
         modelName="claude-sonnet-4-6"
         isStreaming={false}
         streamTokenCount={0}
       />,
     );
-    expect(lastFrame()!).toContain('none');
+    expect(lastFrame()!).toContain('Space:');
   });
 
   it('renders provider and model', () => {
     const { lastFrame } = render(
       <StatusBar
+        agentName="Zesty"
         providerName="anthropic"
         modelName="claude-sonnet-4-6"
         isStreaming={false}
@@ -49,6 +53,7 @@ describe('StatusBar', () => {
   it('shows tip text when not streaming', () => {
     const { lastFrame } = render(
       <StatusBar
+        agentName="Zesty"
         providerName="anthropic"
         modelName="claude-sonnet-4-6"
         isStreaming={false}
@@ -61,6 +66,7 @@ describe('StatusBar', () => {
   it('shows token count during streaming', () => {
     const { lastFrame } = render(
       <StatusBar
+        agentName="Zesty"
         providerName="anthropic"
         modelName="claude-sonnet-4-6"
         isStreaming={true}
@@ -74,6 +80,7 @@ describe('StatusBar', () => {
   it('renders without errors when lastError is provided', () => {
     const { lastFrame } = render(
       <StatusBar
+        agentName="Zesty"
         providerName="anthropic"
         modelName="claude-sonnet-4-6"
         isStreaming={false}
@@ -88,6 +95,7 @@ describe('StatusBar', () => {
   it('renders without errors when lastToolName is provided', () => {
     const { lastFrame } = render(
       <StatusBar
+        agentName="Zesty"
         providerName="anthropic"
         modelName="claude-sonnet-4-6"
         isStreaming={false}

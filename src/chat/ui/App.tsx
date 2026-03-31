@@ -12,6 +12,7 @@ import { ConfirmPrompt } from './ConfirmPrompt.js';
 import { ErrorDisplay } from './ErrorDisplay.js';
 import { useChatEngine } from './hooks/useChatEngine.js';
 import { parseSlashCommand, getModelsForProvider } from './SlashCommands.js';
+import { getAgentName, setAgentName } from '../skills/loader.js';
 
 interface AppProps {
   provider: AIProvider;
@@ -26,6 +27,7 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
   const [showBanner, setShowBanner] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [slashOutput, setSlashOutput] = useState<string | null>(null);
+  const [agentName, setAgentNameState] = useState(() => getAgentName());
 
   const {
     messages,
@@ -103,6 +105,17 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
           setSlashOutput(`Current space: ${session.currentSpace?.title || 'none'}`);
           return;
 
+        case 'name':
+          if (!cmd.args) {
+            setSlashOutput(`Agent name: ${agentName}`);
+          } else {
+            const newName = cmd.args.trim();
+            setAgentName(newName);
+            setAgentNameState(newName);
+            setSlashOutput(`Agent renamed to "${newName}"`);
+          }
+          return;
+
         default:
           if (cmd.output) setSlashOutput(cmd.output);
           return;
@@ -133,6 +146,7 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
             providerName={provider.name}
             modelName={provider.model}
             firstName={user.first_name || user.name}
+            agentName={agentName}
             onSelectPrompt={handleSelectPrompt}
           />
         ) : null}
@@ -180,6 +194,7 @@ function App({ provider, session, registry, formattedTools, user }: AppProps): R
       ) : null}
 
       <StatusBar
+        agentName={agentName}
         spaceName={session.currentSpace?.title}
         providerName={provider.name}
         modelName={provider.model}

@@ -83,6 +83,27 @@ describe('parseSlashCommand', () => {
     expect(result.handled).toBe(true);
     expect(result.action).toBe('help');
   });
+
+  it('parses /name with no args', () => {
+    const result = parseSlashCommand('/name');
+    expect(result.handled).toBe(true);
+    expect(result.action).toBe('name');
+    expect(result.args).toBeUndefined();
+  });
+
+  it('parses /name with new name', () => {
+    const result = parseSlashCommand('/name Squeezly');
+    expect(result.handled).toBe(true);
+    expect(result.action).toBe('name');
+    expect(result.args).toBe('Squeezly');
+  });
+
+  it('parses /name with multi-word name', () => {
+    const result = parseSlashCommand('/name Sir Lemon');
+    expect(result.handled).toBe(true);
+    expect(result.action).toBe('name');
+    expect(result.args).toBe('Sir Lemon');
+  });
 });
 
 describe('getModelsForProvider', () => {
