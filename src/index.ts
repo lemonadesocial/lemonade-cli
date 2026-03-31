@@ -11,12 +11,14 @@ import { registerConnectorCommands } from './commands/connectors';
 import { registerConfigCommands } from './commands/config';
 import { loadGeneratedCommands, checkSchemaVersion } from './commands/loader';
 
+const { version } = require('../package.json');
+
 const program = new Command();
 
 program
   .name('lemonade')
   .description('Lemonade CLI - manage Spaces, events, and tickets')
-  .version('0.1.0');
+  .version(version);
 
 registerAuthCommands(program);
 registerSpaceCommands(program);
