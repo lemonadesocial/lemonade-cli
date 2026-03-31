@@ -291,8 +291,25 @@ async function main(): Promise<void> {
 
   const isTTY = process.stdin.isTTY === true;
 
+  // Apply --mode flag before initializing (so initAiMode reads the updated config)
+  if (args.mode === 'credits' || args.mode === 'own_key') {
+    const { setAiModeConfig } = await import('./aiMode.js');
+    setAiModeConfig(args.mode);
+  }
+
   // Initialize AI mode (locked for entire session)
   const aiMode = initAiMode();
+
+  // If switching to credits via --mode and no space configured, prompt for one
+  if (args.mode === 'credits' && !getCreditsSpaceId() && isTTY) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const spaceId = await selectCreditsSpace(rl);
+    rl.close();
+    if (!spaceId) {
+      console.error(chalk.red('  No space selected. Cannot use credits mode.'));
+      process.exit(2);
+    }
+  }
 
   let apiKey: string | null = null;
   let provider: AIProvider;

@@ -14,6 +14,7 @@ import { useChatEngine } from './hooks/useChatEngine.js';
 import { parseSlashCommand, getModelsForProvider, SLASH_COMMANDS } from './SlashCommands.js';
 import { getAgentName, setAgentName } from '../skills/loader.js';
 import { formatUserMessage, formatAssistantMessage } from './writeMessage.js';
+import { getAiModeDisplay } from '../aiMode.js';
 
 interface AppProps {
   provider: AIProvider;
@@ -152,6 +153,18 @@ function App({ provider, session, registry, formattedTools, user, creditsSpaceNa
             setSlashOutput('Provider switching requires API keys. Configure keys and restart.');
           }
           return;
+
+        case 'mode': {
+          const current = getAiModeDisplay();
+          if (cmd.args === 'credits') {
+            setSlashOutput(`Current mode: ${current}\nTo switch to credits mode, exit and run: make-lemonade --mode credits`);
+          } else if (cmd.args === 'own_key') {
+            setSlashOutput(`Current mode: ${current}\nTo switch to own-key mode, exit and run: make-lemonade --mode own_key`);
+          } else {
+            setSlashOutput(`Current mode: ${current}\nUsage: /mode credits  or  /mode own_key\nMode changes require restarting the session.`);
+          }
+          return;
+        }
 
         case 'space':
           setSlashOutput(`Current space: ${session.currentSpace?.title || 'none'}`);

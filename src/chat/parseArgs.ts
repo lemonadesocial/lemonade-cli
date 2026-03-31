@@ -1,6 +1,7 @@
 export function parseArgs(argv: string[]): {
   provider?: string;
   model?: string;
+  mode?: string;
   json: boolean;
   simple: boolean;
   help: boolean;
@@ -8,6 +9,7 @@ export function parseArgs(argv: string[]): {
   const result = {
     provider: undefined as string | undefined,
     model: undefined as string | undefined,
+    mode: undefined as string | undefined,
     json: false,
     simple: false,
     help: false,
@@ -20,6 +22,9 @@ export function parseArgs(argv: string[]): {
         break;
       case '--model':
         result.model = argv[++i];
+        break;
+      case '--mode':
+        result.mode = argv[++i];
         break;
       case '--json':
         result.json = true;
