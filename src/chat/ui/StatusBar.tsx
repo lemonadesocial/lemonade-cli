@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import { colors } from './theme.js';
 
 const TIPS = [
   "say 'switch to my Berlin space' to change spaces",
@@ -13,8 +12,9 @@ const TIPS = [
   '/help shows all commands',
 ];
 
+type StatusMode = 'tips' | 'streaming' | 'tool' | 'error';
+
 interface StatusBarProps {
-  agentName: string;
   spaceName?: string;
   providerName: string;
   modelName: string;
@@ -25,7 +25,6 @@ interface StatusBarProps {
 }
 
 export function StatusBar({
-  agentName,
   spaceName,
   providerName,
   modelName,
@@ -64,23 +63,34 @@ export function StatusBar({
   }, [lastToolName]);
 
   let center: React.ReactElement;
+  let mode: StatusMode = 'tips';
+
   if (isStreaming) {
+    mode = 'streaming';
     center = <Text dimColor>streaming... {streamTokenCount} tokens</Text>;
   } else if (showError && lastError) {
-    center = <Text color={colors.error}>{lastError}</Text>;
+    mode = 'error';
+    center = <Text color="#FF637E">{lastError}</Text>;
   } else if (showTool && lastToolName) {
-    center = <Text dimColor>Last: {lastToolName}</Text>;
+    mode = 'tool';
+    center = <Text dimColor>{lastToolName}</Text>;
   } else {
     center = <Text dimColor>Tip: {TIPS[tipIndex]}</Text>;
   }
 
+  const showModel = mode !== 'tips';
+
   return (
     <Box flexDirection="column">
-      <Box borderStyle="single" borderColor={colors.muted} borderTop={true} borderBottom={false} borderLeft={false} borderRight={false} />
+      <Text dimColor>{'─'.repeat(process.stdout.columns || 80)}</Text>
       <Box justifyContent="space-between" paddingX={1}>
-        <Text color={colors.violetLight}>{agentName} | Space: {spaceName || 'none'}</Text>
+        <Text dimColor>Space: {spaceName || 'none'}</Text>
         {center}
-        <Text color={colors.violet}>{providerName} | {modelName}</Text>
+        {showModel ? (
+          <Text dimColor>{providerName} | {modelName}</Text>
+        ) : (
+          <Text> </Text>
+        )}
       </Box>
     </Box>
   );

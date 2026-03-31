@@ -18,11 +18,21 @@ interface MessageAreaProps {
   scrollOffset: number;
 }
 
-// Estimate lines a message will occupy (1 line per ~100 chars, minimum 2 for padding)
-function estimateLines(msg: ChatMessage): number {
-  const textLines = msg.text.split('\n').length;
-  const wrappedLines = Math.ceil(msg.text.length / 100);
-  return Math.max(textLines, wrappedLines) + 1; // +1 for role label/padding
+// Estimate how many terminal lines a message occupies
+function estimateLines(msg: ChatMessage, cols: number): number {
+  const lines = msg.text.split('\n');
+  let total = 0;
+  for (const line of lines) {
+    total += Math.max(1, Math.ceil((line.length + 1) / Math.max(cols - 4, 40)));
+  }
+  // +1 for the label/margin above each message
+  return total + 1;
+}
+
+interface MessageSlice {
+  startLine: number;
+  endLine: number;
+  msg: ChatMessage;
 }
 
 export function MessageArea({
@@ -33,32 +43,45 @@ export function MessageArea({
   scrollOffset,
 }: MessageAreaProps): React.ReactElement {
   const showThinking = isStreaming && !streamingText;
+  const cols = process.stdout.columns || 80;
 
   const visibleMessages = useMemo(() => {
     if (messages.length === 0) return [];
 
-    // Walk backwards from the end, accumulating lines until we fill the viewport
-    let totalLines = 0;
-    const streamLines = streamingText ? Math.max(streamingText.split('\n').length, 2) + 1 : 0;
+    // Reserve space for streaming text and thinking indicator
+    const streamLines = streamingText
+      ? streamingText.split('\n').length + 1
+      : 0;
     const thinkingLines = showThinking ? 1 : 0;
-    const reservedLines = streamLines + thinkingLines;
-    const available = maxHeight - reservedLines;
+    const available = maxHeight - streamLines - thinkingLines;
 
     if (available <= 0) return [];
 
-    // Apply scroll offset: skip the most recent N messages
-    const endIndex = Math.max(messages.length - scrollOffset, 0);
-    const visible: ChatMessage[] = [];
+    // Build a layout map: each message maps to a line range
+    const slices: MessageSlice[] = [];
+    let cursor = 0;
+    for (const msg of messages) {
+      const h = estimateLines(msg, cols);
+      slices.push({ startLine: cursor, endLine: cursor + h, msg });
+      cursor += h;
+    }
 
-    for (let i = endIndex - 1; i >= 0; i--) {
-      const lines = estimateLines(messages[i]);
-      if (totalLines + lines > available && visible.length > 0) break;
-      totalLines += lines;
-      visible.unshift(messages[i]);
+    const totalLines = cursor;
+
+    // scrollOffset=0 means "show the bottom". Higher values scroll up.
+    const viewBottom = Math.max(totalLines - scrollOffset, 0);
+    const viewTop = Math.max(viewBottom - available, 0);
+
+    // Collect messages that overlap [viewTop, viewBottom)
+    const visible: ChatMessage[] = [];
+    for (const s of slices) {
+      if (s.endLine > viewTop && s.startLine < viewBottom) {
+        visible.push(s.msg);
+      }
     }
 
     return visible;
-  }, [messages, streamingText, showThinking, maxHeight, scrollOffset]);
+  }, [messages, streamingText, showThinking, maxHeight, scrollOffset, cols]);
 
   return (
     <Box flexDirection="column" flexGrow={1}>

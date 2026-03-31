@@ -29,10 +29,15 @@ export function updateSession(
   const data = result as Record<string, unknown>;
 
   switch (toolName) {
-    case 'event_create':
+    case 'event_create': {
       session.lastCreatedEvent = { _id: String(data._id), title: String(data.title) };
       session.currentEvent = session.lastCreatedEvent;
+      const ecSpace = (data.hosted_by || data.space) as Record<string, unknown> | undefined;
+      if (ecSpace && ecSpace._id && ecSpace.title) {
+        session.currentSpace = { _id: String(ecSpace._id), title: String(ecSpace.title) };
+      }
       break;
+    }
 
     case 'event_clone': {
       const ids = data as unknown as string[];
@@ -43,9 +48,14 @@ export function updateSession(
       break;
     }
 
-    case 'event_get':
+    case 'event_get': {
       session.currentEvent = { _id: String(data._id), title: String(data.title) };
+      const egSpace = (data.hosted_by || data.space) as Record<string, unknown> | undefined;
+      if (egSpace && egSpace._id && egSpace.title) {
+        session.currentSpace = { _id: String(egSpace._id), title: String(egSpace.title) };
+      }
       break;
+    }
 
     case 'event_update':
       if (session.currentEvent && session.currentEvent._id === String(data._id)) {

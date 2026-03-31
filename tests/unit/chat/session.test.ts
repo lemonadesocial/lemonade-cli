@@ -30,6 +30,26 @@ describe('Session State', () => {
     expect(session.currentEvent).toEqual({ _id: 'e2', title: 'Other Event' });
   });
 
+  it('extracts space from event_create hosted_by field', () => {
+    const session = createSessionState(mockUser);
+    updateSession(session, 'event_create', {
+      _id: 'e3',
+      title: 'Space Event',
+      hosted_by: { _id: 's10', title: 'My Space' },
+    });
+    expect(session.currentSpace).toEqual({ _id: 's10', title: 'My Space' });
+  });
+
+  it('extracts space from event_get space field', () => {
+    const session = createSessionState(mockUser);
+    updateSession(session, 'event_get', {
+      _id: 'e4',
+      title: 'Fetched Event',
+      space: { _id: 's11', title: 'Fetched Space' },
+    });
+    expect(session.currentSpace).toEqual({ _id: 's11', title: 'Fetched Space' });
+  });
+
   it('updates session after space_create', () => {
     const session = createSessionState(mockUser);
     updateSession(session, 'space_create', { _id: 's1', title: 'My Space' });
