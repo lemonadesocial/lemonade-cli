@@ -37,8 +37,10 @@ export function registerAuthCommands(program: Command): void {
         } else {
           console.log('Logged in successfully.');
         }
+        process.exit(0);
       } catch (error) {
         handleError(error, opts.json);
+        process.exit(1);
       }
     });
 

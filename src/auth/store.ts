@@ -10,6 +10,7 @@ export interface LemonadeConfig {
   default_space?: string;
   output_format?: 'json' | 'table';
   api_url?: string;
+  hydra_url?: string;
   registry_url?: string;
   anthropic_key?: string;
   openai_key?: string;
@@ -21,6 +22,7 @@ const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 const DEFAULTS: Partial<LemonadeConfig> = {
   api_url: 'https://backend.lemonade.social',
+  hydra_url: 'https://oauth2.lemonade.social',
   registry_url: 'https://registry.atlas-protocol.org',
   output_format: 'table',
 };
@@ -77,6 +79,10 @@ export function getAuthHeader(): string | undefined {
 
 export function getApiUrl(): string {
   return process.env.LEMONADE_API_URL || readConfig().api_url || 'https://backend.lemonade.social';
+}
+
+export function getHydraUrl(): string {
+  return process.env.LEMONADE_HYDRA_URL || readConfig().hydra_url || 'https://oauth2.lemonade.social';
 }
 
 export function getRegistryUrl(): string {

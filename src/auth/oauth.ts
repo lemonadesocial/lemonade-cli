@@ -2,12 +2,12 @@ import { createServer } from 'http';
 import { createServer as createNetServer } from 'net';
 import { randomBytes, createHash } from 'crypto';
 import open from 'open';
-import { getApiUrl, setTokens } from './store';
+import { getHydraUrl, setTokens } from './store';
 
-const CLIENT_ID = 'lemonade-cli';
+const CLIENT_ID = '0dd89e27-0c2d-4434-bafd-a9bcf369f1a2';
 const BASE_REDIRECT_PORT = 9876;
 const MAX_PORT_ATTEMPTS = 10;
-const SCOPES = ['claudeai'];
+const SCOPES = ['openid', 'offline_access'];
 
 async function findAvailablePort(): Promise<number> {
   for (let port = BASE_REDIRECT_PORT; port < BASE_REDIRECT_PORT + MAX_PORT_ATTEMPTS; port++) {
@@ -31,7 +31,7 @@ function generateCodeChallenge(verifier: string): string {
 }
 
 export async function loginWithBrowser(): Promise<{ success: boolean; error?: string }> {
-  const apiUrl = getApiUrl();
+  const hydraUrl = getHydraUrl();
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = randomBytes(16).toString('hex');
@@ -69,7 +69,7 @@ export async function loginWithBrowser(): Promise<{ success: boolean; error?: st
       }
 
       try {
-        const tokenResponse = await fetch(`${apiUrl}/oauth2/token`, {
+        const tokenResponse = await fetch(`${hydraUrl}/oauth2/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
@@ -106,7 +106,7 @@ export async function loginWithBrowser(): Promise<{ success: boolean; error?: st
     });
 
     server.listen(port, () => {
-      const authUrl = new URL(`${apiUrl}/oauth2/auth`);
+      const authUrl = new URL(`${hydraUrl}/oauth2/auth`);
       authUrl.searchParams.set('response_type', 'code');
       authUrl.searchParams.set('client_id', CLIENT_ID);
       authUrl.searchParams.set('redirect_uri', redirectUri);
@@ -118,9 +118,10 @@ export async function loginWithBrowser(): Promise<{ success: boolean; error?: st
       open(authUrl.toString());
     });
 
-    setTimeout(() => {
+    const timeout = setTimeout(() => {
       server.close();
       resolve({ success: false, error: 'Login timed out (120s)' });
     }, 120_000);
+    timeout.unref();
   });
 }
