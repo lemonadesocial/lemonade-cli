@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.1...v1.0.2) (2026-03-31)
+
+
+### Bug Fixes
+
+* add NPM_TOKEN for publish authentication ([7260f3e](https://github.com/lemonadesocial/lemonade-cli/commit/7260f3e29815dc47414cc0063da663dc63bf84e9))
+
 ## [1.0.1](https://github.com/lemonadesocial/lemonade-cli/compare/v1.0.0...v1.0.1) (2026-03-31)
 
 
