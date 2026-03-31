@@ -8,11 +8,13 @@ import { loginWithBrowser } from '../../auth/oauth';
 
 interface MeResponse {
   aiGetMe: {
-    _id: string;
-    name: string;
-    email: string;
-    first_name: string;
-    last_name: string;
+    user: {
+      _id: string;
+      name: string;
+      email: string;
+      first_name: string;
+      last_name: string;
+    };
   };
 }
 
@@ -52,13 +54,13 @@ export function registerAuthCommands(program: Command): void {
       try {
         setFlagApiKey(apiKey);
         const result = await graphqlRequest<MeResponse>(
-          'query { aiGetMe { _id name email first_name last_name } }',
+          'query { aiGetMe { user { _id name email first_name last_name } } }',
         );
         setFlagApiKey(undefined);
 
         setApiKey(apiKey);
 
-        const me = result.aiGetMe;
+        const me = result.aiGetMe.user;
         if (opts.json) {
           console.log(jsonSuccess({ name: me.name, email: me.email }));
         } else {
@@ -79,11 +81,11 @@ export function registerAuthCommands(program: Command): void {
       try {
         setFlagApiKey(opts.apiKey);
         const result = await graphqlRequest<MeResponse>(
-          'query { aiGetMe { _id name email first_name last_name } }',
+          'query { aiGetMe { user { _id name email first_name last_name } } }',
         );
         setFlagApiKey(undefined);
 
-        const me = result.aiGetMe;
+        const me = result.aiGetMe.user;
         if (opts.json) {
           console.log(jsonSuccess(me));
         } else {
