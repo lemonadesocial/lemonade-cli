@@ -1,5 +1,3 @@
-import React from 'react';
-import { Text } from 'ink';
 import { Marked } from 'marked';
 import { markedTerminal } from 'marked-terminal';
 import chalk from 'chalk';
@@ -21,10 +19,6 @@ const marked = new Marked(
   }),
 );
 
-interface MarkdownTextProps {
-  text: string;
-}
-
 export function renderMarkdown(text: string): string {
   try {
     const rendered = marked.parse(text) as string;
@@ -32,9 +26,4 @@ export function renderMarkdown(text: string): string {
   } catch {
     return text;
   }
-}
-
-export function MarkdownText({ text }: MarkdownTextProps): React.ReactElement {
-  const rendered = renderMarkdown(text);
-  return <Text>{rendered}</Text>;
 }

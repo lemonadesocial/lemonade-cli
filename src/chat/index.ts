@@ -4,31 +4,18 @@ import chalk from 'chalk';
 import readline from 'readline';
 import { graphqlRequest } from '../api/graphql.js';
 import { getAuthHeader, getDefaultSpace } from '../auth/store.js';
-import { AIProvider, Message, ToolDef } from './providers/interface.js';
+import { AIProvider } from './providers/interface.js';
 import { buildToolRegistry } from './tools/registry.js';
-import { createSessionState, SessionState } from './session/state.js';
+import { createSessionState } from './session/state.js';
 import { buildSystemMessages } from './session/cache.js';
-import { handleTurn } from './stream/handler.js';
 import { batchMode } from './batch.js';
 import { detectApiKey, detectProvider, onboardApiKey } from './onboarding.js';
-import { ChatEngine } from './engine/ChatEngine.js';
 import { parseArgs } from './parseArgs.js';
-import { initAiMode, getAiModeDisplay } from './aiMode.js';
-import { parseSlashCommand } from './ui/SlashCommands.js';
+import { initAiMode } from './aiMode.js';
 import { getAgentName } from './skills/loader.js';
 import { selectCreditsSpace, getCreditsSpaceId } from './spaceSelection.js';
 import { VERSION } from './version.js';
-import {
-  printWelcomeBanner,
-  printUserMessage,
-  printStatusLine,
-  printInputBorder,
-  printErrorMessage,
-  printToolResult,
-  startThinkingSpinner,
-  startToolSpinner,
-  SpinnerHandle,
-} from './richDisplay.js';
+import { printWelcomeBanner, runTerminalUI } from './terminal.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
@@ -89,270 +76,6 @@ async function createProvider(providerName: string, apiKey: string, model?: stri
   throw new Error(`Unknown provider "${providerName}". Supported: ${VALID_PROVIDERS.join(', ')}`);
 }
 
-async function interactiveMode(
-  provider: AIProvider,
-  formattedTools: unknown[],
-  session: SessionState,
-  registry: Record<string, ToolDef>,
-  displayOpts: {
-    spaceName?: string;
-    providerName: string;
-    modelName: string;
-  },
-): Promise<void> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: chalk.hex('#FDE047')('> '),
-  });
-
-  const engine = new ChatEngine();
-  const messages: Message[] = [];
-
-  let textStarted = false;
-  let thinkingSpinner: SpinnerHandle | null = null;
-  let toolSpinner: SpinnerHandle | null = null;
-  let turnTokenCount = 0;
-  let streamAbort: AbortController | null = null;
-
-  // Enable keypress events for Escape detection
-  readline.emitKeypressEvents(process.stdin);
-  if (process.stdin.isTTY) {
-    process.stdin.setRawMode(false); // readline manages raw mode
-  }
-  process.stdin.on('keypress', (_ch: string, key: { name?: string; ctrl?: boolean }) => {
-    if (key?.name === 'escape' && streamAbort) {
-      streamAbort.abort();
-      streamAbort = null;
-      if (thinkingSpinner) {
-        thinkingSpinner.stop();
-        thinkingSpinner = null;
-      }
-      if (toolSpinner) {
-        toolSpinner.stop();
-        toolSpinner = null;
-      }
-      process.stdout.write('\r\x1b[K');
-      if (textStarted) {
-        process.stdout.write('\n');
-        textStarted = false;
-      }
-      console.log(chalk.dim('  (cancelled)'));
-      printInputBorder();
-      rl.prompt();
-    }
-  });
-
-  engine.on('text_delta', (data) => {
-    if (thinkingSpinner) {
-      thinkingSpinner.stop();
-      thinkingSpinner = null;
-    }
-    if (!textStarted) {
-      process.stdout.write('\n  ');
-      textStarted = true;
-    }
-    process.stdout.write(chalk.white(data.text));
-  });
-
-  engine.on('tool_start', (data) => {
-    if (thinkingSpinner) {
-      thinkingSpinner.stop();
-      thinkingSpinner = null;
-    }
-    toolSpinner = startToolSpinner(data.name);
-  });
-
-  engine.on('tool_done', (data) => {
-    if (toolSpinner) {
-      toolSpinner.stop();
-      toolSpinner = null;
-    }
-    printToolResult(data.name, data.error, data.result);
-  });
-
-  engine.on('warning', (data) => {
-    console.log(chalk.yellow(`\n  ${data.message}`));
-    printInputBorder();
-    rl.prompt();
-  });
-
-  engine.on('error', (data) => {
-    if (thinkingSpinner) {
-      thinkingSpinner.stop();
-      thinkingSpinner = null;
-    }
-    if (toolSpinner) {
-      toolSpinner.stop();
-      toolSpinner = null;
-    }
-    process.stdout.write('\r\x1b[K');
-    if (textStarted) process.stdout.write('\n');
-    printErrorMessage(`  Error: ${data.message}`);
-    printInputBorder();
-    rl.prompt();
-  });
-
-  engine.on('confirm_request', (data) => {
-    if (toolSpinner) {
-      toolSpinner.stop();
-      toolSpinner = null;
-    }
-    rl.question(chalk.hex('#FDE047')(`\n  Confirm: ${data.description}? (yes/no) `), (answer) => {
-      engine.confirmAction(data.id, ['yes', 'y'].includes(answer.trim().toLowerCase()));
-    });
-  });
-
-  engine.on('turn_done', (data) => {
-    if (thinkingSpinner) {
-      thinkingSpinner.stop();
-      thinkingSpinner = null;
-    }
-    if (textStarted) {
-      process.stdout.write('\n\n');
-      textStarted = false;
-    }
-    turnTokenCount = data.usage.input_tokens + data.usage.output_tokens;
-    printStatusLine({
-      ...displayOpts,
-      tokenCount: turnTokenCount,
-    });
-    printInputBorder();
-    rl.prompt();
-  });
-
-  printStatusLine(displayOpts);
-  printInputBorder();
-  rl.prompt();
-
-  for await (const line of rl) {
-    const input = line.trim();
-
-    if (!input) {
-      printInputBorder();
-      rl.prompt();
-      continue;
-    }
-
-    if (['exit', 'quit', 'bye'].includes(input.toLowerCase())) {
-      console.log('\n  See you!\n');
-      rl.close();
-      return;
-    }
-
-    // Handle slash commands
-    const slashResult = parseSlashCommand(input);
-    if (slashResult.handled) {
-      if (slashResult.action === 'mode') {
-        const currentMode = getAiModeDisplay();
-        if (slashResult.args === 'credits') {
-          const spaceId = await selectCreditsSpace(rl);
-          if (spaceId) {
-            const { setAiModeConfig } = await import('./aiMode.js');
-            setAiModeConfig('credits');
-            console.log(chalk.dim('  Restart the session to use credits mode.\n'));
-          }
-        } else if (slashResult.args === 'own_key') {
-          const { setAiModeConfig } = await import('./aiMode.js');
-          setAiModeConfig('own_key');
-          console.log(chalk.dim('  Restart the session to use own API key mode.\n'));
-        } else {
-          console.log(`\n  Current AI mode: ${chalk.bold(currentMode)}`);
-          const creditsSpace = getCreditsSpaceId();
-          if (creditsSpace) {
-            console.log(chalk.dim(`  Credits space: ${creditsSpace}`));
-          }
-          console.log(chalk.dim('  Usage: /mode credits  or  /mode own_key'));
-          console.log(chalk.dim('  Mode changes take effect after restarting the session.\n'));
-        }
-      } else if (slashResult.action === 'name') {
-        if (slashResult.args) {
-          const { setAgentName } = await import('./skills/loader.js');
-          setAgentName(slashResult.args.trim());
-          console.log(chalk.dim(`\n  Agent renamed to "${slashResult.args.trim()}".\n`));
-        } else {
-          const agentName = getAgentName();
-          console.log(`\n  Agent name: ${chalk.bold(agentName)}\n`);
-        }
-      } else if (slashResult.output) {
-        console.log(`\n  ${slashResult.output}\n`);
-      } else if (slashResult.action === 'clear') {
-        messages.length = 0;
-        console.clear();
-        printWelcomeBanner({
-          firstName: session.user.first_name || session.user.name,
-          agentName: getAgentName(),
-          ...displayOpts,
-        });
-        printStatusLine(displayOpts);
-      } else if (slashResult.action === 'exit') {
-        console.log('\n  See you!\n');
-        rl.close();
-        return;
-      }
-      printInputBorder();
-      rl.prompt();
-      continue;
-    }
-
-    if (input.toLowerCase() === 'help') {
-      console.log(`
-  ${chalk.bold('Tips:')}
-  - Ask in natural language: "create an event called Demo Night tomorrow at 7pm"
-  - Chain actions: "create an event, add a free ticket, and publish it"
-  - Reference context: "add tickets to it" (refers to the last event)
-  - Destructive actions (cancel, delete) will ask for confirmation
-  - Type "exit" or press Ctrl+D to quit
-`);
-      printInputBorder();
-      rl.prompt();
-      continue;
-    }
-
-    printUserMessage(input);
-    textStarted = false;
-    thinkingSpinner = startThinkingSpinner();
-    messages.push({ role: 'user', content: input });
-
-    const systemPrompt = buildSystemMessages(session, provider.name);
-
-    streamAbort = new AbortController();
-    try {
-      await handleTurn(
-        provider,
-        messages,
-        formattedTools,
-        systemPrompt,
-        session,
-        registry,
-        rl,
-        true,
-        engine,
-        streamAbort.signal,
-      );
-    } catch (err) {
-      if (thinkingSpinner) {
-        thinkingSpinner.stop();
-        thinkingSpinner = null;
-      }
-      const msg = safeErrorMessage(err);
-      if (msg.includes('context length') || msg.includes('too many tokens')) {
-        printErrorMessage('\n  Session is too long. Start a new session: exit and run make-lemonade again.');
-      } else {
-        printErrorMessage(`\n  Error: ${msg}`);
-      }
-      printInputBorder();
-      rl.prompt();
-    }
-    streamAbort = null;
-
-    console.log('');
-  }
-
-  // Ctrl+D (EOF)
-  console.log('\n  See you!\n');
-}
-
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
@@ -394,7 +117,6 @@ async function main(): Promise<void> {
   let provider: AIProvider;
 
   if (aiMode === 'own_key') {
-    // Mode 1: Own API Key -- SDK providers only, no lemonade-ai contact
     const providerName = args.provider || detectProvider();
 
     if (!VALID_PROVIDERS.includes(providerName)) {
@@ -405,7 +127,6 @@ async function main(): Promise<void> {
     apiKey = detectApiKey(providerName);
 
     if (!apiKey && isTTY) {
-      // Check if user has community credits available for the dual-mode choice
       let hasCredits = false;
       try {
         const spacesResult = await graphqlRequest<{ aiListMySpaces: { items: Array<{ _id: string }> } }>(
@@ -442,7 +163,7 @@ async function main(): Promise<void> {
 
     provider = await createProvider(providerName, apiKey!, args.model);
   } else {
-    // Mode 2: Lemonade AI Credits -- no SDK imports, only lemonade-ai endpoint
+    // Mode 2: Lemonade AI Credits
     const { LemonadeAIProvider } = await import('./providers/lemonade-ai.js');
     const creditsSpace = getCreditsSpaceId();
     const defaultSpace = creditsSpace || getDefaultSpace();
@@ -452,7 +173,6 @@ async function main(): Promise<void> {
       process.exit(2);
     }
 
-    // Check credit balance before starting
     try {
       const balanceResult = await graphqlRequest<{ getStandCredits: { credits: number; subscription_tier: string; subscription_renewal_date?: string } | null }>(
         `query($stand_id: String!) {
@@ -479,7 +199,6 @@ async function main(): Promise<void> {
       // Non-fatal: continue even if balance check fails
     }
 
-    // Fetch available model info for display
     let modelName = 'Lemonade AI';
     try {
       const modelsResult = await graphqlRequest<{ getAvailableModels: Array<{ name: string; is_default: boolean }> }>(
@@ -497,7 +216,6 @@ async function main(): Promise<void> {
     provider = new LemonadeAIProvider(modelName, defaultSpace);
   }
 
-  // Fetch user profile
   let user: { _id: string; name: string; email: string; first_name: string };
   try {
     user = await fetchUser();
@@ -507,13 +225,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Build tools and session
   const registry = buildToolRegistry();
   const toolDefs = Object.values(registry);
   const session = createSessionState(user, getDefaultSpace());
   const formattedTools = provider.formatTools(toolDefs);
 
-  // Resolve credits space name for display
   let creditsSpaceName: string | undefined;
   const creditsSpaceId = getCreditsSpaceId();
   if (creditsSpaceId && aiMode === 'credits') {
@@ -551,7 +267,7 @@ async function main(): Promise<void> {
       process.exit(0);
     });
 
-    await interactiveMode(provider, formattedTools, session, registry, displayOpts);
+    await runTerminalUI(provider, formattedTools, session, registry, displayOpts);
   } else {
     const systemPrompt = buildSystemMessages(session, provider.name);
     await batchMode(provider, formattedTools, systemPrompt, session, registry, args.json);
