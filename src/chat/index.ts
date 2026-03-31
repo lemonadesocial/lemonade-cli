@@ -15,9 +15,10 @@ import { batchMode } from './batch.js';
 import { detectApiKey, detectProvider, onboardApiKey } from './onboarding.js';
 import { ChatEngine } from './engine/ChatEngine.js';
 import { parseArgs } from './parseArgs.js';
+import { VERSION } from './version.js';
 
 export { parseArgs } from './parseArgs.js';
-export const VERSION = '0.2.0';
+export { VERSION } from './version.js';
 const VALID_PROVIDERS = ['anthropic', 'openai'];
 
 function safeErrorMessage(err: unknown): string {

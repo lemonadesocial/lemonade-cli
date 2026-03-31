@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Text, useInput } from 'ink';
 import { colors } from './theme.js';
-import { VERSION } from '../index.js';
+import { VERSION } from '../version.js';
 
 const LOGO = `
  _                                      _
