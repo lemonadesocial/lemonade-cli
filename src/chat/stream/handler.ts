@@ -160,6 +160,28 @@ export async function handleTurn(
       return;
     }
 
+    // OPTIMIZATION: Skip second API call for single self-describing tool
+    if (
+      engine &&
+      toolCalls.length === 1 &&
+      !accumulatedText
+    ) {
+      const toolDef = registry[toolCalls[0].name];
+      if (toolDef?.formatResult && !results[0].is_error) {
+        try {
+          const rawResult = JSON.parse(results[0].content);
+          const formatted = toolDef.formatResult(rawResult);
+          engine.emit('text_delta', { text: formatted, turnId });
+          // Push to history so future turns have context
+          messages.push({ role: 'user', content: results as Message['content'] });
+          messages.push({ role: 'assistant', content: [{ type: 'text', text: formatted }] as Message['content'] });
+          break; // Skip second API call
+        } catch {
+          // If formatResult fails, fall through to normal flow
+        }
+      }
+    }
+
     // Append tool results as a user message
     messages.push({ role: 'user', content: results as Message['content'] });
 

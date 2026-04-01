@@ -70,4 +70,5 @@ export interface ToolDef {
   params: ToolParam[];
   destructive: boolean;
   execute: (args: Record<string, unknown>) => Promise<unknown>;
+  formatResult?: (result: unknown) => string;
 }
