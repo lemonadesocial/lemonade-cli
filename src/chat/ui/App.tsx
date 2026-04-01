@@ -243,6 +243,7 @@ export function App({
   const streamAbortRef = useRef<AbortController | null>(null);
   const turnInProgressRef = useRef(false);
   const btwAbortsRef = useRef<Map<string, AbortController>>(new Map());
+  const pendingApiKeyRef = useRef<{ connectionId: string; connectorType: string } | null>(null);
 
   // Autocomplete state
   const [acIndex, setAcIndex] = useState(0);
@@ -295,6 +296,21 @@ export function App({
     if (!input) return;
     setInputValue('');
     setPreviousLines([]);
+
+    // Check if we're collecting an API key (from /connectors connect)
+    if (pendingApiKeyRef.current) {
+      const { connectionId, connectorType } = pendingApiKeyRef.current;
+      pendingApiKeyRef.current = null;
+      addSystemMessage('Submitting API key...');
+      try {
+        const submitTool = registry['connector_submit_api_key'];
+        await submitTool.execute({ connection_id: connectionId, api_key: input });
+        addSystemMessage(`${connectorType} connected! Use /connectors connected to verify.`);
+      } catch (err) {
+        addSystemMessage(`Failed to submit API key: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+      return;
+    }
 
     // Exit commands (always allowed)
     if (['exit', 'quit', 'bye'].includes(input.toLowerCase())) {
@@ -721,7 +737,8 @@ export function App({
               const lines = connections.map((c: Record<string, unknown>, i: number) => {
                 const status = c.status || 'unknown';
                 const lastSync = c.lastSyncAt ? new Date(c.lastSyncAt as string).toLocaleDateString() : 'never';
-                return `${i + 1}. ${c.connectorType} — ${status} — last sync: ${lastSync} — ID: ${c.id}`;
+                const enabled = c.enabled ? '' : ' (disabled)';
+                return `${i + 1}. ${c.connectorType} — ${status}${enabled} — last sync: ${lastSync}\n   ID: ${c.id}`;
               });
               addSystemMessage(lines.join('\n'));
             }
@@ -768,29 +785,18 @@ export function App({
             }) as { connectionId: string; authUrl?: string; requiresApiKey: boolean };
 
             if (connectResult.requiresApiKey) {
-              // Step 2a: API key flow — collect key securely
+              // Step 2a: API key flow — prompt user to type key in chat input
               addSystemMessage('This connector requires an API key.');
-              addSystemMessage('Enter your API key (it will NOT be stored in chat history):');
+              addSystemMessage(`Type your ${subArg} API key below and press Enter:`);
+              addSystemMessage('(Your key will be sent securely to the backend — it will NOT be stored in chat history.)');
 
-              // Use confirmation to get user input
-              // The key is collected via a special prompt, NOT through the AI
-              const confirmed = await engine.requestConfirmation(
-                'api-key-input',
-                `Paste your ${subArg} API key and press y to submit`,
-              );
-
-              if (!confirmed) {
-                addSystemMessage('Connection cancelled.');
-                return;
-              }
-
-              // Instruct the user to use the CLI directly to avoid exposing key in chat history
-              addSystemMessage(`Connection initiated (ID: ${connectResult.connectionId}).`);
-              addSystemMessage('To submit your API key securely, run in your terminal:');
-              addSystemMessage(`  lemonade space connect ${session.currentSpace._id} ${subArg} --api-key`);
-              addSystemMessage('This avoids exposing your key in chat history.');
+              // Store pending connection so the next regular message is treated as an API key
+              pendingApiKeyRef.current = {
+                connectionId: connectResult.connectionId,
+                connectorType: subArg,
+              };
             } else if (connectResult.authUrl) {
-              // Step 2b: OAuth flow — open browser
+              // Step 2b: OAuth flow — open browser and poll for completion
               addSystemMessage('Opening browser for authorization...');
               try {
                 const open = (await import('open')).default;
@@ -798,13 +804,66 @@ export function App({
               } catch {
                 addSystemMessage(`Open this URL in your browser:\n${connectResult.authUrl}`);
               }
-              addSystemMessage(`Waiting for authorization... (connection ID: ${connectResult.connectionId})`);
-              addSystemMessage('Complete the authorization in your browser, then use /connectors connected to verify.');
+
+              addSystemMessage('Waiting for authorization... (this may take up to 2 minutes)');
+
+              // Poll for connection status change
+              const connectionId = connectResult.connectionId;
+              const startTime = Date.now();
+              const TIMEOUT_MS = 120_000; // 2 minutes
+              const POLL_INTERVAL_MS = 3_000; // 3 seconds
+
+              const pollForConnection = async (): Promise<boolean> => {
+                while (Date.now() - startTime < TIMEOUT_MS) {
+                  await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+                  try {
+                    const connTool = registry['space_connectors'];
+                    const connResult = await connTool.execute({ space_id: session.currentSpace!._id }) as Array<Record<string, unknown>>;
+                    const connections = Array.isArray(connResult) ? connResult : [];
+                    const match = connections.find(c => c.id === connectionId);
+                    if (match && match.status !== 'pending') {
+                      if (match.status === 'connected' || match.status === 'active') {
+                        addSystemMessage(`Connected! ${subArg} is ready. Use /connectors connected to verify.`);
+                        return true;
+                      } else {
+                        addSystemMessage(`Connection failed: ${match.errorMessage || match.status}`);
+                        return false;
+                      }
+                    }
+                  } catch {
+                    // Polling error — continue
+                  }
+                }
+                addSystemMessage('Authorization timed out (2 minutes). Try again with /connectors connect ' + subArg);
+                return false;
+              };
+
+              await pollForConnection();
             } else {
               addSystemMessage(`Connected! (ID: ${connectResult.connectionId})`);
             }
           } catch (err) {
             addSystemMessage(`Failed to connect: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
+          return;
+        }
+
+        if ((subcommand === 'run' || subcommand === 'sync') && subArg) {
+          const runParts = subArg.split(/\s+/);
+          const connId = runParts[0];
+          const actionId = runParts[1] || 'sync-events';
+          addSystemMessage(`Running ${actionId} on ${connId}...`);
+          try {
+            const tool = registry['connectors_sync'];
+            const result = await tool.execute({ connection_id: connId, action: actionId }) as Record<string, unknown>;
+            if (result.success) {
+              const records = result.recordsProcessed !== undefined ? ` (${result.recordsProcessed} records)` : '';
+              addSystemMessage(`Success${records}${result.message ? ': ' + result.message : ''}`);
+            } else {
+              addSystemMessage(`Failed: ${result.error || result.message || 'Unknown error'}`);
+            }
+          } catch (err) {
+            addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
           }
           return;
         }
@@ -821,7 +880,7 @@ export function App({
           return;
         }
 
-        addSystemMessage('Usage:\n  /connectors — list available\n  /connectors connected — show space connections\n  /connectors connect <type> — connect an integration\n  /connectors logs <id> — sync history\n  /connectors disconnect <id> — remove connection');
+        addSystemMessage('Usage:\n  /connectors — list available\n  /connectors connected — show space connections\n  /connectors connect <type> — connect an integration\n  /connectors run <id> [action] — run sync or action\n  /connectors logs <id> — sync history\n  /connectors disconnect <id> — remove connection');
         return;
       }
       if (slashResult.output) {
