@@ -167,26 +167,6 @@ function WelcomeBannerView({ firstName, agentName, providerName, modelName }: {
   providerName: string;
   modelName: string;
 }): React.JSX.Element {
-  const [tempoHint, setTempoHint] = useState('');
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { isTempoInstalled, getWalletInfo } = await import('../tempo/index.js');
-        if (!isTempoInstalled()) {
-          setTempoHint('Tempo wallet: /tempo install for stablecoin payments');
-        } else {
-          const info = getWalletInfo();
-          if (!info.loggedIn) {
-            setTempoHint('Tempo wallet: /tempo login to connect');
-          }
-        }
-      } catch {
-        // Silent
-      }
-    })();
-  }, []);
-
   return (
     <Box flexDirection="column" paddingLeft={1}>
       {LEMON.map((line, i) => (
@@ -204,7 +184,6 @@ function WelcomeBannerView({ firstName, agentName, providerName, modelName }: {
       ))}
       <Text>{''}</Text>
       <Text dimColor>   Type /help for commands, Ctrl+D to quit</Text>
-      {tempoHint ? <Text dimColor>   {tempoHint}</Text> : null}
       <Text>{''}</Text>
       <Text dimColor>   Note: Tool results (including event and guest data) are sent to your AI provider.</Text>
     </Box>
@@ -1299,7 +1278,7 @@ export function App({
             flexDirection="column"
           >
             {previousLines.map((line, i) => (
-              <Text key={i} dimColor>{'  '}{line}</Text>
+              <Text key={i}>{'  '}{line}</Text>
             ))}
             <Box>
               <Text color="#FDE047">{'> '}</Text>
@@ -1308,7 +1287,7 @@ export function App({
                 onChange={setInputValue}
                 focus={!pendingConfirm && !planState.active}
                 showCursor={true}
-                placeholder={isStreaming ? '' : 'How can I help... #makelemonade (Shift+Enter for new line)'}
+                placeholder={isStreaming || previousLines.length > 0 ? '' : 'How can I help... #makelemonade (Shift+Enter for new line)'}
               />
             </Box>
           </Box>
