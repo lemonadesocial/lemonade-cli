@@ -31,6 +31,8 @@ export async function handleTurn(
   signal?: AbortSignal,
 ): Promise<void> {
 
+  let finalUsage: { input_tokens: number; output_tokens: number } | undefined;
+
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     const toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }> = [];
     let accumulatedText = '';
@@ -109,10 +111,13 @@ export async function handleTurn(
       });
     }
 
-    messages.push({ role: 'assistant', content: contentBlocks as Message['content'] });
+    if (contentBlocks.length > 0) {
+      messages.push({ role: 'assistant', content: contentBlocks as Message['content'] });
+    }
 
     // Check token usage warnings
     if (lastUsage) {
+      finalUsage = lastUsage;
       const threshold = provider.name === 'anthropic'
         ? TOKEN_WARN_THRESHOLD_ANTHROPIC
         : TOKEN_WARN_THRESHOLD_OPENAI;
@@ -124,10 +129,6 @@ export async function handleTurn(
           const { printWarning } = await import('./display.js');
           printWarning(msg);
         }
-      }
-
-      if (engine) {
-        engine.emit('turn_done', { usage: lastUsage });
       }
     }
 
@@ -151,5 +152,9 @@ export async function handleTurn(
 
     // Truncate history if needed
     truncateHistory(messages);
+  }
+
+  if (engine && finalUsage) {
+    engine.emit('turn_done', { usage: finalUsage });
   }
 }

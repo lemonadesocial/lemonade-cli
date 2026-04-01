@@ -43,5 +43,16 @@ export function truncateHistory(messages: Message[]): void {
   if (cutIndex >= messages.length) return;
 
   messages.splice(0, cutIndex);
+
+  // Ensure messages don't start with a tool_result (orphaned)
+  while (messages.length > 0 && isToolResultMessage(messages[0])) {
+    messages.shift();
+  }
+
+  // Ensure messages don't end with an assistant message (API requires ending with user)
+  while (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
+    messages.pop();
+  }
+
   console.log(chalk.dim('  Context trimmed to save tokens. Older messages dropped.'));
 }

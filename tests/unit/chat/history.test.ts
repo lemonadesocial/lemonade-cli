@@ -23,7 +23,8 @@ describe('truncateHistory', () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     truncateHistory(messages);
 
-    expect(messages.length).toBe(20);
+    // 19 because trailing assistant message is stripped (API requires ending with user)
+    expect(messages.length).toBe(19);
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('Context trimmed'),
     );
@@ -39,8 +40,8 @@ describe('truncateHistory', () => {
 
     truncateHistory(messages);
 
-    // The last message should be the most recent
-    expect((messages[messages.length - 1].content as string)).toBe('Message 59');
+    // The last message should be the most recent user message (assistant trailing stripped)
+    expect((messages[messages.length - 1].content as string)).toBe('Message 58');
     // The first message should be from the kept recent set
     expect((messages[0].content as string)).toBe('Message 40');
   });
@@ -55,7 +56,8 @@ describe('truncateHistory', () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     truncateHistory(messages);
 
-    expect(messages.length).toBe(20);
+    // 19 because trailing assistant message is stripped (API requires ending with user)
+    expect(messages.length).toBe(19);
     consoleSpy.mockRestore();
   });
 
