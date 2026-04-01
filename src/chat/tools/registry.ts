@@ -687,9 +687,69 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       }
 
       if (purchaseResult.status === 402) {
-        const challenge = purchaseResult.data;
-        const holdId = challenge.hold_id || challenge.ticket_hold_id;
+        const challenge = purchaseResult.data['atlas:challenge'] as Record<string, unknown> || purchaseResult.data;
+        const holdId = (challenge.hold_id || challenge.ticket_hold_id) as string;
 
+        // Check if Tempo wallet is available for auto-pay
+        const { getWalletInfo } = await import('../tempo/index.js');
+        const walletInfo = getWalletInfo();
+
+        if (walletInfo.loggedIn && walletInfo.address && walletInfo.ready) {
+          const paymentMethods = (challenge.payment_methods || []) as Record<string, unknown>[];
+          const tempoMethod = paymentMethods.find((m) =>
+            m.type === 'tempo_usdc' || m.method === 'tempo_usdc',
+          );
+
+          if (tempoMethod) {
+            const amount = String(tempoMethod.amount || (challenge.pricing as Record<string, unknown>)?.total_price);
+            const recipient = tempoMethod.recipient_address as string;
+            const memo = (tempoMethod.memo as string) || holdId || '';
+
+            const { tempoExec } = await import('../tempo/index.js');
+            try {
+              const transferOutput = tempoExec(
+                `wallet transfer ${amount} USDC ${recipient}${memo ? ` --memo "${memo}"` : ''}`,
+              );
+
+              const txHashMatch = transferOutput.match(/0x[a-fA-F0-9]{64}/);
+              const txHash = txHashMatch ? txHashMatch[0] : '';
+
+              if (txHash) {
+                const proofResult = await atlasRequest<Record<string, unknown>>({
+                  method: 'POST',
+                  path: `/atlas/v1/events/${args.event_id}/purchase`,
+                  body: {
+                    challenge_id: challenge.challenge_id,
+                    ticket_hold_id: holdId,
+                    payment_proof: {
+                      type: 'tempo_usdc',
+                      transaction_hash: txHash,
+                      network: 'tempo',
+                      amount,
+                      currency: 'USDC',
+                      payer_address: walletInfo.address,
+                      status: 'confirmed',
+                    },
+                  },
+                  authenticated: true,
+                });
+
+                if (proofResult.status === 200) {
+                  return {
+                    success: true,
+                    payment_method: 'tempo_usdc',
+                    transaction_hash: txHash,
+                    receipt: proofResult.data['atlas:receipt'] || proofResult.data,
+                  };
+                }
+              }
+            } catch {
+              // Tempo payment failed — fall through to Stripe checkout
+            }
+          }
+        }
+
+        // Fall through: return checkout URL for Stripe
         const checkoutResult = await atlasRequest<Record<string, unknown>>({
           method: 'POST',
           path: `/atlas/v1/holds/${holdId}/checkout`,
@@ -4112,6 +4172,37 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     formatResult: (result) => {
       const r = result as { success: boolean; output: string };
       return r.success ? `Transfer sent. ${r.output}` : 'Transfer failed.';
+    },
+  });
+
+  register({
+    name: 'tempo_setup_payouts',
+    displayName: 'tempo setup payouts',
+    description: 'Configure your Tempo wallet as the reward payout destination. Auto-detects wallet address.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const { getWalletInfo } = await import('../tempo/index.js');
+      const info = getWalletInfo();
+      if (!info.loggedIn || !info.address) {
+        throw new Error('Tempo wallet not connected. Use /tempo login first.');
+      }
+      const spaceId = (args.space_id as string) || getDefaultSpace();
+      if (!spaceId) throw new Error('No space specified. Use /spaces to select one.');
+
+      const result = await graphqlRequest<{ atlasUpdatePayoutSettings: unknown }>(
+        `mutation($input: AtlasPayoutSettingsInput!) {
+          atlasUpdatePayoutSettings(input: $input) { wallet_address wallet_chain preferred_method }
+        }`,
+        { input: { wallet_address: info.address, wallet_chain: 'tempo', preferred_method: 'tempo_usdc' } },
+      );
+      return result.atlasUpdatePayoutSettings;
+    },
+    formatResult: (result) => {
+      const r = result as { wallet_address: string; preferred_method: string };
+      return `Payouts configured: ${r.wallet_address} via Tempo USDC.`;
     },
   });
 
