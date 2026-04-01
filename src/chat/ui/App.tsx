@@ -12,6 +12,8 @@ import { getAiModeDisplay } from '../aiMode.js';
 import { getCreditsSpaceId } from '../spaceSelection.js';
 import { THINKING_WORDS } from './ThinkingIndicator.js';
 import { truncateResult } from './ToolCall.js';
+import { LEMON, SUGGESTED_PROMPTS } from './WelcomeBanner.js';
+import { VERSION } from '../version.js';
 import { useChatEngine, UIMessage, ToolStatus } from './hooks/useChatEngine.js';
 
 const SPINNER_FRAMES = ['\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'];
@@ -143,6 +145,37 @@ function MessageView({ msg }: { msg: UIMessage }): React.JSX.Element {
   );
 }
 
+// --- Welcome Banner ---
+
+function WelcomeBannerView({ firstName, agentName, providerName, modelName }: {
+  firstName: string;
+  agentName: string;
+  providerName: string;
+  modelName: string;
+}): React.JSX.Element {
+  return (
+    <Box flexDirection="column" paddingLeft={1}>
+      {LEMON.map((line, i) => (
+        <Text key={i} color="#FDE047">{line}</Text>
+      ))}
+      <Text>
+        <Text bold>make-lemonade</Text>
+        <Text dimColor>{` v${VERSION} | ${providerName} | ${modelName}`}</Text>
+      </Text>
+      <Text>{''}</Text>
+      <Text>{` Hey ${firstName}! I'm ${agentName}, your event concierge. What would you like to do?`}</Text>
+      <Text>{''}</Text>
+      {SUGGESTED_PROMPTS.map((prompt, i) => (
+        <Text key={i} dimColor>{`   ${i + 1}. "${prompt}"`}</Text>
+      ))}
+      <Text>{''}</Text>
+      <Text dimColor>   Type /help for commands, Ctrl+D to quit</Text>
+      <Text>{''}</Text>
+      <Text dimColor>   Note: Tool results (including event and guest data) are sent to your AI provider.</Text>
+    </Box>
+  );
+}
+
 // --- Main App ---
 
 export interface AppProps {
@@ -152,6 +185,8 @@ export interface AppProps {
   session: SessionState;
   registry: Record<string, ToolDef>;
   messages: Message[];
+  firstName: string;
+  agentName: string;
   displayOpts: {
     spaceName?: string;
     providerName: string;
@@ -166,6 +201,8 @@ export function App({
   session,
   registry,
   messages: chatMessages,
+  firstName,
+  agentName,
   displayOpts,
 }: AppProps): React.JSX.Element {
   const { exit } = useApp();
@@ -344,6 +381,14 @@ export function App({
       {/* Message area - grows to fill */}
       <Box flexDirection="column" flexGrow={1} overflow="hidden">
         <Box flexDirection="column" justifyContent="flex-end" flexGrow={1}>
+          {visibleMessages.length === 0 && !hasThinking ? (
+            <WelcomeBannerView
+              firstName={firstName}
+              agentName={agentName}
+              providerName={displayOpts.providerName}
+              modelName={displayOpts.modelName}
+            />
+          ) : null}
           {visibleMessages.map((msg, i) => (
             <Box key={i} paddingLeft={1}>
               <MessageView msg={msg} />
