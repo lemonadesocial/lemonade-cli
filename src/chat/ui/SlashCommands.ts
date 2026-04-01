@@ -1,7 +1,7 @@
 export interface SlashCommandResult {
   handled: boolean;
   output?: string;
-  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw';
+  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version';
   args?: string;
 }
 
@@ -17,6 +17,7 @@ export const SLASH_COMMANDS = [
   { name: '/name', description: 'Set agent name' },
   { name: '/plan', description: 'Start guided mode for a tool' },
   { name: '/btw', description: 'Ask a side question (runs in parallel)' },
+  { name: '/version', description: 'Check CLI version and update' },
 ] as const;
 
 const HELP_TABLE = `
@@ -33,6 +34,7 @@ Commands:
   /name <name>       Rename the agent
   /plan <tool>       Start guided mode for a tool
   /btw <message>     Ask a side question (runs in parallel)
+  /version           Check CLI version and update if available
   /exit, /quit       Exit the app
 
 Keyboard shortcuts:
@@ -101,6 +103,9 @@ export function parseSlashCommand(input: string): SlashCommandResult {
 
     case '/btw':
       return { handled: true, action: 'btw', args: rest || undefined };
+
+    case '/version':
+      return { handled: true, action: 'version' };
 
     case '/exit':
     case '/quit':

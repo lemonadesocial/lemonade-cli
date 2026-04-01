@@ -405,6 +405,43 @@ export function App({
         }
         return;
       }
+      if (slashResult.action === 'version') {
+        const currentVersion = VERSION;
+        addSystemMessage(`Current version: v${currentVersion}`);
+        addSystemMessage('Checking for updates...');
+        try {
+          const response = await fetch('https://registry.npmjs.org/@lemonade-social/cli/latest');
+          const data = await response.json() as { version: string };
+          const latestVersion = data.version;
+          if (currentVersion === latestVersion) {
+            addSystemMessage(`You're on the latest version (v${currentVersion}).`);
+          } else {
+            addSystemMessage(`Update available: v${currentVersion} \u2192 v${latestVersion}`);
+            const confirmed = await engine.requestConfirmation('update-cli', `Update to v${latestVersion}`);
+            if (confirmed) {
+              addSystemMessage('Updating...');
+              const { execSync } = await import('child_process');
+              try {
+                execSync('npm install -g @lemonade-social/cli', { stdio: 'pipe' });
+                addSystemMessage(`Updated to v${latestVersion}.`);
+                const restart = await engine.requestConfirmation('restart-cli', 'Restart session to use new version');
+                if (restart) {
+                  addSystemMessage(`Updated to v${latestVersion}. Exiting to apply update...`);
+                  setTimeout(() => exit(), 200);
+                }
+              } catch (installErr) {
+                const errMsg = installErr instanceof Error ? installErr.message : 'Unknown error';
+                addSystemMessage(`Update failed: ${errMsg}. Try manually: npm install -g @lemonade-social/cli`);
+              }
+            } else {
+              addSystemMessage('Update skipped. Run /version anytime to update.');
+            }
+          }
+        } catch {
+          addSystemMessage('Could not check for updates. Run: npm install -g @lemonade-social/cli');
+        }
+        return;
+      }
       if (slashResult.output) {
         addSystemMessage(slashResult.output);
         return;
