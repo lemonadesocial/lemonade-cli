@@ -24,7 +24,7 @@ event_cancel, event_approvals, space_remove_member, space_delete, event_remove_c
 event_broadcast_delete, event_email_delete, event_token_gate_delete,
 event_question_delete, event_ticket_category_delete, event_cancel_invitations,
 subscription_cancel, page_archive, tickets_buy, space_tag_delete,
-event_ticket_delete, event_discount_delete, connector_disconnect
+event_ticket_delete, event_discount_delete, connector_disconnect, tempo_transfer
 
 Never execute without confirmation. Explain the consequence first.
 

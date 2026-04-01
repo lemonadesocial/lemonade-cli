@@ -4072,5 +4072,65 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
+  // --- Tempo ---
+
+  register({
+    name: 'tempo_status',
+    displayName: 'tempo status',
+    description: 'Check Tempo wallet status — installation, address, balances, key readiness.',
+    params: [],
+    destructive: false,
+    execute: async () => {
+      const { getWalletInfo } = await import('../tempo/index.js');
+      return getWalletInfo();
+    },
+    formatResult: (result) => {
+      const r = result as { installed: boolean; loggedIn: boolean; address?: string; ready?: boolean; balances?: Record<string, string> };
+      if (!r.installed) return 'Tempo CLI not installed. Use /tempo install.';
+      if (!r.loggedIn) return 'Tempo wallet not connected. Use /tempo login.';
+      const bal = r.balances ? Object.entries(r.balances).map(([k, v]) => `${v} ${k}`).join(', ') : 'checking...';
+      return `Tempo wallet: ${r.address} — ${bal} — ${r.ready ? 'ready' : 'not ready'}`;
+    },
+  });
+
+  register({
+    name: 'tempo_transfer',
+    displayName: 'tempo transfer',
+    description: 'Send USDC to an address via Tempo wallet.',
+    params: [
+      { name: 'amount', type: 'string', description: 'Amount (e.g., "10.00")', required: true },
+      { name: 'token', type: 'string', description: 'Token symbol (e.g., USDC)', required: true, default: 'USDC' },
+      { name: 'to', type: 'string', description: 'Recipient 0x address', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const { tempoExec, isTempoInstalled } = await import('../tempo/index.js');
+      if (!isTempoInstalled()) throw new Error('Tempo CLI not installed. Use /tempo install.');
+      const output = tempoExec(`wallet transfer ${args.amount} ${args.token || 'USDC'} ${args.to}`);
+      return { success: true, output };
+    },
+    formatResult: (result) => {
+      const r = result as { success: boolean; output: string };
+      return r.success ? `Transfer sent. ${r.output}` : 'Transfer failed.';
+    },
+  });
+
+  register({
+    name: 'tempo_services',
+    displayName: 'tempo services',
+    description: 'Discover MPP-registered services that accept Tempo payments.',
+    params: [
+      { name: 'search', type: 'string', description: 'Search query', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const { tempoExec, isTempoInstalled } = await import('../tempo/index.js');
+      if (!isTempoInstalled()) throw new Error('Tempo CLI not installed. Use /tempo install.');
+      const cmd = args.search ? `wallet services --search "${args.search}"` : 'wallet services';
+      const output = tempoExec(cmd);
+      return { output };
+    },
+  });
+
   return tools;
 }

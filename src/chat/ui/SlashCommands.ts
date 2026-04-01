@@ -1,7 +1,7 @@
 export interface SlashCommandResult {
   handled: boolean;
   output?: string;
-  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history' | 'export' | 'connectors';
+  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history' | 'export' | 'connectors' | 'tempo';
   args?: string;
 }
 
@@ -25,6 +25,7 @@ export const SLASH_COMMANDS = [
   { name: '/history', description: 'Show recent conversation' },
   { name: '/export', description: 'Export data as CSV file' },
   { name: '/connectors', description: 'Manage space integrations' },
+  { name: '/tempo', description: 'Manage Tempo wallet and payments' },
 ] as const;
 
 const HELP_TABLE = `
@@ -55,6 +56,12 @@ Commands:
   /connectors connected Show space connections
   /connectors connect <type>  Connect an integration
   /connectors logs <id> View sync logs
+  /tempo             Check Tempo wallet status
+  /tempo install     Install Tempo CLI
+  /tempo login       Connect/create wallet
+  /tempo logout      Disconnect wallet
+  /tempo balance     Check USDC balance
+  /tempo fund        Fund wallet
   /exit, /quit       Exit the app
 
 Keyboard shortcuts:
@@ -146,6 +153,9 @@ export function parseSlashCommand(input: string): SlashCommandResult {
 
     case '/connectors':
       return { handled: true, action: 'connectors', args: rest || undefined };
+
+    case '/tempo':
+      return { handled: true, action: 'tempo', args: rest || undefined };
 
     case '/exit':
     case '/quit':

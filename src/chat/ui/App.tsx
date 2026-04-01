@@ -8,6 +8,7 @@ import { buildSystemMessages } from '../session/cache.js';
 import { handleTurn } from '../stream/handler.js';
 import { parseSlashCommand, SLASH_COMMANDS } from './SlashCommands.js';
 import { getAgentName } from '../skills/loader.js';
+import { graphqlRequest } from '../../api/graphql.js';
 import { getAiModeDisplay } from '../aiMode.js';
 import { getCreditsSpaceId } from '../spaceSelection.js';
 import { THINKING_WORDS } from './ThinkingIndicator.js';
@@ -881,6 +882,106 @@ export function App({
         }
 
         addSystemMessage('Usage:\n  /connectors — list available\n  /connectors connected — show space connections\n  /connectors connect <type> — connect an integration\n  /connectors run <id> [action] — run sync or action\n  /connectors logs <id> — sync history\n  /connectors disconnect <id> — remove connection');
+        return;
+      }
+      if (slashResult.action === 'tempo') {
+        const subcommand = (slashResult.args || '').split(/\s+/)[0];
+
+        if (!subcommand || subcommand === 'status') {
+          addSystemMessage('Checking Tempo wallet...');
+          try {
+            const tool = registry['tempo_status'];
+            const result = await tool.execute({});
+            const formatted = tool.formatResult?.(result) || JSON.stringify(result);
+            addSystemMessage(formatted);
+          } catch (err) {
+            addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
+          }
+          return;
+        }
+
+        if (subcommand === 'install') {
+          const confirmed = await engine.requestConfirmation('tempo-install', 'Install Tempo CLI? (runs: curl -fsSL https://tempo.xyz/install | bash)');
+          if (confirmed) {
+            addSystemMessage('Installing Tempo CLI...');
+            try {
+              const { installTempo } = await import('../tempo/index.js');
+              const success = await installTempo();
+              addSystemMessage(success ? 'Tempo CLI installed! Use /tempo login to connect your wallet.' : 'Installation failed. Try manually: curl -fsSL https://tempo.xyz/install | bash');
+            } catch (err) {
+              addSystemMessage(`Installation failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+            }
+          } else {
+            addSystemMessage('Installation cancelled.');
+          }
+          return;
+        }
+
+        if (subcommand === 'login') {
+          addSystemMessage('Opening browser for Tempo wallet login...');
+          try {
+            const { execSync } = await import('child_process');
+            execSync('tempo wallet login', { stdio: 'inherit', timeout: 120000 });
+            const { getWalletInfo } = await import('../tempo/index.js');
+            const info = getWalletInfo();
+            if (info.address) {
+              addSystemMessage(`Tempo wallet connected: ${info.address}`);
+              try {
+                await graphqlRequest(
+                  'mutation($input: UserInput!) { updateUser(input: $input) { _id } }',
+                  { input: {} },
+                );
+                addSystemMessage('Wallet linked to your Lemonade account.');
+              } catch {
+                addSystemMessage('Note: Could not auto-link wallet to Lemonade. Update manually in settings.');
+              }
+            } else {
+              addSystemMessage('Login completed but wallet not detected. Try /tempo status.');
+            }
+          } catch (err) {
+            addSystemMessage(`Login failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+          }
+          return;
+        }
+
+        if (subcommand === 'logout') {
+          try {
+            const { tempoExec } = await import('../tempo/index.js');
+            tempoExec('wallet logout');
+            addSystemMessage('Tempo wallet disconnected.');
+          } catch (err) {
+            addSystemMessage(`Logout failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+          }
+          return;
+        }
+
+        if (subcommand === 'balance') {
+          try {
+            const tool = registry['tempo_status'];
+            const result = await tool.execute({});
+            const r = result as { installed: boolean; loggedIn: boolean; address?: string; balances?: Record<string, string> };
+            if (!r.installed) { addSystemMessage('Tempo CLI not installed. Use /tempo install.'); return; }
+            if (!r.loggedIn) { addSystemMessage('Not logged in. Use /tempo login.'); return; }
+            const bal = r.balances ? Object.entries(r.balances).map(([k, v]) => `  ${v} ${k}`).join('\n') : '  No balances';
+            addSystemMessage(`Tempo Wallet: ${r.address}\n${bal}`);
+          } catch (err) {
+            addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
+          }
+          return;
+        }
+
+        if (subcommand === 'fund') {
+          try {
+            const { execSync } = await import('child_process');
+            execSync('tempo wallet fund', { stdio: 'inherit', timeout: 30000 });
+            addSystemMessage('Funding flow completed. Check /tempo balance.');
+          } catch (err) {
+            addSystemMessage(`Fund failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+          }
+          return;
+        }
+
+        addSystemMessage('Usage:\n  /tempo — check status\n  /tempo install — install Tempo CLI\n  /tempo login — connect wallet\n  /tempo logout — disconnect\n  /tempo balance — check USDC balance\n  /tempo fund — add funds');
         return;
       }
       if (slashResult.output) {
