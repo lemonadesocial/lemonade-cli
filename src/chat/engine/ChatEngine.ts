@@ -2,20 +2,21 @@ import { EventEmitter } from 'events';
 import { ToolDef, ToolParam } from '../providers/interface.js';
 
 export interface ChatEngineEvents {
-  text_delta: { text: string };
-  tool_start: { id: string; name: string };
-  tool_done: { id: string; name: string; result?: unknown; error?: string };
-  confirm_request: { id: string; description: string };
+  text_delta: { text: string; turnId?: string };
+  tool_start: { id: string; name: string; turnId?: string };
+  tool_done: { id: string; name: string; result?: unknown; error?: string; turnId?: string };
+  confirm_request: { id: string; description: string; turnId?: string };
   plan_request: {
     toolCallId: string;
     toolName: string;
     toolDef: ToolDef;
     providedParams: Record<string, unknown>;
     missingParams: ToolParam[];
+    turnId?: string;
   };
-  turn_done: { usage: { input_tokens: number; output_tokens: number } };
-  error: { message: string; fatal: boolean };
-  warning: { message: string };
+  turn_done: { usage: { input_tokens: number; output_tokens: number }; turnId?: string };
+  error: { message: string; fatal: boolean; turnId?: string };
+  warning: { message: string; turnId?: string };
 }
 
 const CONFIRMATION_TIMEOUT_MS = 60_000;

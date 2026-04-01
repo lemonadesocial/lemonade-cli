@@ -67,6 +67,7 @@ export async function executeToolCalls(
   rl: readline.Interface | null,
   isTTY: boolean,
   engine?: ChatEngine,
+  turnId?: string,
 ): Promise<{ results: ToolResultMessage[]; fatal: boolean }> {
   const results: ToolResultMessage[] = [];
 
@@ -89,7 +90,7 @@ export async function executeToolCalls(
       const missingRequired = tool.params.filter(
         (p) => p.required && !(p.name in call.arguments),
       );
-      if (engine && isTTY && missingRequired.length > 0) {
+      if (engine && isTTY && missingRequired.length > 0 && !turnId?.startsWith('btw-')) {
         const planResult = await engine.requestPlan(
           call.id, tool, call.arguments, missingRequired,
         );
@@ -100,7 +101,7 @@ export async function executeToolCalls(
             tool_use_id: call.id,
             content: JSON.stringify({ cancelled: true, reason: 'User cancelled plan mode' }),
           });
-          engine.emit('tool_done', { id: call.id, name: tool.displayName, error: 'Plan cancelled' });
+          engine.emit('tool_done', { id: call.id, name: tool.displayName, error: 'Plan cancelled', turnId });
           continue;
         }
         // Re-assign arguments with merged params and re-validate
@@ -163,7 +164,7 @@ export async function executeToolCalls(
     }
 
     if (engine) {
-      engine.emit('tool_start', { id: call.id, name: tool.displayName });
+      engine.emit('tool_start', { id: call.id, name: tool.displayName, turnId });
     }
 
     const spinner = (!engine && isTTY) ? ora(`Running: ${tool.displayName}...`).start() : null;
@@ -172,7 +173,7 @@ export async function executeToolCalls(
       const result = await tool.execute(call.arguments);
       if (spinner) spinner.succeed(`Done: ${tool.displayName}`);
       if (engine) {
-        engine.emit('tool_done', { id: call.id, name: tool.displayName, result });
+        engine.emit('tool_done', { id: call.id, name: tool.displayName, result, turnId });
       }
 
       updateSession(session, call.name, result);
@@ -188,7 +189,7 @@ export async function executeToolCalls(
       const classified = classifyError(err);
 
       if (engine) {
-        engine.emit('tool_done', { id: call.id, name: tool.displayName, error: classified.message });
+        engine.emit('tool_done', { id: call.id, name: tool.displayName, error: classified.message, turnId });
       }
 
       results.push({
@@ -200,7 +201,7 @@ export async function executeToolCalls(
 
       if (classified.fatal) {
         if (engine) {
-          engine.emit('error', { message: classified.message, fatal: true });
+          engine.emit('error', { message: classified.message, fatal: true, turnId });
         } else {
           printToolError(classified.message);
         }

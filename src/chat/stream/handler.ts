@@ -29,6 +29,7 @@ export async function handleTurn(
   isTTY: boolean,
   engine?: ChatEngine,
   signal?: AbortSignal,
+  turnId?: string,
 ): Promise<void> {
 
   let finalUsage: { input_tokens: number; output_tokens: number } | undefined;
@@ -56,7 +57,7 @@ export async function handleTurn(
               if (!textStarted && isTTY && !engine) process.stdout.write('\n  ');
               textStarted = true;
               if (engine) {
-                engine.emit('text_delta', { text: event.text });
+                engine.emit('text_delta', { text: event.text, turnId });
               } else {
                 const { writeStreamToken } = await import('./display.js');
                 writeStreamToken(event.text, isTTY);
@@ -80,7 +81,7 @@ export async function handleTurn(
       if (signal?.aborted) return;
     } catch (err) {
       if (engine) {
-        engine.emit('error', { message: `Streaming error: ${safeErrorMessage(err)}`, fatal: false });
+        engine.emit('error', { message: `Streaming error: ${safeErrorMessage(err)}`, fatal: false, turnId });
       } else {
         if (textStarted) {
           const { writeNewline } = await import('./display.js');
@@ -124,7 +125,7 @@ export async function handleTurn(
       if (lastUsage.input_tokens > threshold) {
         const msg = `Session getting long (${lastUsage.input_tokens} tokens). Consider starting fresh soon.`;
         if (engine) {
-          engine.emit('warning', { message: msg });
+          engine.emit('warning', { message: msg, turnId });
         } else {
           const { printWarning } = await import('./display.js');
           printWarning(msg);
@@ -143,6 +144,7 @@ export async function handleTurn(
       rl,
       isTTY,
       engine,
+      turnId,
     );
 
     if (fatal) return;
@@ -155,6 +157,6 @@ export async function handleTurn(
   }
 
   if (engine && finalUsage) {
-    engine.emit('turn_done', { usage: finalUsage });
+    engine.emit('turn_done', { usage: finalUsage, turnId });
   }
 }

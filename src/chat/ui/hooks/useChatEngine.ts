@@ -13,6 +13,7 @@ export interface UIMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   tools?: ToolStatus[];
+  turnId?: string;
 }
 
 export interface ConfirmRequest {
@@ -37,54 +38,67 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   const [pendingConfirm, setPendingConfirm] = useState<ConfirmRequest | null>(null);
   const [tokenCount, setTokenCount] = useState(0);
 
-  // Track streaming state for the current assistant message
-  const streamingRef = useRef(false);
+  // Track per-turn message indices and active turns
+  const turnMessageIndex = useRef<Map<string, number>>(new Map());
+  const activeTurns = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const onTextDelta = (data: ChatEngineEvents['text_delta']) => {
-      if (!streamingRef.current) {
-        streamingRef.current = true;
-        setIsStreaming(true);
-        // Start a new assistant message
-        setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+    const onTextDelta = (data: { text: string; turnId?: string }) => {
+      const tid = data.turnId || 'main';
+
+      if (!activeTurns.current.has(tid)) {
+        activeTurns.current.add(tid);
+        if (tid === 'main') setIsStreaming(true);
       }
+
       setMessages((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last && last.role === 'assistant') {
-          updated[updated.length - 1] = { ...last, content: last.content + data.text };
+        const existingIdx = turnMessageIndex.current.get(tid);
+        if (existingIdx !== undefined && existingIdx < prev.length && prev[existingIdx]?.role === 'assistant') {
+          const updated = [...prev];
+          const msg = updated[existingIdx];
+          updated[existingIdx] = { ...msg, content: msg.content + data.text };
+          return updated;
         }
-        return updated;
+        const newMsg: UIMessage = { role: 'assistant', content: data.text, turnId: tid === 'main' ? undefined : tid };
+        const newArr = [...prev, newMsg];
+        turnMessageIndex.current.set(tid, newArr.length - 1);
+        return newArr;
       });
     };
 
-    const onToolStart = (data: ChatEngineEvents['tool_start']) => {
+    const onToolStart = (data: { id: string; name: string; turnId?: string }) => {
+      const tid = data.turnId || 'main';
       setMessages((prev) => {
         const updated = [...prev];
-        // Find or create assistant message for tools
-        let last = updated[updated.length - 1];
-        if (!last || last.role !== 'assistant') {
-          last = { role: 'assistant', content: '', tools: [] };
-          updated.push(last);
+        let idx = turnMessageIndex.current.get(tid);
+        if (idx === undefined || idx >= updated.length || updated[idx]?.role !== 'assistant') {
+          const newMsg: UIMessage = { role: 'assistant', content: '', tools: [], turnId: tid === 'main' ? undefined : tid };
+          updated.push(newMsg);
+          idx = updated.length - 1;
+          turnMessageIndex.current.set(tid, idx);
         }
-        const tools = [...(last.tools || [])];
+        const msg = updated[idx];
+        const tools = [...(msg.tools || [])];
         tools.push({ id: data.id, name: data.name, status: 'running' });
-        updated[updated.length - 1] = { ...last, tools };
+        updated[idx] = { ...msg, tools };
         return updated;
       });
     };
 
-    const onToolDone = (data: ChatEngineEvents['tool_done']) => {
+    const onToolDone = (data: { id: string; name: string; result?: unknown; error?: string; turnId?: string }) => {
+      const tid = data.turnId || 'main';
       setMessages((prev) => {
         const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last && last.role === 'assistant' && last.tools) {
-          const tools = last.tools.map((t) =>
+        const idx = turnMessageIndex.current.get(tid);
+        if (idx === undefined || idx >= updated.length) return prev;
+        const msg = updated[idx];
+        if (msg.tools) {
+          const tools = msg.tools.map((t) =>
             t.id === data.id
               ? { ...t, status: (data.error ? 'error' : 'done') as ToolStatus['status'], result: data.result, error: data.error }
               : t,
           );
-          updated[updated.length - 1] = { ...last, tools };
+          updated[idx] = { ...msg, tools };
         }
         return updated;
       });
@@ -94,20 +108,27 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
       setPendingConfirm({ id: data.id, description: data.description });
     };
 
-    const onTurnDone = (data: ChatEngineEvents['turn_done']) => {
-      streamingRef.current = false;
-      setIsStreaming(false);
+    const onTurnDone = (data: { usage: { input_tokens: number; output_tokens: number }; turnId?: string }) => {
+      const tid = data.turnId || 'main';
+      activeTurns.current.delete(tid);
+      turnMessageIndex.current.delete(tid);
+      if (tid === 'main') {
+        setIsStreaming(false);
+      }
       setTokenCount(data.usage.input_tokens + data.usage.output_tokens);
     };
 
-    const onError = (data: ChatEngineEvents['error']) => {
-      streamingRef.current = false;
-      setIsStreaming(false);
-      const errorText = data.message;
-      setMessages((prev) => [...prev, { role: 'system', content: `Error: ${errorText}` }]);
+    const onError = (data: { message: string; fatal: boolean; turnId?: string }) => {
+      const tid = data.turnId || 'main';
+      activeTurns.current.delete(tid);
+      turnMessageIndex.current.delete(tid);
+      if (tid === 'main') {
+        setIsStreaming(false);
+      }
+      setMessages((prev) => [...prev, { role: 'system', content: `Error: ${data.message}`, turnId: tid === 'main' ? undefined : tid }]);
     };
 
-    const onWarning = (data: ChatEngineEvents['warning']) => {
+    const onWarning = (data: { message: string; turnId?: string }) => {
       setMessages((prev) => [...prev, { role: 'system', content: data.message }]);
     };
 
@@ -141,6 +162,8 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   const clearMessages = useCallback(() => {
     setMessages([]);
     setTokenCount(0);
+    turnMessageIndex.current.clear();
+    activeTurns.current.clear();
   }, []);
 
   const confirmAction = useCallback((id: string, confirmed: boolean) => {
