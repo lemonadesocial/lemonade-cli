@@ -146,9 +146,9 @@ describe('Tool Registry', () => {
     expect(registry.event_clone.params.find((p) => p.name === 'dates')?.type).toBe('string[]');
     expect(registry.event_clone.destructive).toBe(false);
 
-    expect(registry.event_generate_recurring_dates).toBeDefined();
-    expect(registry.event_generate_recurring_dates.params.find((p) => p.name === 'repeat')?.enum).toContain('weekly');
-    expect(registry.event_generate_recurring_dates.params.find((p) => p.name === 'day_of_weeks')?.type).toBe('number[]');
+    expect(registry.event_recurring_dates).toBeDefined();
+    expect(registry.event_recurring_dates.params.find((p) => p.name === 'repeat')?.enum).toContain('WEEKLY');
+    expect(registry.event_recurring_dates.params.find((p) => p.name === 'day_of_weeks')?.type).toBe('number[]');
   });
 
   it('includes co-host management tools (NT-3, NT-4, NT-5)', () => {
@@ -204,8 +204,8 @@ describe('Tool Registry', () => {
   });
 
   it('includes invitation tools (NT-20, NT-21)', () => {
-    expect(registry.event_invite_stats).toBeDefined();
-    expect(registry.event_invite_stats.destructive).toBe(false);
+    expect(registry.event_invitation_stats).toBeDefined();
+    expect(registry.event_invitation_stats.destructive).toBe(false);
 
     expect(registry.event_cancel_invitations).toBeDefined();
     expect(registry.event_cancel_invitations.destructive).toBe(true);

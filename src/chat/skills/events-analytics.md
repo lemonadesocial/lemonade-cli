@@ -20,7 +20,7 @@ event_top_views -- top traffic by city/source (city_limit, source_limit).
 
 # Inviter Analytics
 
-event_top_inviters -- ranked inviters. event_invite_stats -- per-guest tracking.
+event_top_inviters -- ranked inviters. event_invitation_stats -- per-guest tracking.
 
 # Feedback
 
