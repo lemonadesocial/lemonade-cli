@@ -948,7 +948,7 @@ export function App({
           try {
             const { tempoLogin, getWalletInfo } = await import('../tempo/index.js');
             // Stream login output so user can see confirmation code + auth URL
-            const loginResult = await tempoLogin((line) => {
+            await tempoLogin((line) => {
               addSystemMessage(line);
             });
 
