@@ -53,6 +53,7 @@ Commands:
   /export apps <event_id>     Export applications as CSV
   /connectors           List available connectors
   /connectors connected Show space connections
+  /connectors connect <type>  Connect an integration
   /connectors logs <id> View sync logs
   /exit, /quit       Exit the app
 

@@ -9,6 +9,22 @@ const TOKEN_WARN_THRESHOLD_ANTHROPIC = 150_000;
 const TOKEN_WARN_THRESHOLD_OPENAI = 90_000;
 const MAX_TOOL_ITERATIONS = 25;
 
+const SENSITIVE_KEYS = ['api_key', 'apiKey', 'api_key_value', 'password', 'secret', 'token', 'access_token', 'refresh_token'];
+
+function sanitizeToolArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (SENSITIVE_KEYS.includes(key)) {
+      sanitized[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      sanitized[key] = sanitizeToolArgs(value as Record<string, unknown>);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
 function safeErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return 'Unknown error';
@@ -117,7 +133,7 @@ export async function handleTurn(
         type: 'tool_use',
         id: tc.id,
         name: tc.name,
-        input: tc.arguments,
+        input: sanitizeToolArgs(tc.arguments),
       });
     }
 

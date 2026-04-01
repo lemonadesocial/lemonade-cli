@@ -589,7 +589,9 @@ export function App({
         } else {
           const lines = recentMessages.map((msg) => {
             const role = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Zesty' : 'System';
-            const content = msg.content.length > 100 ? msg.content.slice(0, 100) + '...' : msg.content;
+            let content = msg.content.length > 100 ? msg.content.slice(0, 100) + '...' : msg.content;
+            // Redact potential credentials
+            content = content.replace(/(?:api[_-]?key|token|secret|password)\s*[:=]\s*\S+/gi, '[REDACTED]');
             return `[${role}] ${content}`;
           });
           addSystemMessage(`Last ${recentMessages.length} messages:\n${lines.join('\n')}`);
@@ -629,8 +631,9 @@ export function App({
             ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
             const csv = [headers.join(','), ...rows].join('\n');
             const filename = `guests-${exportId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.csv`;
-            const { writeFileSync } = await import('fs');
+            const { writeFileSync, chmodSync } = await import('fs');
             writeFileSync(filename, csv);
+            chmodSync(filename, 0o600); // Owner read/write only
             addSystemMessage(`Exported ${result.count} guests to ${filename}`);
           } catch (err) {
             addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -663,8 +666,9 @@ export function App({
             });
             const csv = [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','), ...rows].join('\n');
             const filename = `applications-${exportId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.csv`;
-            const { writeFileSync } = await import('fs');
+            const { writeFileSync, chmodSync } = await import('fs');
             writeFileSync(filename, csv);
+            chmodSync(filename, 0o600); // Owner read/write only
             addSystemMessage(`Exported ${result.count} applications to ${filename}`);
           } catch (err) {
             addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -749,6 +753,62 @@ export function App({
           return;
         }
 
+        if (subcommand === 'connect' && subArg) {
+          if (!session.currentSpace) {
+            addSystemMessage('No space selected. Use /spaces to switch first.');
+            return;
+          }
+          addSystemMessage(`Connecting ${subArg}...`);
+          try {
+            // Step 1: Initiate connection
+            const connectTool = registry['connector_connect'];
+            const connectResult = await connectTool.execute({
+              space_id: session.currentSpace._id,
+              connector_type: subArg,
+            }) as { connectionId: string; authUrl?: string; requiresApiKey: boolean };
+
+            if (connectResult.requiresApiKey) {
+              // Step 2a: API key flow — collect key securely
+              addSystemMessage('This connector requires an API key.');
+              addSystemMessage('Enter your API key (it will NOT be stored in chat history):');
+
+              // Use confirmation to get user input
+              // The key is collected via a special prompt, NOT through the AI
+              const confirmed = await engine.requestConfirmation(
+                'api-key-input',
+                `Paste your ${subArg} API key and press y to submit`,
+              );
+
+              if (!confirmed) {
+                addSystemMessage('Connection cancelled.');
+                return;
+              }
+
+              // Instruct the user to use the CLI directly to avoid exposing key in chat history
+              addSystemMessage(`Connection initiated (ID: ${connectResult.connectionId}).`);
+              addSystemMessage('To submit your API key securely, run in your terminal:');
+              addSystemMessage(`  lemonade space connect ${session.currentSpace._id} ${subArg} --api-key`);
+              addSystemMessage('This avoids exposing your key in chat history.');
+            } else if (connectResult.authUrl) {
+              // Step 2b: OAuth flow — open browser
+              addSystemMessage('Opening browser for authorization...');
+              try {
+                const open = (await import('open')).default;
+                await open(connectResult.authUrl);
+              } catch {
+                addSystemMessage(`Open this URL in your browser:\n${connectResult.authUrl}`);
+              }
+              addSystemMessage(`Waiting for authorization... (connection ID: ${connectResult.connectionId})`);
+              addSystemMessage('Complete the authorization in your browser, then use /connectors connected to verify.');
+            } else {
+              addSystemMessage(`Connected! (ID: ${connectResult.connectionId})`);
+            }
+          } catch (err) {
+            addSystemMessage(`Failed to connect: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
+          return;
+        }
+
         if (subcommand === 'disconnect' && subArg) {
           addSystemMessage(`Disconnecting ${subArg}...`);
           try {
@@ -761,7 +821,7 @@ export function App({
           return;
         }
 
-        addSystemMessage('Usage:\n  /connectors — list available\n  /connectors connected — show space connections\n  /connectors logs <id> — sync history\n  /connectors disconnect <id> — remove connection');
+        addSystemMessage('Usage:\n  /connectors — list available\n  /connectors connected — show space connections\n  /connectors connect <type> — connect an integration\n  /connectors logs <id> — sync history\n  /connectors disconnect <id> — remove connection');
         return;
       }
       if (slashResult.output) {
