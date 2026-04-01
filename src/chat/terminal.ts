@@ -6,41 +6,9 @@
 
 import React from 'react';
 import { render } from 'ink';
-import chalk from 'chalk';
-import { VERSION } from './version.js';
-import { LEMON, SUGGESTED_PROMPTS } from './ui/WelcomeBanner.js';
 import { ChatEngine } from './engine/ChatEngine.js';
 import { AIProvider, Message, ToolDef } from './providers/interface.js';
 import { SessionState } from './session/state.js';
-
-export function printWelcomeBanner(opts: {
-  firstName: string;
-  agentName: string;
-  providerName: string;
-  modelName: string;
-}): number {
-  const lemonColor = chalk.hex('#FDE047');
-  const lines: string[] = [''];
-
-  for (const line of LEMON) {
-    lines.push(' ' + lemonColor(line));
-  }
-  lines.push(` ${chalk.bold('make-lemonade')}${chalk.dim(` v${VERSION} | ${opts.providerName} | ${opts.modelName}`)}`);
-  lines.push('');
-  lines.push(` Hey ${opts.firstName}! I'm ${opts.agentName}, your event concierge. What would you like to do?`);
-  lines.push('');
-  for (let i = 0; i < SUGGESTED_PROMPTS.length; i++) {
-    lines.push(chalk.dim(`   ${i + 1}. "${SUGGESTED_PROMPTS[i]}"`));
-  }
-  lines.push('');
-  lines.push(chalk.dim('   Type /help for commands, Ctrl+D to quit'));
-  lines.push('');
-  lines.push(chalk.dim('   Note: Tool results (including event and guest data) are sent to your AI provider.'));
-  lines.push('');
-
-  process.stdout.write(lines.join('\n') + '\n');
-  return lines.length;
-}
 
 export async function runTerminalUI(
   provider: AIProvider,
@@ -51,6 +19,10 @@ export async function runTerminalUI(
     spaceName?: string;
     providerName: string;
     modelName: string;
+  },
+  bannerOpts: {
+    firstName: string;
+    agentName: string;
   },
 ): Promise<void> {
   const engine = new ChatEngine();
@@ -71,6 +43,8 @@ export async function runTerminalUI(
       session,
       registry,
       messages,
+      firstName: bannerOpts.firstName,
+      agentName: bannerOpts.agentName,
       displayOpts,
     }),
     {

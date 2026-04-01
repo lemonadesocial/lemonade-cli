@@ -15,7 +15,7 @@ import { initAiMode } from './aiMode.js';
 import { getAgentName } from './skills/loader.js';
 import { selectCreditsSpace, getCreditsSpaceId } from './spaceSelection.js';
 import { VERSION } from './version.js';
-import { printWelcomeBanner, runTerminalUI } from './terminal.js';
+import { runTerminalUI } from './terminal.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
@@ -250,18 +250,6 @@ async function main(): Promise<void> {
       modelName: provider.model,
     };
 
-    const bannerLineCount = printWelcomeBanner({
-      firstName: user.first_name || user.name,
-      agentName: getAgentName(),
-      ...displayOpts,
-    });
-
-    // Push prompt to bottom of terminal on launch
-    const padding = Math.max(0, (process.stdout.rows || 24) - bannerLineCount - 2);
-    if (padding > 0) {
-      process.stdout.write('\n'.repeat(padding));
-    }
-
     process.on('SIGINT', () => {
       process.stdout.write('\x1b[?25h');   // show cursor
       process.stdout.write('\x1b[?1049l'); // leave alternate screen
@@ -269,7 +257,10 @@ async function main(): Promise<void> {
       process.exit(0);
     });
 
-    await runTerminalUI(provider, formattedTools, session, registry, displayOpts);
+    await runTerminalUI(provider, formattedTools, session, registry, displayOpts, {
+      firstName: user.first_name || user.name,
+      agentName: getAgentName(),
+    });
   } else {
     const systemPrompt = buildSystemMessages(session, provider.name);
     await batchMode(provider, formattedTools, systemPrompt, session, registry, args.json);
