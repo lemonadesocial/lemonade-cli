@@ -41,6 +41,7 @@ export interface PlanWizardProps {
   onCancel: () => void;
   /** Optional param types for value conversion */
   paramTypes?: Record<string, ParamType>;
+  spaceOptions?: Array<{ _id: string; title: string }>;
 }
 
 function convertValue(
@@ -73,6 +74,7 @@ export function PlanWizard({
   onComplete,
   onCancel,
   paramTypes,
+  spaceOptions,
 }: PlanWizardProps): React.JSX.Element {
   // Filter out merged steps (e.g., 'end' merged into 'start')
   const steps = allSteps.filter((s) => !s.merged);
@@ -83,6 +85,12 @@ export function PlanWizard({
   const [choiceIndex, setChoiceIndex] = useState(0);
   const [multilineLines, setMultilineLines] = useState<string[]>(['']);
   const [requiredHint, setRequiredHint] = useState(false);
+
+  // Space selector state
+  const [spaceScrollOffset, setSpaceScrollOffset] = useState(0);
+  const [spaceCreateMode, setSpaceCreateMode] = useState(false);
+  const [spaceCreateName, setSpaceCreateName] = useState('');
+  const SPACE_MAX_VISIBLE = 8;
 
   // Date compound step state
   const [datePhase, setDatePhase] = useState<DatePhase>('date');
@@ -112,6 +120,9 @@ export function PlanWizard({
         setDatePhase('date');
         setDateStartValue('');
         setDurationChoiceIndex(0);
+        setSpaceScrollOffset(0);
+        setSpaceCreateMode(false);
+        setSpaceCreateName('');
       } else {
         // Final step - complete
         onComplete(newAnswers);
@@ -138,6 +149,9 @@ export function PlanWizard({
       setDatePhase('date');
       setDateStartValue('');
       setDurationChoiceIndex(0);
+      setSpaceScrollOffset(0);
+      setSpaceCreateMode(false);
+      setSpaceCreateName('');
       // Restore previous answer
       const prevAnswer = answers[prevStep.paramName];
       if (prevStep.inputType === 'choice' && prevStep.options) {
@@ -152,7 +166,7 @@ export function PlanWizard({
     }
   }, [currentStep, steps, answers, isDateStep, datePhase, dateStartValue]);
 
-  // Keyboard handling for choice, multiline, and date duration
+  // Keyboard handling for choice, multiline, date duration, and space select
   useInput(
     (input, key) => {
       if (key.escape) {
@@ -182,6 +196,43 @@ export function PlanWizard({
           const newAnswers = { ...answers, end: `${selected.hours} hours after start` };
           setAnswers(newAnswers);
           storeAndAdvance(dateStartValue);
+          return;
+        }
+        if (key.backspace || key.delete) {
+          goBack();
+          return;
+        }
+        return;
+      }
+
+      // Space selector navigation
+      if (step.inputType === 'space_select' && !spaceCreateMode && spaceOptions && spaceOptions.length > 0) {
+        const totalOptions = spaceOptions.length + 1; // +1 for "Create new"
+        if (key.upArrow) {
+          setChoiceIndex(prev => {
+            const next = prev <= 0 ? totalOptions - 1 : prev - 1;
+            if (next < spaceScrollOffset) setSpaceScrollOffset(next);
+            if (next >= spaceScrollOffset + SPACE_MAX_VISIBLE) setSpaceScrollOffset(next - SPACE_MAX_VISIBLE + 1);
+            return next;
+          });
+          return;
+        }
+        if (key.downArrow) {
+          setChoiceIndex(prev => {
+            const next = prev >= totalOptions - 1 ? 0 : prev + 1;
+            if (next >= spaceScrollOffset + SPACE_MAX_VISIBLE) setSpaceScrollOffset(next - SPACE_MAX_VISIBLE + 1);
+            if (next < spaceScrollOffset) setSpaceScrollOffset(next);
+            return next;
+          });
+          return;
+        }
+        if (key.return) {
+          if (choiceIndex === spaceOptions.length) {
+            // "+ Create new space"
+            setSpaceCreateMode(true);
+          } else {
+            storeAndAdvance(spaceOptions[choiceIndex]._id);
+          }
           return;
         }
         if (key.backspace || key.delete) {
@@ -262,7 +313,7 @@ export function PlanWizard({
         }
       }
     },
-    { isActive: step?.inputType === 'choice' || step?.inputType === 'multiline' || (isDateStep && datePhase === 'duration') },
+    { isActive: step?.inputType === 'choice' || step?.inputType === 'multiline' || step?.inputType === 'space_select' || (isDateStep && datePhase === 'duration') },
   );
 
   const handleTextSubmit = useCallback(
@@ -346,7 +397,7 @@ export function PlanWizard({
   }
   footerParts.push('[Esc] Cancel');
   if (currentStep > 0 || (isDateStep && datePhase !== 'date')) {
-    if (step.inputType === 'choice' || (isDateStep && datePhase === 'duration')) {
+    if (step.inputType === 'choice' || step.inputType === 'space_select' || (isDateStep && datePhase === 'duration')) {
       footerParts.push('[Backspace] Back');
     } else {
       footerParts.push('[Backspace on empty] Back');
@@ -361,13 +412,13 @@ export function PlanWizard({
   return (
     <Box flexDirection="column">
       {/* Progress bar */}
-      <Box flexDirection="column" paddingLeft={1}>
+      <Box paddingLeft={1} flexWrap="wrap">
         {steps.map((s, i) => {
           const label = FRIENDLY_LABELS[s.paramName] || s.friendlyLabel || humanize(s.paramName);
           if (i < currentStep) {
-            return <Text key={i} dimColor>  {'\u2713'} {label}</Text>;
+            return <Text key={i} color="#FDE047">  {'\u2713'} {label}</Text>;
           } else if (i === currentStep) {
-            return <Text key={i} bold color="#F472B6">  {'\u2192'} {label}</Text>;
+            return <Text key={i} bold color="#FDE047">  {'\u2192'} {label}</Text>;
           } else {
             return <Text key={i} dimColor>  {'\u00B7'} {label}</Text>;
           }
@@ -387,9 +438,10 @@ export function PlanWizard({
         paddingBottom={1}
       >
         {/* Header */}
-        <Text bold>
-          Step {currentStep + 1} of {totalSteps} {'\u2014'} {toolDisplayName}
-        </Text>
+        <Box>
+          <Text bold color="#FDE047">Step {currentStep + 1} of {totalSteps}</Text>
+          <Text bold> {'\u2014'} {toolDisplayName}</Text>
+        </Box>
         <Text>{''}</Text>
 
         {/* Question */}
@@ -418,6 +470,43 @@ export function PlanWizard({
                 </Text>
               </Box>
             ))}
+          </Box>
+        ) : null}
+
+        {/* Space selector */}
+        {step.inputType === 'space_select' && spaceOptions && spaceOptions.length > 0 && !spaceCreateMode ? (
+          <Box flexDirection="column">
+            {[...spaceOptions, { _id: '__create__', title: '+ Create new space' }]
+              .slice(spaceScrollOffset, spaceScrollOffset + SPACE_MAX_VISIBLE)
+              .map((opt, i) => {
+                const realIndex = i + spaceScrollOffset;
+                const isCreate = opt._id === '__create__';
+                return (
+                  <Box key={opt._id} marginTop={0}>
+                    <Text inverse={realIndex === choiceIndex} color={isCreate ? '#10B981' : undefined}>
+                      {realIndex === choiceIndex ? '> ' : '  '}{opt.title}
+                    </Text>
+                  </Box>
+                );
+              })}
+          </Box>
+        ) : null}
+
+        {step.inputType === 'space_select' && spaceCreateMode ? (
+          <Box>
+            <Text color="#F472B6">{'> '}</Text>
+            <TextInput
+              value={spaceCreateName}
+              onChange={setSpaceCreateName}
+              onSubmit={(val) => {
+                if (val.trim()) {
+                  storeAndAdvance(val.trim());
+                }
+              }}
+              focus={true}
+              showCursor={true}
+              placeholder="Enter space name..."
+            />
           </Box>
         ) : null}
 
@@ -461,7 +550,9 @@ export function PlanWizard({
         <Text>{''}</Text>
 
         {/* Footer hints */}
-        <Text dimColor>{footerParts.join('  ')}</Text>
+        <Box marginTop={1}>
+          <Text dimColor>{footerParts.join('  ')}</Text>
+        </Box>
       </Box>
 
       <Box paddingLeft={1}>
