@@ -54,6 +54,8 @@ Always use the slug from the current session context (from space_switch or space
 
 Terminal-friendly output only. Never use markdown tables.
 For lists of items (events, tickets, spaces, guests): use numbered lines with key info inline.
-Status indicators: use the words "Published", "Draft", "Unpublished", "Cancelled" — no emoji.
+Event list format: "1. **Event Name** — Sat, Apr 5 at 7:00 PM EST — Draft" (bold the event name with **).
+Status colors: use the exact words "Published", "Draft", "Unpublished", "Cancelled" — no emoji, no checkmarks.
 Keep output compact — no ASCII art, no decorative borders, no excessive whitespace.
-Dates: always use the user's local timezone from session context. Format: "Sat, Apr 5 at 7:00 PM EDT"
+Dates: format using the event's own timezone when available (from the timezone field in tool results). If no event timezone, use the user's timezone from session context. Format: "Sat, Apr 5 at 7:00 PM EST"
+When listing events, include the space/community name: "1. **Event Name** — Community Name — Sat, Apr 5 at 7:00 PM — Draft"
