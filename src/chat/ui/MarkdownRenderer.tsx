@@ -7,6 +7,27 @@ function parseInline(text: string): React.JSX.Element[] {
   let key = 0;
 
   while (remaining.length > 0) {
+    // Status words: Published (green), Draft (yellow), Unpublished (dim), Cancelled (red)
+    const statusMatch = remaining.match(/^(Published|Draft|Unpublished|Cancelled)\b/);
+    if (statusMatch) {
+      const word = statusMatch[1];
+      let color: string | undefined;
+      let dimColor = false;
+      switch (word) {
+        case 'Published': color = '#10B981'; break;
+        case 'Draft': color = '#FDE047'; break;
+        case 'Cancelled': color = '#FF637E'; break;
+        case 'Unpublished': dimColor = true; break;
+      }
+      if (dimColor) {
+        elements.push(<Text key={key++} dimColor>{word}</Text>);
+      } else {
+        elements.push(<Text key={key++} color={color}>{word}</Text>);
+      }
+      remaining = remaining.slice(word.length);
+      continue;
+    }
+
     // Bold: **text**
     const boldMatch = remaining.match(/^\*\*(.+?)\*\*/);
     if (boldMatch) {
