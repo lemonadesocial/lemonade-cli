@@ -402,7 +402,9 @@ export function App({
   // Wrap submit to intercept autocomplete selection on Enter
   const onSubmit = useCallback((value: string) => {
     if (showAutocomplete && filteredCommands.length > 0) {
-      setInputValue(filteredCommands[acIndex].name);
+      const selected = filteredCommands[acIndex].name;
+      setInputValue(selected);
+      handleSubmit(selected);
       return;
     }
     handleSubmit(value);
