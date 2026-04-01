@@ -35,6 +35,9 @@ export async function handleTurn(
   let finalUsage: { input_tokens: number; output_tokens: number } | undefined;
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
+    if (iteration > 0 && engine) {
+      engine.emit('thinking_start', { turnId });
+    }
     const toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }> = [];
     let accumulatedText = '';
     let stopReason: 'end_turn' | 'tool_use' | undefined;

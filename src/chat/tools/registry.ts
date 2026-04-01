@@ -920,8 +920,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiGetSpaceStats: unknown }>(
         `query($space: MongoID!) {
           aiGetSpaceStats(space: $space) {
-            total_members admin_count host_count
-            total_events total_attendees average_rating
+            total_members admins ambassadors subscribers
+            total_events total_attendees average_event_rating
           }
         }`,
         { space: args.space_id },
@@ -929,8 +929,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.aiGetSpaceStats;
     },
     formatResult: (result) => {
-      const r = result as { total_members: number; total_events: number; total_attendees: number; average_rating: number };
-      return `Space: ${r.total_members} members, ${r.total_events} events, ${r.total_attendees} attendees, ${r.average_rating}/5 rating.`;
+      const r = result as { total_members: number; admins: number; ambassadors: number; subscribers: number; total_events: number; total_attendees: number; average_event_rating?: number };
+      const rating = r.average_event_rating ? `${r.average_event_rating}/5 rating` : 'no ratings yet';
+      return `Space: ${r.total_members} members (${r.admins} admins, ${r.ambassadors} ambassadors, ${r.subscribers} subscribers), ${r.total_events} events, ${r.total_attendees} attendees, ${rating}.`;
     },
   });
 
@@ -1411,10 +1412,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     params: [],
     destructive: false,
     execute: async () => {
-      const result = await graphqlRequest<{ aiGetNotifications: unknown }>(
-        'query { aiGetNotifications { items { _id type message read created_at } } }',
+      const result = await graphqlRequest<{ aiGetNotifications: Array<{ id: string; type: string; message: string; from_user_name?: string; ref_event_title?: string; read: boolean; created_at: string }> }>(
+        'query { aiGetNotifications { id type message from_user_name ref_event_title read created_at } }',
       );
-      return result.aiGetNotifications;
+      return { items: result.aiGetNotifications };
     },
   });
 
