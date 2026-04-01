@@ -19,3 +19,10 @@ tempo_services -- discover MPP-registered services that accept Tempo payments.
 ## Rewards & Payouts
 Organizers can configure their Tempo wallet for USDC payouts via rewards_settings.
 Use /tempo balance to see both wallet balance and earned rewards.
+
+## Ticket Purchases with Tempo
+When a user buys tickets, if their Tempo wallet is connected and funded, the system will automatically pay with USDC on Tempo — faster and cheaper than Stripe. If Tempo wallet is not available or not funded, falls back to Stripe checkout.
+
+## Payout Setup
+tempo_setup_payouts -- configure Tempo wallet as reward payout destination. Auto-detects wallet address from /tempo login.
+After setup, organizer rewards are paid out weekly in USDC to the Tempo wallet.

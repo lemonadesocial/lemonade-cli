@@ -963,7 +963,23 @@ export function App({
             if (!r.installed) { addSystemMessage('Tempo CLI not installed. Use /tempo install.'); return; }
             if (!r.loggedIn) { addSystemMessage('Not logged in. Use /tempo login.'); return; }
             const bal = r.balances ? Object.entries(r.balances).map(([k, v]) => `  ${v} ${k}`).join('\n') : '  No balances';
-            addSystemMessage(`Tempo Wallet: ${r.address}\n${bal}`);
+            let rewardInfo = '';
+            if (session.currentSpace) {
+              try {
+                const rewardTool = registry['rewards_balance'];
+                if (rewardTool) {
+                  const rewards = await rewardTool.execute({ space_id: session.currentSpace._id }) as Record<string, unknown>;
+                  if (rewards) {
+                    const accrued = rewards.organizer_accrued_usdc || rewards.attendee_accrued_usdc || '0';
+                    const pending = rewards.organizer_pending_usdc || rewards.attendee_pending_usdc || '0';
+                    rewardInfo = `\n\nRewards (${session.currentSpace.title}):\n  Accrued: ${accrued} USDC\n  Pending payout: ${pending} USDC`;
+                  }
+                }
+              } catch {
+                // Rewards fetch failed — skip
+              }
+            }
+            addSystemMessage(`Tempo Wallet: ${r.address}\n${bal}${rewardInfo}`);
           } catch (err) {
             addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
           }
@@ -981,7 +997,24 @@ export function App({
           return;
         }
 
-        addSystemMessage('Usage:\n  /tempo — check status\n  /tempo install — install Tempo CLI\n  /tempo login — connect wallet\n  /tempo logout — disconnect\n  /tempo balance — check USDC balance\n  /tempo fund — add funds');
+        if (subcommand === 'request') {
+          const url = (slashResult.args || '').replace(/^request\s+/, '').trim();
+          if (!url) {
+            addSystemMessage('Usage: /tempo request <url>');
+            return;
+          }
+          addSystemMessage(`Making paid request to ${url}...`);
+          try {
+            const { tempoExec } = await import('../tempo/index.js');
+            const output = tempoExec(`request -t ${url}`);
+            addSystemMessage(output);
+          } catch (err) {
+            addSystemMessage(`Request failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+          }
+          return;
+        }
+
+        addSystemMessage('Usage:\n  /tempo — check status\n  /tempo install — install Tempo CLI\n  /tempo login — connect wallet\n  /tempo logout — disconnect\n  /tempo balance — check USDC balance\n  /tempo fund — add funds\n  /tempo request <url> — make a paid MPP request');
         return;
       }
       if (slashResult.output) {
