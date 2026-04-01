@@ -37,3 +37,19 @@ notifications_list (check at session start), notifications_read (by IDs).
 # Launchpad
 
 launchpad_list_coins, launchpad_add_coin (name, symbol, description), launchpad_update_coin.
+
+# Space Analytics
+
+space_deep_stats -- detailed community metrics (admins, ambassadors, subscribers, events, attendees, ratings).
+space_top_hosts -- leaderboard of top event hosts in the space.
+space_member_leaderboard -- member activity ranking by attended/hosted/submitted events. Supports search and pagination.
+space_events_insight -- events performance overview with checkins, ticket sales, and ratings. Filter by past/upcoming/live.
+
+# Advanced Member Management
+
+space_member_update -- change member roles (admin, ambassador, member) or visibility.
+
+# Featured Events
+
+space_pin_event -- pin/feature events on the space page.
+space_unpin_event -- unpin events from the space page.
