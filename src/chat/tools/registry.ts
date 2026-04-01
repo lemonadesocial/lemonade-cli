@@ -2240,6 +2240,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.exportEventTickets;
     },
+    formatResult: (result) => {
+      const r = result as { count: number; tickets: Array<{ buyer_name?: string; buyer_email?: string; ticket_type?: string; checkin_date?: string }> };
+      if (r.count === 0) return 'No guest data found.';
+      return `${r.count} guests exported. Use /export to save as CSV.`;
+    },
   });
 
   register({
@@ -3718,6 +3723,187 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         { event: args.event_id },
       );
       return result.getEventPaymentSummary;
+    },
+  });
+
+  // --- User Tools ---
+
+  register({
+    name: 'user_update',
+    displayName: 'user update',
+    description: 'Update your profile (name, display name, bio, tagline, timezone, username, social handles).',
+    params: [
+      { name: 'name', type: 'string', description: 'Full name', required: false },
+      { name: 'display_name', type: 'string', description: 'Display name', required: false },
+      { name: 'description', type: 'string', description: 'Bio/description', required: false },
+      { name: 'tagline', type: 'string', description: 'Short tagline', required: false },
+      { name: 'timezone', type: 'string', description: 'Timezone (e.g., America/New_York)', required: false },
+      { name: 'username', type: 'string', description: 'Username', required: false },
+      { name: 'job_title', type: 'string', description: 'Job title', required: false },
+      { name: 'company_name', type: 'string', description: 'Company name', required: false },
+      { name: 'website', type: 'string', description: 'Website URL', required: false },
+      { name: 'handle_twitter', type: 'string', description: 'Twitter/X handle', required: false },
+      { name: 'handle_instagram', type: 'string', description: 'Instagram handle', required: false },
+      { name: 'handle_linkedin', type: 'string', description: 'LinkedIn handle', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(args)) {
+        if (value !== undefined && value !== null) input[key] = value;
+      }
+      const result = await graphqlRequest<{ updateUser: unknown }>(
+        `mutation($input: UserInput!) {
+          updateUser(input: $input) {
+            _id name display_name description tagline timezone username job_title company_name website
+          }
+        }`,
+        { input },
+      );
+      return result.updateUser;
+    },
+    formatResult: (result) => {
+      const r = result as { name?: string; display_name?: string; username?: string };
+      return `Profile updated: ${r.display_name || r.name || 'user'}${r.username ? ` (@${r.username})` : ''}.`;
+    },
+  });
+
+  register({
+    name: 'user_search',
+    displayName: 'user search',
+    description: 'Search users by name or email.',
+    params: [
+      { name: 'query', type: 'string', description: 'Search query (name or email)', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ searchUsers: Array<{ _id: string; name?: string; email?: string; username?: string; display_name?: string; verified?: boolean }> }>(
+        `query($query: String!) {
+          searchUsers(query: $query) {
+            _id name email username display_name verified
+          }
+        }`,
+        { query: args.query },
+      );
+      return { users: result.searchUsers, count: result.searchUsers.length };
+    },
+  });
+
+  // --- Discount Management ---
+
+  register({
+    name: 'event_discount_update',
+    displayName: 'event discount update',
+    description: 'Update a ticket discount code settings (use limits, ticket limits).',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'code', type: 'string', description: 'Discount code to update', required: false },
+      { name: 'use_limit', type: 'number', description: 'Total uses allowed', required: false },
+      { name: 'use_limit_per', type: 'number', description: 'Uses per user', required: false },
+      { name: 'ticket_limit', type: 'number', description: 'Total tickets discountable', required: false },
+      { name: 'ticket_limit_per', type: 'number', description: 'Tickets per user', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {};
+      if (args.code) input.code = args.code;
+      if (args.use_limit !== undefined) input.use_limit = args.use_limit;
+      if (args.use_limit_per !== undefined) input.use_limit_per = args.use_limit_per;
+      if (args.ticket_limit !== undefined) input.ticket_limit = args.ticket_limit;
+      if (args.ticket_limit_per !== undefined) input.ticket_limit_per = args.ticket_limit_per;
+      const result = await graphqlRequest<{ updateEventTicketDiscount: unknown }>(
+        `mutation($event: String!, $input: UpdateEventTicketDiscountInput!) {
+          updateEventTicketDiscount(event: $event, input: $input) {
+            _id title payment_ticket_discounts { code ratio use_limit use_limit_per ticket_limit ticket_limit_per active }
+          }
+        }`,
+        { event: args.event_id, input },
+      );
+      return result.updateEventTicketDiscount;
+    },
+    formatResult: (result) => {
+      const r = result as { title?: string };
+      return `Discount updated for "${r.title || 'event'}".`;
+    },
+  });
+
+  register({
+    name: 'event_discount_delete',
+    displayName: 'event discount delete',
+    description: 'Delete ticket discount codes from an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'discount_codes', type: 'string[]', description: 'Discount codes to delete', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ deleteEventTicketDiscounts: unknown }>(
+        `mutation($event: String!, $discounts: [String!]!) {
+          deleteEventTicketDiscounts(event: $event, discounts: $discounts) {
+            _id title payment_ticket_discounts { code active use_count }
+          }
+        }`,
+        { event: args.event_id, discounts: args.discount_codes },
+      );
+      return result.deleteEventTicketDiscounts;
+    },
+    formatResult: (result) => {
+      const r = result as { title?: string };
+      return `Discount(s) deleted from "${r.title || 'event'}".`;
+    },
+  });
+
+  // --- Ticket Categories ---
+
+  register({
+    name: 'event_ticket_categories',
+    displayName: 'event ticket categories',
+    description: 'List ticket categories for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventTicketCategories: Array<{ _id: string; title: string; description?: string; position?: number }> }>(
+        `query($event: String!) {
+          getEventTicketCategories(event: $event) {
+            _id title description position
+          }
+        }`,
+        { event: args.event_id },
+      );
+      return { categories: result.getEventTicketCategories, count: result.getEventTicketCategories.length };
+    },
+    formatResult: (result) => {
+      const r = result as { categories: Array<{ title: string; position?: number }>; count: number };
+      if (r.count === 0) return 'No ticket categories found.';
+      return r.categories.map((c, i) => `${i + 1}. ${c.title}`).join('\n');
+    },
+  });
+
+  // --- Application Export ---
+
+  register({
+    name: 'event_application_export',
+    displayName: 'event application export',
+    description: 'Export event application/form responses. Returns applicant data with questions and answers.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ exportEventApplications: Array<{ user?: { _id: string; email: string; name?: string }; non_login_user?: { _id: string; email: string; name?: string }; questions: string[]; answers: Array<{ _id: string; answer?: string }> }> }>(
+        `query($event: String!) {
+          exportEventApplications(event: $event) {
+            user { _id email name }
+            non_login_user { _id email name }
+            questions
+            answers { _id answer }
+          }
+        }`,
+        { event: args.event_id },
+      );
+      return { applications: result.exportEventApplications, count: result.exportEventApplications.length };
     },
   });
 

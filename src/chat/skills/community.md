@@ -53,3 +53,7 @@ space_member_update -- change member roles (admin, ambassador, member) or visibi
 
 space_pin_event -- pin/feature events on the space page.
 space_unpin_event -- unpin events from the space page.
+
+# User Tools
+user_update -- update profile (name, bio, tagline, timezone, social handles).
+user_search -- search users by name or email.

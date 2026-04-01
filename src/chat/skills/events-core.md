@@ -29,6 +29,12 @@ Check space_stripe_status before paid tickets. If not connected, guide through s
 Tools: tickets_create_type (price in dollars), tickets_update_type, tickets_list_types.
 Discounts: tickets_create_discount (ratio 0.0-1.0). Price check: tickets_price.
 
+# Ticket Discounts
+tickets_create_discount -- create a discount code (code, ratio 0.0-1.0, limit).
+event_discount_update -- update discount limits (use_limit, ticket_limit, per-user limits).
+event_discount_delete -- remove discount codes. Destructive.
+event_ticket_categories -- list ticket categories for an event.
+
 # Ticket Categories
 
 event_ticket_categories_list, event_ticket_category_create (title, description, position, ticket_types), event_ticket_category_reorder.
