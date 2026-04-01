@@ -61,7 +61,9 @@ export function tempoLogin(onOutput: (line: string) => void): Promise<{ success:
 
   return new Promise((resolve) => {
     let allOutput = '';
-    const child = spawnChild(bin, ['wallet', 'login'], {
+    // Use --no-browser so we control when/how the URL is opened
+    // This avoids the Tempo web wallet session redirect issue
+    const child = spawnChild(bin, ['wallet', 'login', '--no-browser'], {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 

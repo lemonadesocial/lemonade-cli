@@ -944,21 +944,27 @@ export function App({
         }
 
         if (subcommand === 'login') {
-          addSystemMessage('Opening browser for Tempo wallet login...');
-          addSystemMessage('');
-          addSystemMessage('If the browser redirects to "Add Funds" instead of showing a code:');
-          addSystemMessage('  1. Log out of wallet.tempo.xyz in your browser first');
-          addSystemMessage('  2. Then run /tempo login again');
-          addSystemMessage('');
-          addSystemMessage('Otherwise, confirm the verification code matches in your browser.');
+          addSystemMessage('Connecting Tempo wallet...');
           try {
             const { tempoLogin, getWalletInfo } = await import('../tempo/index.js');
 
-            // Await the full login process — it's multi-step and must stay alive
-            // The process streams output (auth URL, verification code, second auth link)
-            // 5 minute timeout for the full multi-step flow
+            let authUrl = '';
+            // Await the full login process — streams output including auth URL and verification code
+            // Uses --no-browser flag so we control URL opening
             const result = await tempoLogin((line) => {
               addSystemMessage(line);
+              // Detect and auto-open the auth URL
+              const urlMatch = line.match(/(https:\/\/wallet\.tempo\.xyz\/cli-auth\S+)/);
+              if (urlMatch && !authUrl) {
+                authUrl = urlMatch[1];
+                // Try to open in browser
+                import('open').then(mod => mod.default(authUrl)).catch(() => {
+                  addSystemMessage(`Open this URL in your browser: ${authUrl}`);
+                });
+                addSystemMessage('');
+                addSystemMessage('If the browser redirects away from the confirmation page:');
+                addSystemMessage('  Try opening the URL above in a private/incognito window.');
+              }
             });
 
             if (result.success) {
