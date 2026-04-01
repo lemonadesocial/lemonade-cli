@@ -31,6 +31,7 @@ export interface UseChatEngineResult {
   addSystemMessage: (text: string) => void;
   clearMessages: () => void;
   confirmAction: (id: string, confirmed: boolean) => void;
+  resetStreaming: () => void;
 }
 
 export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
@@ -183,6 +184,13 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     setPendingConfirm(null);
   }, [engine]);
 
+  const resetStreaming = useCallback(() => {
+    setIsStreaming(false);
+    setIsThinking(false);
+    activeTurns.current.clear();
+    turnMessageIndex.current.clear();
+  }, []);
+
   return {
     messages,
     isStreaming,
@@ -193,5 +201,6 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     addSystemMessage,
     clearMessages,
     confirmAction,
+    resetStreaming,
   };
 }
