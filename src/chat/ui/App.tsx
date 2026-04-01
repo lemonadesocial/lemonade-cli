@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Box, Text, useApp, useInput, useStdout } from 'ink';
+import { Box, Text, useApp, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { ChatEngine } from '../engine/ChatEngine.js';
 import { AIProvider, Message, ToolDef, SystemMessage } from '../providers/interface.js';
@@ -206,8 +206,6 @@ export function App({
   displayOpts,
 }: AppProps): React.JSX.Element {
   const { exit } = useApp();
-  const { stdout } = useStdout();
-  const termHeight = stdout?.rows ?? 24;
   const {
     messages,
     isStreaming,
@@ -377,39 +375,35 @@ export function App({
   const toolbarText = toolbarParts.join(' | ');
 
   return (
-    <Box flexDirection="column" height={termHeight}>
-      {/* Message area - grows to fill */}
-      <Box flexDirection="column" flexGrow={1} overflow="hidden">
-        <Box flexDirection="column" justifyContent={visibleMessages.length === 0 && !hasThinking ? 'flex-start' : 'flex-end'} flexGrow={1}>
-          {visibleMessages.length === 0 && !hasThinking ? (
-            <WelcomeBannerView
-              firstName={firstName}
-              agentName={agentName}
-              providerName={displayOpts.providerName}
-              modelName={displayOpts.modelName}
-            />
-          ) : null}
-          {visibleMessages.map((msg, i) => (
-            <Box key={i} paddingLeft={1}>
-              <MessageView msg={msg} />
-            </Box>
-          ))}
-          {hasThinking ? (
-            <Box paddingLeft={1}>
-              <ThinkingSpinner />
-            </Box>
-          ) : null}
-          {pendingConfirm ? (
-            <Box paddingLeft={1}>
-              <Text color="#FDE047">
-                Confirm: {pendingConfirm.description}? (y/n){' '}
-              </Text>
-            </Box>
-          ) : null}
+    <Box flexDirection="column">
+      {/* Message area - natural document flow */}
+      {visibleMessages.length === 0 && !hasThinking ? (
+        <WelcomeBannerView
+          firstName={firstName}
+          agentName={agentName}
+          providerName={displayOpts.providerName}
+          modelName={displayOpts.modelName}
+        />
+      ) : null}
+      {visibleMessages.map((msg, i) => (
+        <Box key={i} paddingLeft={1}>
+          <MessageView msg={msg} />
         </Box>
-      </Box>
+      ))}
+      {hasThinking ? (
+        <Box paddingLeft={1}>
+          <ThinkingSpinner />
+        </Box>
+      ) : null}
+      {pendingConfirm ? (
+        <Box paddingLeft={1}>
+          <Text color="#FDE047">
+            Confirm: {pendingConfirm.description}? (y/n){' '}
+          </Text>
+        </Box>
+      ) : null}
 
-      {/* Input field - pinned to bottom */}
+      {/* Input field - flows after messages */}
       <Box
         borderStyle="round"
         borderColor="#FDE047"
@@ -427,7 +421,7 @@ export function App({
         />
       </Box>
 
-      {/* Toolbar - pinned below input */}
+      {/* Toolbar - flows after input */}
       <Box paddingLeft={1}>
         <Text dimColor>{toolbarText}</Text>
       </Box>
