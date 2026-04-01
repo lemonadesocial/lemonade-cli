@@ -1,7 +1,7 @@
 export interface SlashCommandResult {
   handled: boolean;
   output?: string;
-  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version';
+  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history';
   args?: string;
 }
 
@@ -18,6 +18,11 @@ export const SLASH_COMMANDS = [
   { name: '/plan', description: 'Start guided mode for a tool' },
   { name: '/btw', description: 'Ask a side question (runs in parallel)' },
   { name: '/version', description: 'Check CLI version and update' },
+  { name: '/status', description: 'Show session status' },
+  { name: '/events', description: 'List your events' },
+  { name: '/spaces', description: 'List your spaces' },
+  { name: '/credits', description: 'Check credits balance' },
+  { name: '/history', description: 'Show recent conversation' },
 ] as const;
 
 const HELP_TABLE = `
@@ -35,6 +40,11 @@ Commands:
   /plan <tool>       Start guided mode for a tool
   /btw <message>     Ask a side question (runs in parallel)
   /version           Check CLI version and update if available
+  /status            Show session status (model, space, event, mode)
+  /events            List your events
+  /spaces            List your spaces
+  /credits           Check credits balance
+  /history [n]       Show last n conversation turns (default 10)
   /exit, /quit       Exit the app
 
 Keyboard shortcuts:
@@ -109,6 +119,17 @@ export function parseSlashCommand(input: string): SlashCommandResult {
 
     case '/version':
       return { handled: true, action: 'version' };
+
+    case '/status':
+      return { handled: true, action: 'status' };
+    case '/events':
+      return { handled: true, action: 'events', args: rest || undefined };
+    case '/spaces':
+      return { handled: true, action: 'spaces' };
+    case '/credits':
+      return { handled: true, action: 'credits' };
+    case '/history':
+      return { handled: true, action: 'history', args: rest || undefined };
 
     case '/exit':
     case '/quit':
