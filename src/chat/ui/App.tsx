@@ -945,8 +945,12 @@ export function App({
 
         if (subcommand === 'login') {
           addSystemMessage('Opening browser for Tempo wallet login...');
-          addSystemMessage('Follow the instructions below. The login may require multiple steps.');
           addSystemMessage('');
+          addSystemMessage('If the browser redirects to "Add Funds" instead of showing a code:');
+          addSystemMessage('  1. Log out of wallet.tempo.xyz in your browser first');
+          addSystemMessage('  2. Then run /tempo login again');
+          addSystemMessage('');
+          addSystemMessage('Otherwise, confirm the verification code matches in your browser.');
           try {
             const { tempoLogin, getWalletInfo } = await import('../tempo/index.js');
 
