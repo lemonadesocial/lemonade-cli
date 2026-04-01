@@ -267,6 +267,25 @@ export function App({
     return () => { engine.off('tool_done', onToolDone); };
   }, [engine]);
 
+  // One-time startup: check Tempo CLI and show hint
+  useEffect(() => {
+    (async () => {
+      try {
+        const { isTempoInstalled, getWalletInfo } = await import('../tempo/index.js');
+        if (!isTempoInstalled()) {
+          addSystemMessage('Tip: Install Tempo wallet for stablecoin payments — /tempo install');
+        } else {
+          const info = getWalletInfo();
+          if (!info.loggedIn) {
+            addSystemMessage('Tip: Connect your Tempo wallet — /tempo login');
+          }
+        }
+      } catch {
+        // Tempo check failed silently — no big deal
+      }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Reset autocomplete index when input changes
   useEffect(() => {
     setAcIndex(0);
