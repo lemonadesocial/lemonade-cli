@@ -1,4 +1,4 @@
-import { execSync, spawnSync } from 'child_process';
+import { execSync, spawnSync, spawn as spawnChild } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
@@ -52,6 +52,53 @@ export function tempoSpawn(args: string[]): { code: number | null; stdout: strin
   if (!bin) return { code: 1, stdout: '', stderr: 'Tempo CLI not installed' };
   const result = spawnSync(bin, args, { encoding: 'utf-8', timeout: 30000 });
   return { code: result.status, stdout: result.stdout?.trim() || '', stderr: result.stderr?.trim() || '' };
+}
+
+// Interactive login — streams output so user can see the confirmation code
+export function tempoLogin(onOutput: (line: string) => void): Promise<{ success: boolean; output: string }> {
+  const bin = getTempoBin();
+  if (!bin) return Promise.resolve({ success: false, output: 'Tempo CLI not installed.' });
+
+  return new Promise((resolve) => {
+    let allOutput = '';
+    const child = spawnChild(bin, ['wallet', 'login'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 120000,
+    });
+
+    child.stdout?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      allOutput += text;
+      // Send each line to the callback so the UI can display it
+      for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed) onOutput(trimmed);
+      }
+    });
+
+    child.stderr?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      allOutput += text;
+      for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed) onOutput(trimmed);
+      }
+    });
+
+    child.on('close', (code) => {
+      resolve({ success: code === 0, output: allOutput.trim() });
+    });
+
+    child.on('error', (err) => {
+      resolve({ success: false, output: err.message });
+    });
+
+    // 2 minute timeout
+    setTimeout(() => {
+      child.kill();
+      resolve({ success: false, output: 'Login timed out (2 minutes).' });
+    }, 120000);
+  });
 }
 
 export interface TempoWalletInfo {

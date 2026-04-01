@@ -946,22 +946,29 @@ export function App({
         if (subcommand === 'login') {
           addSystemMessage('Opening browser for Tempo wallet login...');
           try {
-            const { tempoExec, getWalletInfo } = await import('../tempo/index.js');
-            tempoExec('wallet login');
-            const info = getWalletInfo();
-            if (info.address) {
-              addSystemMessage(`Tempo wallet connected: ${info.address}`);
-              try {
-                await graphqlRequest(
-                  'mutation($input: UserInput!) { updateUser(input: $input) { _id } }',
-                  { input: {} },
-                );
-                addSystemMessage('Wallet linked to your Lemonade account.');
-              } catch {
-                addSystemMessage('Note: Could not auto-link wallet to Lemonade. Update manually in settings.');
+            const { tempoLogin, getWalletInfo } = await import('../tempo/index.js');
+            // Stream login output so user can see confirmation code
+            const result = await tempoLogin((line) => {
+              addSystemMessage(line);
+            });
+            if (result.success) {
+              const info = getWalletInfo();
+              if (info.address) {
+                addSystemMessage(`Tempo wallet connected: ${info.address}`);
+                try {
+                  await graphqlRequest(
+                    'mutation($input: UserInput!) { updateUser(input: $input) { _id } }',
+                    { input: {} },
+                  );
+                  addSystemMessage('Wallet linked to your Lemonade account.');
+                } catch {
+                  addSystemMessage('Note: Could not auto-link wallet to Lemonade. Update manually in settings.');
+                }
+              } else {
+                addSystemMessage('Login completed. Try /tempo status to verify.');
               }
             } else {
-              addSystemMessage('Login completed but wallet not detected. Try /tempo status.');
+              addSystemMessage(`Login failed: ${result.output || 'Unknown error'}`);
             }
           } catch (err) {
             addSystemMessage(`Login failed: ${err instanceof Error ? err.message : 'Unknown'}`);
