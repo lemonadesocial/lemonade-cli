@@ -6,7 +6,7 @@ import { AIProvider, Message, ToolDef, SystemMessage } from '../providers/interf
 import { SessionState } from '../session/state.js';
 import { buildSystemMessages } from '../session/cache.js';
 import { handleTurn } from '../stream/handler.js';
-import { parseSlashCommand } from './SlashCommands.js';
+import { parseSlashCommand, SLASH_COMMANDS } from './SlashCommands.js';
 import { getAgentName } from '../skills/loader.js';
 import { getAiModeDisplay } from '../aiMode.js';
 import { getCreditsSpaceId } from '../spaceSelection.js';
@@ -222,6 +222,22 @@ export function App({
   const [showThinking, setShowThinking] = useState(false);
   const streamAbortRef = useRef<AbortController | null>(null);
 
+  // Autocomplete state
+  const [acIndex, setAcIndex] = useState(0);
+  const [acScrollOffset, setAcScrollOffset] = useState(0);
+  const AC_MAX_VISIBLE = 6;
+
+  const showAutocomplete = inputValue.startsWith('/');
+  const filteredCommands = showAutocomplete
+    ? SLASH_COMMANDS.filter((cmd) => cmd.name.startsWith(inputValue))
+    : [];
+
+  // Reset autocomplete index when input changes
+  useEffect(() => {
+    setAcIndex(0);
+    setAcScrollOffset(0);
+  }, [inputValue]);
+
   // Update tip on each turn completion
   useEffect(() => {
     if (!isStreaming && tokenCount > 0) {
@@ -345,8 +361,54 @@ export function App({
       } else {
         setInputValue('');
       }
+      return;
+    }
+
+    // Autocomplete navigation
+    if (showAutocomplete && filteredCommands.length > 0) {
+      if (key.upArrow) {
+        setAcIndex((prev) => {
+          const next = prev <= 0 ? filteredCommands.length - 1 : prev - 1;
+          // Adjust scroll offset
+          if (next < acScrollOffset) {
+            setAcScrollOffset(next);
+          } else if (next >= acScrollOffset + AC_MAX_VISIBLE) {
+            setAcScrollOffset(next - AC_MAX_VISIBLE + 1);
+          }
+          return next;
+        });
+        return;
+      }
+      if (key.downArrow) {
+        setAcIndex((prev) => {
+          const next = prev >= filteredCommands.length - 1 ? 0 : prev + 1;
+          // Adjust scroll offset
+          if (next >= acScrollOffset + AC_MAX_VISIBLE) {
+            setAcScrollOffset(next - AC_MAX_VISIBLE + 1);
+          } else if (next < acScrollOffset) {
+            setAcScrollOffset(next);
+          }
+          return next;
+        });
+        return;
+      }
+      if (key.tab) {
+        setInputValue(filteredCommands[acIndex].name);
+        return;
+      }
     }
   }, { isActive: true });
+
+  // Wrap submit to intercept autocomplete selection on Enter
+  const onSubmit = useCallback((value: string) => {
+    if (showAutocomplete && filteredCommands.length > 0) {
+      const selected = filteredCommands[acIndex].name;
+      setInputValue(selected);
+      handleSubmit(selected);
+      return;
+    }
+    handleSubmit(value);
+  }, [showAutocomplete, filteredCommands, acIndex, handleSubmit]);
 
   // Confirm dialog input
   useInput((input) => {
@@ -369,10 +431,6 @@ export function App({
 
   // Toolbar parts
   const spaceLabel = displayOpts.spaceName || 'none';
-  const toolbarParts = [`Space: ${spaceLabel}`, displayOpts.modelName];
-  if (tokenCount > 0) toolbarParts.push(`${tokenCount} tokens`);
-  toolbarParts.push(`Tip: ${tip}`);
-  const toolbarText = toolbarParts.join(' | ');
 
   return (
     <Box flexDirection="column">
@@ -386,7 +444,7 @@ export function App({
         />
       ) : null}
       {visibleMessages.map((msg, i) => (
-        <Box key={i} paddingLeft={1}>
+        <Box key={i} paddingLeft={1} marginTop={1}>
           <MessageView msg={msg} />
         </Box>
       ))}
@@ -405,6 +463,7 @@ export function App({
 
       {/* Input field - flows after messages */}
       <Box
+        marginTop={2}
         borderStyle="round"
         borderColor="#FDE047"
         paddingLeft={1}
@@ -414,7 +473,7 @@ export function App({
         <TextInput
           value={inputValue}
           onChange={setInputValue}
-          onSubmit={handleSubmit}
+          onSubmit={onSubmit}
           focus={!pendingConfirm}
           showCursor={true}
           placeholder={isStreaming ? '' : 'Ask anything...'}
@@ -422,9 +481,39 @@ export function App({
       </Box>
 
       {/* Toolbar - flows after input */}
-      <Box paddingLeft={1}>
-        <Text dimColor>{toolbarText}</Text>
-      </Box>
+      {showAutocomplete ? (
+        <Box flexDirection="column" paddingLeft={1}>
+          {filteredCommands.length > 0 ? (
+            filteredCommands
+              .slice(acScrollOffset, acScrollOffset + AC_MAX_VISIBLE)
+              .map((cmd, i) => {
+                const realIndex = i + acScrollOffset;
+                const isHighlighted = realIndex === acIndex;
+                return (
+                  <Box key={cmd.name} justifyContent="space-between">
+                    <Text inverse={isHighlighted}>
+                      {isHighlighted ? '> ' : '  '}{cmd.name}
+                    </Text>
+                    <Text dimColor inverse={isHighlighted}>{cmd.description}</Text>
+                  </Box>
+                );
+              })
+          ) : (
+            <Text dimColor>No matching commands</Text>
+          )}
+        </Box>
+      ) : (
+        <Box flexDirection="column" paddingLeft={1}>
+          <Box justifyContent="space-between">
+            <Text dimColor>Space: {spaceLabel}</Text>
+            <Text dimColor>{displayOpts.modelName}</Text>
+          </Box>
+          <Box justifyContent="space-between">
+            <Text>{''}</Text>
+            <Text dimColor>Tip: {tip}</Text>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }
