@@ -22,6 +22,7 @@ const SKILL_FILES = [
   'community.md',
   'billing.md',
   'connectors.md',
+  'tempo.md',
 ] as const;
 
 export function loadSkills(): string {
