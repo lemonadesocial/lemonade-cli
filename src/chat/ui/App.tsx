@@ -284,7 +284,7 @@ export function App({
         // Tempo check failed silently — no big deal
       }
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Reset autocomplete index when input changes
   useEffect(() => {
