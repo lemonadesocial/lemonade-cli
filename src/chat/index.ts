@@ -252,6 +252,7 @@ async function main(): Promise<void> {
     };
 
     process.on('SIGINT', () => {
+      process.stdout.write('\x1b[<u');     // Disable Kitty keyboard protocol
       process.stdout.write('\x1b[?25h');   // show cursor
       process.stdout.write('\x1b[?1049l'); // leave alternate screen
       console.log('\n  See you!\n');
