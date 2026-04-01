@@ -4,6 +4,36 @@ import TextInput from 'ink-text-input';
 import { WizardStepDef } from '../plan/stepGenerator.js';
 import { ParamType } from '../providers/interface.js';
 
+const FRIENDLY_LABELS: Record<string, string> = {
+  title: 'Title',
+  start: 'Date & Time',
+  end: 'Duration',
+  description: 'Description',
+  space: 'Space',
+  address: 'Location',
+  virtual: 'Event Type',
+  private: 'Visibility',
+  name: 'Name',
+  quantity: 'Quantity',
+  price: 'Price',
+  event_id: 'Event',
+  space_id: 'Space',
+  ticket_type: 'Ticket Type',
+};
+
+function humanize(name: string): string {
+  return name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const DURATION_OPTIONS = [
+  { label: '1 hour', hours: 1 },
+  { label: '2 hours', hours: 2 },
+  { label: '3 hours', hours: 3 },
+  { label: 'Half day (4 hours)', hours: 4 },
+  { label: 'All day', hours: 12 },
+  { label: 'Multi-day \u2192 enter end date', hours: 0 },
+];
+
 export interface PlanWizardProps {
   toolDisplayName: string;
   steps: WizardStepDef[];
@@ -35,13 +65,18 @@ function convertValue(
   return raw;
 }
 
+type DatePhase = 'date' | 'duration' | 'end_date';
+
 export function PlanWizard({
   toolDisplayName,
-  steps,
+  steps: allSteps,
   onComplete,
   onCancel,
   paramTypes,
 }: PlanWizardProps): React.JSX.Element {
+  // Filter out merged steps (e.g., 'end' merged into 'start')
+  const steps = allSteps.filter((s) => !s.merged);
+
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [textValue, setTextValue] = useState('');
@@ -49,8 +84,15 @@ export function PlanWizard({
   const [multilineLines, setMultilineLines] = useState<string[]>(['']);
   const [requiredHint, setRequiredHint] = useState(false);
 
+  // Date compound step state
+  const [datePhase, setDatePhase] = useState<DatePhase>('date');
+  const [dateStartValue, setDateStartValue] = useState('');
+  const [durationChoiceIndex, setDurationChoiceIndex] = useState(0);
+
   const step = steps[currentStep];
   const totalSteps = steps.length;
+
+  const isDateStep = step?.paramName === 'start';
 
   const storeAndAdvance = useCallback(
     (value: unknown) => {
@@ -67,6 +109,9 @@ export function PlanWizard({
         setTextValue('');
         setChoiceIndex(0);
         setMultilineLines(['']);
+        setDatePhase('date');
+        setDateStartValue('');
+        setDurationChoiceIndex(0);
       } else {
         // Final step - complete
         onComplete(newAnswers);
@@ -76,10 +121,23 @@ export function PlanWizard({
   );
 
   const goBack = useCallback(() => {
+    if (isDateStep && datePhase === 'duration') {
+      setDatePhase('date');
+      setTextValue(dateStartValue);
+      return;
+    }
+    if (isDateStep && datePhase === 'end_date') {
+      setDatePhase('duration');
+      setTextValue('');
+      return;
+    }
     if (currentStep > 0) {
       const prevStep = steps[currentStep - 1];
       setCurrentStep(currentStep - 1);
       setRequiredHint(false);
+      setDatePhase('date');
+      setDateStartValue('');
+      setDurationChoiceIndex(0);
       // Restore previous answer
       const prevAnswer = answers[prevStep.paramName];
       if (prevStep.inputType === 'choice' && prevStep.options) {
@@ -92,13 +150,44 @@ export function PlanWizard({
         setTextValue(prevAnswer !== undefined ? String(prevAnswer) : '');
       }
     }
-  }, [currentStep, steps, answers]);
+  }, [currentStep, steps, answers, isDateStep, datePhase, dateStartValue]);
 
-  // Keyboard handling for choice and general navigation
+  // Keyboard handling for choice, multiline, and date duration
   useInput(
     (input, key) => {
       if (key.escape) {
         onCancel();
+        return;
+      }
+
+      // Date step duration phase (choice-like)
+      if (isDateStep && datePhase === 'duration') {
+        if (key.upArrow) {
+          setDurationChoiceIndex((prev) => (prev <= 0 ? DURATION_OPTIONS.length - 1 : prev - 1));
+          return;
+        }
+        if (key.downArrow) {
+          setDurationChoiceIndex((prev) => (prev >= DURATION_OPTIONS.length - 1 ? 0 : prev + 1));
+          return;
+        }
+        if (key.return) {
+          const selected = DURATION_OPTIONS[durationChoiceIndex];
+          if (selected.hours === 0) {
+            // Multi-day: switch to end_date input
+            setDatePhase('end_date');
+            setTextValue('');
+            return;
+          }
+          // Store start date and calculated end
+          const newAnswers = { ...answers, end: `${selected.hours} hours after start` };
+          setAnswers(newAnswers);
+          storeAndAdvance(dateStartValue);
+          return;
+        }
+        if (key.backspace || key.delete) {
+          goBack();
+          return;
+        }
         return;
       }
 
@@ -173,11 +262,36 @@ export function PlanWizard({
         }
       }
     },
-    { isActive: step?.inputType === 'choice' || step?.inputType === 'multiline' },
+    { isActive: step?.inputType === 'choice' || step?.inputType === 'multiline' || (isDateStep && datePhase === 'duration') },
   );
 
   const handleTextSubmit = useCallback(
     (value: string) => {
+      // Date step: handle phases
+      if (isDateStep) {
+        if (datePhase === 'date') {
+          if (!value.trim()) {
+            setRequiredHint(true);
+            return;
+          }
+          setDateStartValue(value.trim());
+          setDatePhase('duration');
+          setTextValue('');
+          return;
+        }
+        if (datePhase === 'end_date') {
+          if (!value.trim()) {
+            setRequiredHint(true);
+            return;
+          }
+          // Store end date and advance
+          const newAnswers = { ...answers, end: value.trim() };
+          setAnswers(newAnswers);
+          storeAndAdvance(dateStartValue);
+          return;
+        }
+      }
+
       if (!value.trim() && step.required) {
         setRequiredHint(true);
         return;
@@ -190,7 +304,7 @@ export function PlanWizard({
       const paramType = paramTypes?.[step.paramName];
       storeAndAdvance(convertValue(value, step.paramName, paramType));
     },
-    [step, storeAndAdvance, paramTypes],
+    [step, storeAndAdvance, paramTypes, isDateStep, datePhase, dateStartValue, answers],
   );
 
   // Handle backspace on empty text to go back
@@ -200,7 +314,7 @@ export function PlanWizard({
         onCancel();
         return;
       }
-      if ((key.backspace || key.delete) && textValue === '' && currentStep > 0) {
+      if ((key.backspace || key.delete) && textValue === '' && (currentStep > 0 || (isDateStep && datePhase !== 'date'))) {
         goBack();
       }
       // Skip optional with 's' when field is empty
@@ -208,58 +322,106 @@ export function PlanWizard({
         storeAndAdvance(undefined);
       }
     },
-    { isActive: step?.inputType === 'text' },
+    { isActive: step?.inputType === 'text' || (isDateStep && (datePhase === 'date' || datePhase === 'end_date')) },
   );
 
   if (!step) return <Text>No steps to display.</Text>;
+
+  // Determine current question text
+  let questionText = step.label;
+  if (isDateStep) {
+    if (datePhase === 'date') questionText = 'When does your event start?';
+    else if (datePhase === 'duration') questionText = 'How long is the event?';
+    else if (datePhase === 'end_date') questionText = 'When does your event end?';
+  }
 
   // Build footer hints
   const footerParts: string[] = [];
   if (step.inputType === 'multiline') {
     footerParts.push('[Enter] New line', '[Ctrl+D] Done');
+  } else if (isDateStep && datePhase === 'duration') {
+    footerParts.push('[Enter] Select');
   } else {
     footerParts.push('[Enter] Next');
   }
   footerParts.push('[Esc] Cancel');
-  if (currentStep > 0) {
-    footerParts.push(step.inputType === 'choice' ? '[Backspace] Back' : '[Backspace on empty] Back');
+  if (currentStep > 0 || (isDateStep && datePhase !== 'date')) {
+    if (step.inputType === 'choice' || (isDateStep && datePhase === 'duration')) {
+      footerParts.push('[Backspace] Back');
+    } else {
+      footerParts.push('[Backspace on empty] Back');
+    }
   }
   if (!step.required) {
     footerParts.push('[S] Skip');
   }
 
+  const separatorWidth = Math.min(process.stdout.columns || 80, 60);
+
   return (
     <Box flexDirection="column">
+      {/* Progress bar */}
+      <Box flexDirection="column" paddingLeft={1}>
+        {steps.map((s, i) => {
+          const label = FRIENDLY_LABELS[s.paramName] || s.friendlyLabel || humanize(s.paramName);
+          if (i < currentStep) {
+            return <Text key={i} dimColor>  {'\u2713'} {label}</Text>;
+          } else if (i === currentStep) {
+            return <Text key={i} bold color="#F472B6">  {'\u2192'} {label}</Text>;
+          } else {
+            return <Text key={i} dimColor>  {'\u00B7'} {label}</Text>;
+          }
+        })}
+      </Box>
+      <Box paddingLeft={1}>
+        <Text dimColor>{'\u2500'.repeat(separatorWidth)}</Text>
+      </Box>
+
       <Box
         borderStyle="round"
         borderColor="#F472B6"
         flexDirection="column"
         paddingLeft={1}
         paddingRight={1}
+        paddingTop={1}
+        paddingBottom={1}
       >
         {/* Header */}
         <Text bold>
-          Step {currentStep + 1} of {totalSteps} — {toolDisplayName}
+          Step {currentStep + 1} of {totalSteps} {'\u2014'} {toolDisplayName}
         </Text>
         <Text>{''}</Text>
 
         {/* Question */}
-        <Text>{step.label}</Text>
-        <Text>{''}</Text>
+        <Text>{questionText}</Text>
+        <Text dimColor>{'\u2500'.repeat(40)}</Text>
 
         {/* Input area */}
-        {step.inputType === 'choice' && step.options ? (
+        {isDateStep && datePhase === 'duration' ? (
+          <Box flexDirection="column">
+            {DURATION_OPTIONS.map((opt, i) => (
+              <Box key={i} marginTop={i > 0 ? 1 : 0}>
+                <Text inverse={i === durationChoiceIndex}>
+                  {i === durationChoiceIndex ? '> ' : '  '}
+                  {opt.label}
+                </Text>
+              </Box>
+            ))}
+          </Box>
+        ) : step.inputType === 'choice' && step.options ? (
           <Box flexDirection="column">
             {step.options.map((opt, i) => (
-              <Text key={opt} inverse={i === choiceIndex}>
-                {i === choiceIndex ? '> ' : '  '}
-                {opt}
-              </Text>
+              <Box key={opt} marginTop={i > 0 ? 1 : 0}>
+                <Text inverse={i === choiceIndex}>
+                  {i === choiceIndex ? '> ' : '  '}
+                  {opt}
+                </Text>
+              </Box>
             ))}
           </Box>
         ) : null}
 
-        {step.inputType === 'text' ? (
+        {(step.inputType === 'text' || (isDateStep && (datePhase === 'date' || datePhase === 'end_date'))) && !(isDateStep && datePhase === 'duration') ? (
           <Box>
             <Text color="#F472B6">{'> '}</Text>
             <TextInput
@@ -271,7 +433,7 @@ export function PlanWizard({
               onSubmit={handleTextSubmit}
               focus={true}
               showCursor={true}
-              placeholder={step.defaultValue || ''}
+              placeholder={isDateStep ? (datePhase === 'date' ? 'e.g. next Saturday at 7pm' : 'e.g. Sunday at 11am') : (step.defaultValue || '')}
             />
           </Box>
         ) : null}
