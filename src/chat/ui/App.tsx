@@ -675,6 +675,95 @@ export function App({
         addSystemMessage(`Unknown export type: ${exportType}. Use "guests" or "apps".`);
         return;
       }
+      if (slashResult.action === 'connectors') {
+        const parts = (slashResult.args || '').split(/\s+/);
+        const subcommand = parts[0];
+        const subArg = parts.slice(1).join(' ');
+
+        if (!subcommand || subcommand === 'list') {
+          // List available connectors
+          addSystemMessage('Fetching available connectors...');
+          try {
+            const tool = registry['connectors_list'];
+            const result = await tool.execute({}) as Array<Record<string, unknown>>;
+            const connectors = Array.isArray(result) ? result : [];
+            if (connectors.length === 0) {
+              addSystemMessage('No connectors available.');
+            } else {
+              const lines = connectors.map((c: Record<string, unknown>, i: number) =>
+                `${i + 1}. ${c.name} (${c.id}) — ${c.authType} — ${(c.capabilities as string[])?.join(', ') || ''}`,
+              );
+              addSystemMessage(lines.join('\n'));
+            }
+          } catch (err) {
+            addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
+          return;
+        }
+
+        if (subcommand === 'connected') {
+          if (!session.currentSpace) {
+            addSystemMessage('No space selected. Use /spaces to switch first.');
+            return;
+          }
+          addSystemMessage('Fetching connections...');
+          try {
+            const tool = registry['space_connectors'];
+            const result = await tool.execute({ space_id: session.currentSpace._id }) as Array<Record<string, unknown>>;
+            const connections = Array.isArray(result) ? result : [];
+            if (connections.length === 0) {
+              addSystemMessage('No connected integrations for this space.');
+            } else {
+              const lines = connections.map((c: Record<string, unknown>, i: number) => {
+                const status = c.status || 'unknown';
+                const lastSync = c.lastSyncAt ? new Date(c.lastSyncAt as string).toLocaleDateString() : 'never';
+                return `${i + 1}. ${c.connectorType} — ${status} — last sync: ${lastSync} — ID: ${c.id}`;
+              });
+              addSystemMessage(lines.join('\n'));
+            }
+          } catch (err) {
+            addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
+          return;
+        }
+
+        if (subcommand === 'logs' && subArg) {
+          addSystemMessage('Fetching logs...');
+          try {
+            const tool = registry['connector_logs'];
+            const result = await tool.execute({ connection_id: subArg }) as { logs: Array<Record<string, unknown>>; count: number };
+            if (!result.logs?.length) {
+              addSystemMessage('No sync logs found.');
+            } else {
+              const lines = result.logs.map((l: Record<string, unknown>, i: number) => {
+                const icon = l.status === 'success' ? '\u2714' : '\u2718';
+                const records = l.recordsProcessed !== undefined ? ` (${l.recordsProcessed} records)` : '';
+                const date = l.createdAt ? new Date(l.createdAt as string).toLocaleString() : '';
+                return `${i + 1}. ${icon} ${l.actionId} — ${l.status}${records} — ${l.triggerType} — ${date}`;
+              });
+              addSystemMessage(lines.join('\n'));
+            }
+          } catch (err) {
+            addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
+          return;
+        }
+
+        if (subcommand === 'disconnect' && subArg) {
+          addSystemMessage(`Disconnecting ${subArg}...`);
+          try {
+            const tool = registry['connector_disconnect'];
+            const result = await tool.execute({ connection_id: subArg }) as { disconnected: boolean };
+            addSystemMessage(result.disconnected ? 'Disconnected.' : 'Failed to disconnect.');
+          } catch (err) {
+            addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
+          return;
+        }
+
+        addSystemMessage('Usage:\n  /connectors — list available\n  /connectors connected — show space connections\n  /connectors logs <id> — sync history\n  /connectors disconnect <id> — remove connection');
+        return;
+      }
       if (slashResult.output) {
         addSystemMessage(slashResult.output);
         return;

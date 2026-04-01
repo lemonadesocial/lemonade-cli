@@ -1,7 +1,7 @@
 export interface SlashCommandResult {
   handled: boolean;
   output?: string;
-  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history' | 'export';
+  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history' | 'export' | 'connectors';
   args?: string;
 }
 
@@ -24,6 +24,7 @@ export const SLASH_COMMANDS = [
   { name: '/credits', description: 'Check credits balance' },
   { name: '/history', description: 'Show recent conversation' },
   { name: '/export', description: 'Export data as CSV file' },
+  { name: '/connectors', description: 'Manage space integrations' },
 ] as const;
 
 const HELP_TABLE = `
@@ -50,6 +51,9 @@ Commands:
   /history [n]       Show last n conversation turns (default 10)
   /export guests <event_id>   Export guest list as CSV
   /export apps <event_id>     Export applications as CSV
+  /connectors           List available connectors
+  /connectors connected Show space connections
+  /connectors logs <id> View sync logs
   /exit, /quit       Exit the app
 
 Keyboard shortcuts:
@@ -138,6 +142,9 @@ export function parseSlashCommand(input: string): SlashCommandResult {
 
     case '/export':
       return { handled: true, action: 'export', args: rest || undefined };
+
+    case '/connectors':
+      return { handled: true, action: 'connectors', args: rest || undefined };
 
     case '/exit':
     case '/quit':

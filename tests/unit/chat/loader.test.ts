@@ -11,7 +11,7 @@ describe('loadSkills', () => {
     expect(skills.length).toBeGreaterThan(0);
   });
 
-  it('includes content from all 6 skill files', () => {
+  it('includes content from all 7 skill files', () => {
     const skills = loadSkills();
     // Each skill file has a unique heading
     expect(skills).toContain('# Identity');           // personality.md
@@ -20,6 +20,7 @@ describe('loadSkills', () => {
     expect(skills).toContain('# Co-Hosts');           // events-advanced.md
     expect(skills).toContain('# Space Management');   // community.md
     expect(skills).toContain('# AI Mode Awareness');  // billing.md
+    expect(skills).toContain('# Connectors');         // connectors.md
   });
 
   it('caches result on second call', () => {
@@ -29,10 +30,10 @@ describe('loadSkills', () => {
     expect(first).toBe(second);
   });
 
-  it('combined content is under 4000 tokens (~16000 chars)', () => {
+  it('combined content is under 5000 tokens (~20000 chars)', () => {
     const skills = loadSkills();
     // Rough estimate: 1 token ≈ 4 chars
-    expect(skills.length).toBeLessThan(16000);
+    expect(skills.length).toBeLessThan(20000);
   });
 });
 
