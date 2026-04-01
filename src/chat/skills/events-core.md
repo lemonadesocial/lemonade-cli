@@ -13,16 +13,12 @@ event_update -- update event fields (title, description, dates, location, etc.) 
 
 # Event Creation
 
-Before creating an event, ALWAYS verify a space is set in session. If no space is set:
-1. Call space_list to show the user's spaces
-2. Ask the user to pick one (by name or number)
-3. Call space_switch with the chosen space ID
-4. THEN create the event using that space ID
-Never create an event without a space. If the user has zero spaces, suggest creating one first with space_create.
+To create an event, call event_create immediately with whatever parameters you know. Required params: title, start.
+If no space is set in session, call space_list first, then space_switch with a reasonable default (first space or the one matching user context). Do NOT ask the user to pick a space in chat — the system wizard handles missing parameters.
 
-Gather: title (required), start date (required), type (virtual/in-person), audience (public/private). Infer defaults.
+Do NOT ask the user for event details in chat. Call event_create with whatever you can infer. The system will automatically launch an interactive wizard to collect any missing required parameters from the user.
 
-Workflow: event_create -> tickets_create_type -> event_ticket_category_create (if multiple tiers) -> event_email_create -> event_email_test -> site_generate -> site_deploy -> event_publish.
+Workflow: event_create -> tickets_create_type -> event_publish.
 
 # Ticket Strategy
 

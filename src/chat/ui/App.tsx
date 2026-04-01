@@ -14,6 +14,7 @@ import { THINKING_WORDS } from './ThinkingIndicator.js';
 import { truncateResult } from './ToolCall.js';
 import { LEMON, SUGGESTED_PROMPTS } from './WelcomeBanner.js';
 import { VERSION } from '../version.js';
+import { renderMarkdown } from './MarkdownText.js';
 import { useChatEngine, UIMessage, ToolStatus } from './hooks/useChatEngine.js';
 import { usePlanMode } from './hooks/usePlanMode.js';
 import { PlanWizard } from './PlanWizard.js';
@@ -137,7 +138,7 @@ function MessageView({ msg }: { msg: UIMessage }): React.JSX.Element {
   // assistant
   return (
     <Box flexDirection="column">
-      {msg.content ? <Text wrap="wrap">{msg.content}</Text> : null}
+      {msg.content ? <Text wrap="wrap">{renderMarkdown(msg.content)}</Text> : null}
       {msg.tools?.map((tool) => (
         <Box key={tool.id} marginLeft={1}>
           <ToolResultLine tool={tool} />
@@ -225,7 +226,6 @@ export function App({
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
   const streamAbortRef = useRef<AbortController | null>(null);
-  const shiftEnterRef = useRef(false);
 
   // Autocomplete state
   const [acIndex, setAcIndex] = useState(0);
@@ -391,10 +391,15 @@ export function App({
 
   // Keyboard handling
   useInput((input, key) => {
-    // Shift+Enter: insert newline instead of submitting
-    if (key.return && key.shift) {
-      shiftEnterRef.current = true;
-      setInputValue((prev) => prev + '\n');
+    // Enter key handling (submit or newline)
+    if (key.return) {
+      if (key.shift) {
+        // Shift+Enter: insert newline
+        setInputValue((prev) => prev + '\n');
+        return;
+      }
+      // Plain Enter: submit
+      onSubmit(inputValue);
       return;
     }
 
@@ -450,11 +455,6 @@ export function App({
 
   // Wrap submit to intercept autocomplete selection on Enter
   const onSubmit = useCallback((value: string) => {
-    // Skip submission if shift+enter was pressed (multiline insert)
-    if (shiftEnterRef.current) {
-      shiftEnterRef.current = false;
-      return;
-    }
     if (showAutocomplete && filteredCommands.length > 0) {
       const selected = filteredCommands[acIndex].name;
       setInputValue(selected);
@@ -543,7 +543,6 @@ export function App({
             <TextInput
               value={inputValue}
               onChange={setInputValue}
-              onSubmit={onSubmit}
               focus={!pendingConfirm && !planState.active}
               showCursor={true}
               placeholder={isStreaming ? '' : 'Ask anything...'}
