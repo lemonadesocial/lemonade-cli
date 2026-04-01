@@ -252,8 +252,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiGetEventTicketSoldInsight: unknown }>(
         `query($event: MongoID!) {
           aiGetEventTicketSoldInsight(event: $event) {
-            total_tickets_sold total_revenue currency
-            breakdown { ticket_type_name sold revenue }
+            total_sold total_revenue_cents currency
+            by_type { ticket_type_id title sold revenue_cents }
           }
         }`,
         { event: args.event_id },
@@ -275,8 +275,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         `query($event: MongoID!) {
           aiGetEventViewInsight(event: $event) {
             total_views unique_visitors
-            top_sources { source views }
-            top_cities { city views }
+            top_sources { source count }
+            top_cities { city count }
           }
         }`,
         { event: args.event_id },
@@ -297,7 +297,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiGetEventGuestStats: unknown }>(
         `query($event: MongoID!) {
           aiGetEventGuestStats(event: $event) {
-            going pending declined checked_in
+            going pending_approval pending_invite declined checked_in total
           }
         }`,
         { event: args.event_id },
@@ -305,8 +305,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.aiGetEventGuestStats;
     },
     formatResult: (result) => {
-      const r = result as { going: number; pending: number; declined: number; checked_in: number };
-      return `Guests: ${r.going} going, ${r.pending} pending, ${r.declined} declined, ${r.checked_in} checked in.`;
+      const r = result as { going: number; pending_approval: number; pending_invite: number; declined: number; checked_in: number; total: number };
+      return `Guests: ${r.going} going, ${r.pending_approval} pending approval, ${r.pending_invite} pending invite, ${r.declined} declined, ${r.checked_in} checked in (${r.total} total).`;
     },
   });
 
