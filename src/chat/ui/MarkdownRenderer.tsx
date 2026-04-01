@@ -85,6 +85,18 @@ export function MarkdownRenderer({ text }: { text: string }): React.JSX.Element 
       continue;
     }
 
+    // Table row: | col1 | col2 | col3 |
+    const tableMatch = line.match(/^\|(.+)\|$/);
+    if (tableMatch) {
+      const cells = tableMatch[1].split('|').map(c => c.trim());
+      // Skip separator rows (----)
+      if (cells.every(c => /^[-:]+$/.test(c))) continue;
+      elements.push(
+        <Text key={i} wrap="wrap">  {cells.filter(c => c).join('  \u2022  ')}</Text>,
+      );
+      continue;
+    }
+
     // Heading: # text
     const headingMatch = line.match(/^(#{1,3})\s+(.+)/);
     if (headingMatch) {

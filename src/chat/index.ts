@@ -227,7 +227,8 @@ async function main(): Promise<void> {
 
   const registry = buildToolRegistry();
   const toolDefs = Object.values(registry);
-  const session = createSessionState(user, getDefaultSpace());
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const session = createSessionState(user, getDefaultSpace(), timezone);
   const formattedTools = provider.formatTools(toolDefs);
 
   let creditsSpaceName: string | undefined;
