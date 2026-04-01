@@ -85,7 +85,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiGetHostingEvents: unknown }>(
         `query($draft: Boolean, $search: String, $limit: Int, $skip: Int) {
           aiGetHostingEvents(draft: $draft, search: $search, limit: $limit, skip: $skip) {
-            items { _id title shortid start end published }
+            items { _id title shortid start end published timezone hosted_by { _id title } }
           }
         }`,
         {
@@ -147,7 +147,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiGetEvent: unknown }>(
         `query($id: MongoID!) {
           aiGetEvent(id: $id) {
-            _id title shortid start end published description
+            _id title shortid start end published timezone description
+            hosted_by { _id title }
             address { title city country latitude longitude }
           }
         }`,

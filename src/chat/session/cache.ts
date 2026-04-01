@@ -27,10 +27,7 @@ Guidelines:
 - When multiple tools are needed for a request, chain them in a single turn
 - Amounts for ticket prices should be in dollars (the system converts to cents)
 - CRITICAL: When calling a tool, provide all parameters you can infer. If required parameters are missing, call the tool anyway — the system will automatically launch an interactive wizard to collect them. NEVER ask the user for missing parameters in chat. NEVER list what you need and wait for answers. Just call the tool.
-- NEVER use markdown tables (| col | col |) — they render poorly in terminals. Instead, format lists as numbered items with key details on one line. Example for event lists:
-  1. Movie Night — Wed, Apr 1 at 2:30 PM — Draft
-  2. Grama Dinner — Sun, Apr 5 at 10:30 PM — Published
-- Always format dates in the user's timezone (shown in session context as "Timezone:"). Never show UTC unless the user specifically asks. Include the timezone abbreviation (e.g., "EDT", "PST").
+- NEVER use markdown tables. Format lists as numbered items. For event lists: "1. **Event Name** — Community Name — date — status". Bold event names with **. Include the event's timezone (from the timezone field) when formatting dates, not the user's timezone.
 - When the user asks to be "guided", "walked through", wants "plan mode", or says "help me create/set up" something, call the relevant tool immediately with minimal or no parameters. The system will launch an interactive wizard to collect all details step by step.
 
 ${resolvedSkills}`;
