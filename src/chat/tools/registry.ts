@@ -1571,10 +1571,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'event_clone',
     displayName: 'event clone',
-    description: 'Clone an existing event to one or more new dates. Returns array of new event IDs.',
+    description: 'Clone an event to one or more new dates. Returns array of new event IDs.',
     params: [
-      { name: 'event_id', type: 'string', description: 'Source event ObjectId', required: true },
-      { name: 'dates', type: 'string[]', description: 'Array of ISO 8601 start dates for cloned events', required: true },
+      { name: 'event_id', type: 'string', description: 'Event ID to clone', required: true },
+      { name: 'dates', type: 'string[]', description: 'Array of ISO 8601 dates for the cloned events', required: true },
     ],
     destructive: false,
     execute: async (args) => {
@@ -1584,22 +1584,25 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         }`,
         { input: { event: args.event_id, dates: args.dates } },
       );
-      return result.cloneEvent;
+      return { cloned_event_ids: result.cloneEvent, count: result.cloneEvent.length };
+    },
+    formatResult: (result) => {
+      const r = result as { cloned_event_ids: string[]; count: number };
+      return `Cloned ${r.count} event(s). IDs: ${r.cloned_event_ids.join(', ')}`;
     },
   });
 
   register({
-    name: 'event_generate_recurring_dates',
+    name: 'event_recurring_dates',
     displayName: 'event recurring dates',
-    description: 'Generate a list of recurring dates based on a pattern. Use to preview dates before cloning.',
+    description: 'Generate dates for a recurring event series. Returns array of dates.',
     params: [
-      { name: 'start', type: 'string', description: 'Start date ISO 8601', required: true },
-      { name: 'utc_offset_minutes', type: 'number', description: 'UTC offset in minutes', required: true },
-      { name: 'repeat', type: 'string', description: 'Repeat pattern', required: true,
-        enum: ['daily', 'weekly', 'monthly'] },
-      { name: 'day_of_weeks', type: 'number[]', description: 'Days of week (0-6) for weekly repeat', required: false },
-      { name: 'end', type: 'string', description: 'End date ISO 8601 (max 3 years from start)', required: false },
-      { name: 'count', type: 'number', description: 'Number of occurrences (max 100)', required: false },
+      { name: 'start', type: 'string', description: 'Start date (ISO 8601)', required: true },
+      { name: 'utc_offset_minutes', type: 'number', description: 'UTC offset in minutes (e.g., -300 for EST)', required: true },
+      { name: 'repeat', type: 'string', description: 'Recurrence pattern', required: true, enum: ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'] },
+      { name: 'day_of_weeks', type: 'number[]', description: 'Days of week (0=Sun, 6=Sat)', required: false },
+      { name: 'end', type: 'string', description: 'End date (ISO 8601)', required: false },
+      { name: 'count', type: 'number', description: 'Number of dates to generate (max 100)', required: false },
     ],
     destructive: false,
     execute: async (args) => {
@@ -1610,15 +1613,18 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       };
       if (args.day_of_weeks) input.dayOfWeeks = args.day_of_weeks;
       if (args.end) input.end = args.end;
-      if (args.count !== undefined) input.count = args.count;
-
+      if (args.count) input.count = args.count;
       const result = await graphqlRequest<{ generateRecurringDates: string[] }>(
         `query($input: GenerateRecurringDatesInput!) {
           generateRecurringDates(input: $input)
         }`,
         { input },
       );
-      return result.generateRecurringDates;
+      return { dates: result.generateRecurringDates, count: result.generateRecurringDates.length };
+    },
+    formatResult: (result) => {
+      const r = result as { dates: string[]; count: number };
+      return `Generated ${r.count} dates: ${r.dates.slice(0, 5).join(', ')}${r.count > 5 ? ` ... and ${r.count - 5} more` : ''}`;
     },
   });
 
@@ -1990,36 +1996,28 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'event_export_guests',
     displayName: 'event export guests',
-    description: 'Export detailed guest/ticket list with filters.',
+    description: 'Export attendee/ticket data for an event.',
     params: [
-      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
-      { name: 'ticket_type_ids', type: 'string[]', description: 'Filter by ticket type IDs', required: false },
-      { name: 'search_text', type: 'string', description: 'Search text', required: false },
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'search', type: 'string', description: 'Search text', required: false },
       { name: 'checked_in', type: 'boolean', description: 'Filter by check-in status', required: false },
-      { name: 'limit', type: 'number', description: 'Pagination limit', required: false },
-      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false },
     ],
     destructive: false,
     execute: async (args) => {
-      const vars: Record<string, unknown> = { _id: args.event_id };
-      if (args.ticket_type_ids) vars.ticket_type_ids = args.ticket_type_ids;
-      if (args.search_text) vars.search_text = args.search_text;
-      if (args.checked_in !== undefined) vars.checked_in = args.checked_in;
-      if (args.limit !== undefined || args.skip !== undefined) {
-        vars.pagination = {
-          limit: args.limit as number | undefined,
-          skip: args.skip as number | undefined,
-        };
-      }
-
       const result = await graphqlRequest<{ exportEventTickets: unknown }>(
-        `query($_id: MongoID!, $ticket_type_ids: [MongoID!], $search_text: String, $checked_in: Boolean, $pagination: PaginationInput) {
-          exportEventTickets(_id: $_id, ticket_type_ids: $ticket_type_ids, search_text: $search_text, checked_in: $checked_in, pagination: $pagination) {
+        `query($_id: MongoID!, $search_text: String, $checked_in: Boolean, $pagination: PaginationInput) {
+          exportEventTickets(_id: $_id, search_text: $search_text, checked_in: $checked_in, pagination: $pagination) {
             count
-            tickets { _id shortid buyer_name buyer_email ticket_type quantity payment_amount currency discount_code purchase_date checkin_date active cancelled_by }
+            tickets { _id shortid buyer_name buyer_email ticket_type quantity payment_amount currency purchase_date checkin_date active }
           }
         }`,
-        vars,
+        {
+          _id: args.event_id,
+          search_text: args.search as string | undefined,
+          checked_in: args.checked_in as boolean | undefined,
+          pagination: args.limit ? { limit: args.limit as number, skip: 0 } : undefined,
+        },
       );
       return result.exportEventTickets;
     },
@@ -2129,42 +2127,38 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   // --- Invitation Statistics ---
 
   register({
-    name: 'event_invite_stats',
-    displayName: 'event invite stats',
-    description: 'Get invitation tracking statistics with guest-level detail.',
+    name: 'event_invitation_stats',
+    displayName: 'event invitation stats',
+    description: 'Get invitation tracking statistics for an event.',
     params: [
-      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
-      { name: 'search', type: 'string', description: 'Search invitees', required: false },
-      { name: 'limit', type: 'number', description: 'Limit number of guest entries', required: false },
-      { name: 'statuses', type: 'string[]', description: 'Filter by invitation response status', required: false },
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'limit', type: 'number', description: 'Max guest results', required: false },
     ],
     destructive: false,
     execute: async (args) => {
-      const vars: Record<string, unknown> = { _id: args.event_id };
-      if (args.search) vars.search = args.search;
-      if (args.limit !== undefined) vars.limit = args.limit;
-      if (args.statuses) vars.statuses = args.statuses;
-
       const result = await graphqlRequest<{ getEventInvitedStatistics: unknown }>(
-        `query($_id: MongoID!, $search: String, $limit: Float, $statuses: [InvitationResponse!]) {
-          getEventInvitedStatistics(_id: $_id, search: $search, limit: $limit, statuses: $statuses) {
-            total total_joined total_declined emails_opened top_inviter
-            guests { invitation invited_by joined declined pending user email }
+        `query($_id: MongoID!, $limit: Int) {
+          getEventInvitedStatistics(_id: $_id, limit: $limit) {
+            total total_joined total_declined emails_opened
           }
         }`,
-        vars,
+        { _id: args.event_id, limit: (args.limit as number) || undefined },
       );
       return result.getEventInvitedStatistics;
+    },
+    formatResult: (result) => {
+      const r = result as { total: number; total_joined: number; total_declined: number; emails_opened: number };
+      return `Invitations: ${r.total} sent, ${r.total_joined} joined, ${r.total_declined} declined, ${r.emails_opened} emails opened.`;
     },
   });
 
   register({
     name: 'event_cancel_invitations',
     displayName: 'event cancel invitations',
-    description: 'Cancel pending invitations for an event.',
+    description: 'Cancel sent invitations for an event.',
     params: [
-      { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
-      { name: 'invitation_ids', type: 'string[]', description: 'Array of invitation ObjectIds to cancel', required: true },
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'invitation_ids', type: 'string[]', description: 'Array of invitation IDs to cancel', required: true },
     ],
     destructive: true,
     execute: async (args) => {
@@ -2174,7 +2168,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         }`,
         { input: { event: args.event_id, invitations: args.invitation_ids } },
       );
-      return result.cancelEventInvitations;
+      return { cancelled: result.cancelEventInvitations };
+    },
+    formatResult: (result) => {
+      const r = result as { cancelled: boolean };
+      return r.cancelled ? 'Invitations cancelled.' : 'Failed to cancel invitations.';
     },
   });
 
@@ -3363,6 +3361,144 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         'query { aiGetMyTickets { items { _id event_title ticket_type_name status } } }',
       );
       return result.aiGetMyTickets;
+    },
+  });
+
+  // --- Join Requests ---
+
+  register({
+    name: 'event_join_requests',
+    displayName: 'event join requests',
+    description: 'List pending join requests for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'state', type: 'string', description: 'Filter by state', required: false, enum: ['PENDING', 'APPROVED', 'DECLINED'] },
+      { name: 'search', type: 'string', description: 'Search text', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventJoinRequests: unknown }>(
+        `query($event: MongoID!, $state: EventJoinRequestState, $search: String, $limit: Int, $skip: Int) {
+          getEventJoinRequests(event: $event, state: $state, search: $search, limit: $limit, skip: $skip) {
+            total
+            records { _id user email state ticket_issued created_at user_expanded { _id name email } }
+          }
+        }`,
+        {
+          event: args.event_id,
+          state: args.state || undefined,
+          search: args.search as string | undefined,
+          limit: (args.limit as number) || 20,
+          skip: (args.skip as number) || 0,
+        },
+      );
+      return result.getEventJoinRequests;
+    },
+  });
+
+  // --- Attendee Check-in ---
+
+  register({
+    name: 'event_checkin',
+    displayName: 'event checkin',
+    description: 'Manually check in an attendee to an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'user_id', type: 'string', description: 'User ID to check in', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ checkinUser: { state: string; messages?: { primary: string; secondary?: string } } }>(
+        `mutation($event: MongoID!, $user: MongoID!) {
+          checkinUser(event: $event, user: $user) {
+            state
+            messages { primary secondary }
+          }
+        }`,
+        { event: args.event_id, user: args.user_id },
+      );
+      return result.checkinUser;
+    },
+    formatResult: (result) => {
+      const r = result as { state: string; messages?: { primary: string } };
+      return `Check-in: ${r.state}${r.messages?.primary ? ` — ${r.messages.primary}` : ''}`;
+    },
+  });
+
+  // --- Ticket Management ---
+
+  register({
+    name: 'event_ticket_delete',
+    displayName: 'event ticket delete',
+    description: 'Delete a ticket type from an event.',
+    params: [
+      { name: 'ticket_type_id', type: 'string', description: 'Ticket type ID to delete', required: true },
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ deleteEventTicketType: boolean }>(
+        `mutation($_id: MongoID!, $event: MongoID!) {
+          deleteEventTicketType(_id: $_id, event: $event)
+        }`,
+        { _id: args.ticket_type_id, event: args.event_id },
+      );
+      return { deleted: result.deleteEventTicketType };
+    },
+    formatResult: (result) => {
+      const r = result as { deleted: boolean };
+      return r.deleted ? 'Ticket type deleted.' : 'Failed to delete ticket type.';
+    },
+  });
+
+  register({
+    name: 'event_ticket_reorder',
+    displayName: 'event ticket reorder',
+    description: 'Reorder ticket types for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'ticket_type_ids', type: 'string[]', description: 'Ticket type IDs in desired order', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const ids = args.ticket_type_ids as string[];
+      const types = ids.map((id, i) => ({ _id: id, position: i }));
+      const result = await graphqlRequest<{ reorderTicketTypes: boolean }>(
+        `mutation($event: MongoID!, $types: [ReorderTicketTypeInput!]!) {
+          reorderTicketTypes(event: $event, types: $types)
+        }`,
+        { event: args.event_id, types },
+      );
+      return { reordered: result.reorderTicketTypes };
+    },
+    formatResult: (result) => {
+      const r = result as { reordered: boolean };
+      return r.reordered ? 'Ticket types reordered.' : 'Failed to reorder.';
+    },
+  });
+
+  // --- Payment Summary ---
+
+  register({
+    name: 'event_payment_summary',
+    displayName: 'event payment summary',
+    description: 'Get detailed payment breakdown for an event by currency.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventPaymentSummary: Array<{ currency: string; decimals: number; amount: string; transfer_amount: string; pending_transfer_amount: string }> }>(
+        `query($event: MongoID!) {
+          getEventPaymentSummary(event: $event) {
+            currency decimals amount transfer_amount pending_transfer_amount
+          }
+        }`,
+        { event: args.event_id },
+      );
+      return result.getEventPaymentSummary;
     },
   });
 

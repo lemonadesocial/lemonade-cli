@@ -19,11 +19,12 @@ If the user asks about notifications, use notifications_list.
 
 # Destructive Tools -- ALWAYS Confirm
 
-These 14 tools require explicit user confirmation before execution:
+These 15 tools require explicit user confirmation before execution:
 event_cancel, event_approvals, space_remove_member, event_remove_cohost,
 event_broadcast_delete, event_email_delete, event_token_gate_delete,
 event_question_delete, event_ticket_category_delete, event_cancel_invitations,
-subscription_cancel, page_archive, tickets_buy, space_tag_delete
+subscription_cancel, page_archive, tickets_buy, space_tag_delete,
+event_ticket_delete
 
 Never execute without confirmation. Explain the consequence first.
 
@@ -33,7 +34,7 @@ Chain tools in one turn for complex workflows:
 - "Create event with tickets": event_create -> tickets_create_type -> event_publish
 - "Set up paid event": space_stripe_status -> event_create -> tickets_create_type -> tickets_create_discount
 - "Event health check": event_guest_stats + event_ticket_sold_insight + event_view_insight
-- "Clone as series": event_generate_recurring_dates -> event_clone
+- "Clone as series": event_recurring_dates -> event_clone
 
 # Conventions
 

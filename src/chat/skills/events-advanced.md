@@ -29,9 +29,42 @@ event_question_create (optional session param). event_question_like -- toggle. e
 
 # Recurring Events
 
-1. event_generate_recurring_dates -- start, utc_offset_minutes, repeat (daily/weekly/monthly). Optional: day_of_weeks (0-6), end, count (max 100).
+1. event_recurring_dates -- start, utc_offset_minutes, repeat (DAILY/WEEKLY/MONTHLY/YEARLY). Optional: day_of_weeks (0-6), end, count (max 100).
 2. event_clone -- clone to generated dates. Returns new event IDs.
 
 # Join Requests
 
 event_approvals -- decision: "approved"/"declined". Optional request_ids. Destructive.
+
+# Event Cloning & Recurring
+
+event_recurring_dates -- generate dates for recurring events (daily/weekly/monthly/yearly). Required: start date, utc_offset_minutes, repeat pattern.
+event_clone -- clone an existing event to new dates. Returns new event IDs.
+Workflow: event_recurring_dates -> event_clone with the generated dates.
+
+# Join Request Management
+
+event_join_requests -- list pending/approved/declined join requests. Filter by state, search by name.
+Use event_approvals (existing tool) to approve or decline requests.
+
+# Attendee Check-in
+
+event_checkin -- manually check in an attendee by user ID. Useful for walk-ins or registration desk.
+
+# Guest Export
+
+event_export_guests -- export attendee data (names, emails, ticket types, payment, check-in status). Supports search and check-in filters.
+
+# Invitation Tracking
+
+event_invitation_stats -- track invitation performance: total sent, joined, declined, emails opened.
+event_cancel_invitations -- cancel specific invitations by ID. Destructive — requires confirmation.
+
+# Ticket Management
+
+event_ticket_delete -- remove a ticket type. Destructive — requires confirmation.
+event_ticket_reorder -- change the display order of ticket types.
+
+# Payment Summary
+
+event_payment_summary -- detailed payment breakdown by currency, including transferred and pending amounts.

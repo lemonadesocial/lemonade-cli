@@ -45,7 +45,7 @@ Before event_publish: tickets exist (tickets_list_types), Stripe connected if pa
 
 # Cloning & Recurring
 
-Single: event_clone with one date. Series: event_generate_recurring_dates (daily/weekly/monthly, max 100) then event_clone.
+Single: event_clone with one date. Series: event_recurring_dates (daily/weekly/monthly/yearly, max 100) then event_clone.
 
 # Attendee Tools
 
@@ -53,4 +53,4 @@ accept_event, decline_event, tickets_buy (destructive, needs attendee_names + at
 
 # Invitations
 
-event_invite (email array), event_invite_stats, event_cancel_invitations (destructive), event_top_inviters.
+event_invite (email array), event_invitation_stats, event_cancel_invitations (destructive), event_top_inviters.
