@@ -20,7 +20,7 @@ export const SLASH_COMMANDS = [
   { name: '/version', description: 'Check CLI version and update' },
   { name: '/status', description: 'Show session status' },
   { name: '/events', description: 'List your events' },
-  { name: '/spaces', description: 'List your spaces' },
+  { name: '/spaces', description: 'List or switch spaces' },
   { name: '/credits', description: 'Check credits balance' },
   { name: '/history', description: 'Show recent conversation' },
 ] as const;
@@ -43,6 +43,8 @@ Commands:
   /status            Show session status (model, space, event, mode)
   /events            List your events
   /spaces            List your spaces
+  /spaces <n>        Switch to space by number
+  /spaces <name>     Switch to space by name
   /credits           Check credits balance
   /history [n]       Show last n conversation turns (default 10)
   /exit, /quit       Exit the app
@@ -125,7 +127,7 @@ export function parseSlashCommand(input: string): SlashCommandResult {
     case '/events':
       return { handled: true, action: 'events', args: rest || undefined };
     case '/spaces':
-      return { handled: true, action: 'spaces' };
+      return { handled: true, action: 'spaces', args: rest || undefined };
     case '/credits':
       return { handled: true, action: 'credits' };
     case '/history':

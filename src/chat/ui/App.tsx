@@ -507,13 +507,47 @@ export function App({
           const result = await tool.execute({}) as { items?: Array<{ _id: string; title: string; slug?: string }> };
           if (!result?.items?.length) {
             addSystemMessage('No spaces found.');
-          } else {
-            const lines = result.items.map((s, i) => {
-              const current = session.currentSpace?._id === s._id ? ' (current)' : '';
-              return `${i + 1}. ${s.title}${current}`;
-            });
-            addSystemMessage(lines.join('\n'));
+            return;
           }
+          const spaces = result.items;
+
+          // /spaces <number> — switch directly
+          if (slashResult.args && /^\d+$/.test(slashResult.args)) {
+            const idx = parseInt(slashResult.args, 10) - 1;
+            if (idx >= 0 && idx < spaces.length) {
+              const switchTool = registry['space_switch'];
+              const switched = await switchTool.execute({ space_id: spaces[idx]._id }) as { _id: string; title: string };
+              addSystemMessage(`Switched to ${switched.title}.`);
+              setSpaceName(switched.title);
+            } else {
+              addSystemMessage(`Invalid number. Use 1-${spaces.length}.`);
+            }
+            return;
+          }
+
+          // /spaces <name> — fuzzy match and switch
+          if (slashResult.args) {
+            const query = slashResult.args.toLowerCase();
+            const match = spaces.find(s => s.title.toLowerCase().includes(query));
+            if (match) {
+              const switchTool = registry['space_switch'];
+              const switched = await switchTool.execute({ space_id: match._id }) as { _id: string; title: string };
+              addSystemMessage(`Switched to ${switched.title}.`);
+              setSpaceName(switched.title);
+            } else {
+              addSystemMessage(`No space matching "${slashResult.args}". Use /spaces to see all.`);
+            }
+            return;
+          }
+
+          // /spaces (no args) — list with hint
+          const lines = spaces.map((s, i) => {
+            const current = session.currentSpace?._id === s._id ? ' (current)' : '';
+            return `${i + 1}. ${s.title}${current}`;
+          });
+          lines.push('');
+          lines.push('Type /spaces <number> to switch, e.g. /spaces 3');
+          addSystemMessage(lines.join('\n'));
         } catch (err) {
           addSystemMessage(`Failed to fetch spaces: ${err instanceof Error ? err.message : 'Unknown error'}`);
         }
