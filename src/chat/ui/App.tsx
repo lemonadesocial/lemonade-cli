@@ -30,6 +30,15 @@ const TIPS = [
   '"how are ticket sales?" works naturally',
   '/clear starts a fresh session',
   '/mode credits to use community credits',
+  'Shift+Enter adds a new line',
+  'Ctrl+L clears the screen',
+  'Ctrl+U clears your input',
+  '/btw asks a side question while AI is working',
+  '/plan event_create walks you through step by step',
+  '/version checks for CLI updates',
+  '"create event" triggers guided plan mode',
+  '"check my Stripe status" just works',
+  'type / to see all available commands',
 ];
 
 function randomTip(): string {
@@ -677,7 +686,7 @@ export function App({
                 onChange={setInputValue}
                 focus={!pendingConfirm && !planState.active}
                 showCursor={true}
-                placeholder={isStreaming ? '' : 'Ask anything... (Shift+Enter for newline)'}
+                placeholder={isStreaming ? '' : 'How can I help... #makelemonade (Shift+Enter for new line)'}
               />
             </Box>
           </Box>
