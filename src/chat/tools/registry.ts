@@ -1406,6 +1406,34 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   });
 
   register({
+    name: 'cli_version',
+    displayName: 'CLI version',
+    description: 'Check the current CLI version and whether an update is available from npm.',
+    params: [],
+    destructive: false,
+    execute: async () => {
+      const { VERSION } = await import('../version.js');
+      try {
+        const response = await fetch('https://registry.npmjs.org/@lemonade-social/cli/latest');
+        const data = await response.json() as { version: string };
+        const latest = data.version;
+        if (VERSION === latest) {
+          return { current: VERSION, latest, up_to_date: true };
+        }
+        return {
+          current: VERSION,
+          latest,
+          up_to_date: false,
+          update_command: 'npm install -g @lemonade-social/cli',
+          hint: `Update available: v${VERSION} → v${latest}. Run /version to update.`,
+        };
+      } catch {
+        return { current: VERSION, latest: 'unknown', up_to_date: 'unknown', error: 'Could not check npm registry' };
+      }
+    },
+  });
+
+  register({
     name: 'list_chains',
     displayName: 'list chains',
     description: 'List supported blockchain networks.',
