@@ -21,6 +21,7 @@ const SKILL_FILES = [
   'events-advanced.md',
   'community.md',
   'billing.md',
+  'connectors.md',
 ] as const;
 
 export function loadSkills(): string {
