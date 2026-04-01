@@ -38,8 +38,11 @@ Commands:
   /exit, /quit       Exit the app
 
 Keyboard shortcuts:
+  Shift+Enter        Insert newline (multiline input)
   Escape             Cancel streaming response
   Ctrl+C             Cancel / exit on empty input
+  Ctrl+L             Clear screen
+  Ctrl+U             Clear input line
   Tab (empty input)  Cycle to next model
 `.trim();
 

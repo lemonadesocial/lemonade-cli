@@ -32,6 +32,8 @@ export async function runTerminalUI(
   process.stdout.write('\x1b[?1049h');
   // Hide cursor (Ink manages its own cursor)
   process.stdout.write('\x1b[?25l');
+  // Enable Kitty keyboard protocol for modifier detection (Shift+Enter, etc.)
+  process.stdout.write('\x1b[>1u');
 
   const { App } = await import('./ui/App.js');
 
@@ -56,6 +58,8 @@ export async function runTerminalUI(
   try {
     await instance.waitUntilExit();
   } finally {
+    // Disable Kitty keyboard protocol
+    process.stdout.write('\x1b[<u');
     // Restore main screen buffer
     process.stdout.write('\x1b[?25h'); // Show cursor
     process.stdout.write('\x1b[?1049l'); // Leave alternate screen

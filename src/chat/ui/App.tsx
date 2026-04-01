@@ -493,15 +493,29 @@ export function App({
 
   // Keyboard handling
   useInput((input, key) => {
-    // Enter key handling (submit or multiline continuation)
+    // Enter key handling (submit or multiline)
     if (key.return) {
-      if (inputValue.endsWith('\\')) {
-        // Backslash at end: continue on next line (multiline)
-        setInputValue((prev) => prev.slice(0, -1) + '\n');
+      if (key.shift) {
+        // Shift+Enter: insert newline (requires Kitty keyboard protocol)
+        setInputValue((prev) => prev + '\n');
         return;
       }
       // Plain Enter: submit
       onSubmit(inputValue);
+      return;
+    }
+
+    // Ctrl+L: clear screen (same as /clear)
+    if (key.ctrl && input === 'l') {
+      chatMessages.length = 0;
+      clearMessages();
+      addSystemMessage('Session cleared.');
+      return;
+    }
+
+    // Ctrl+U: clear input line
+    if (key.ctrl && input === 'u') {
+      setInputValue('');
       return;
     }
 
@@ -651,7 +665,7 @@ export function App({
               onChange={setInputValue}
               focus={!pendingConfirm && !planState.active}
               showCursor={true}
-              placeholder={isStreaming ? '' : 'Ask anything... (end with \\ for newline)'}
+              placeholder={isStreaming ? '' : 'Ask anything... (Shift+Enter for newline)'}
             />
           </Box>
 
