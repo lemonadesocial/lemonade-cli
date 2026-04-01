@@ -19,8 +19,11 @@ space_connectors -- connected platforms. connectors_list -- available integratio
 
 # Stripe
 
-space_stripe_status -- check connection. space_stripe_connect -- onboarding URL.
-Always check before paid tickets.
+space_stripe_status -- check connection status.
+space_stripe_connect -- get Stripe onboarding URL. Pass space_slug from session for fallback URL.
+If stripe_connect fails, provide the direct link: https://lemonade.social/c/{space_slug}/settings/payment
+Always check stripe_status before creating paid tickets.
+When Stripe is not connected, provide the direct setup link using the current space's slug from session context.
 
 # Pages & Site Builder
 

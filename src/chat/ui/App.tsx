@@ -225,6 +225,7 @@ export function App({
   const [inputValue, setInputValue] = useState('');
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
+  const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
   const streamAbortRef = useRef<AbortController | null>(null);
 
   // Autocomplete state
@@ -236,6 +237,17 @@ export function App({
   const filteredCommands = showAutocomplete
     ? SLASH_COMMANDS.filter((cmd) => cmd.name.startsWith(inputValue))
     : [];
+
+  useEffect(() => {
+    const onToolDone = (data: { id: string; name: string; result?: unknown }) => {
+      if (data.name === 'space switch' || data.name === 'space create') {
+        const r = data.result as Record<string, unknown> | undefined;
+        if (r?.title) setSpaceName(String(r.title));
+      }
+    };
+    engine.on('tool_done', onToolDone);
+    return () => { engine.off('tool_done', onToolDone); };
+  }, [engine]);
 
   // Reset autocomplete index when input changes
   useEffect(() => {
@@ -484,9 +496,6 @@ export function App({
     messages[messages.length - 1]?.content === ''
   );
 
-  // Toolbar parts
-  const spaceLabel = displayOpts.spaceName || 'none';
-
   return (
     <Box flexDirection="column">
       {/* Message area - natural document flow */}
@@ -574,7 +583,7 @@ export function App({
           ) : (
             <Box flexDirection="column" paddingLeft={1}>
               <Box justifyContent="space-between">
-                <Text dimColor>Space: {spaceLabel}</Text>
+                <Text dimColor>Space: {spaceName}</Text>
                 <Text dimColor>{displayOpts.modelName}</Text>
               </Box>
               <Box justifyContent="space-between">

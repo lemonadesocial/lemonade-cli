@@ -983,19 +983,32 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     params: [
       { name: 'return_url', type: 'string', description: 'URL to return to after onboarding', required: false,
         default: 'https://lemonade.social' },
+      { name: 'space_slug', type: 'string', description: 'Space slug for fallback URL (from session)', required: false },
     ],
     destructive: false,
     execute: async (args) => {
       const returnUrl = (args.return_url as string) || 'https://lemonade.social';
-      const result = await graphqlRequest<{ generateStripeAccountLink: unknown }>(
-        `mutation($return_url: String!, $refresh_url: String!) {
-          generateStripeAccountLink(return_url: $return_url, refresh_url: $refresh_url) {
-            url expires_at
-          }
-        }`,
-        { return_url: returnUrl, refresh_url: returnUrl },
-      );
-      return result.generateStripeAccountLink;
+      try {
+        const result = await graphqlRequest<{ generateStripeAccountLink: { url: string; expires_at?: string } }>(
+          `mutation($return_url: String!, $refresh_url: String!) {
+            generateStripeAccountLink(return_url: $return_url, refresh_url: $refresh_url) {
+              url expires_at
+            }
+          }`,
+          { return_url: returnUrl, refresh_url: returnUrl },
+        );
+        return result.generateStripeAccountLink;
+      } catch {
+        const slug = (args.space_slug as string) || '';
+        const settingsUrl = slug
+          ? `https://lemonade.social/c/${slug}/settings/payment`
+          : 'https://lemonade.social';
+        return {
+          error: 'Could not generate Stripe onboarding link.',
+          manual_setup_url: settingsUrl,
+          hint: `Complete Stripe setup manually at: ${settingsUrl}`,
+        };
+      }
     },
   });
 
