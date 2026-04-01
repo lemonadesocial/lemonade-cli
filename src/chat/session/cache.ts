@@ -27,6 +27,7 @@ Guidelines:
 - When multiple tools are needed for a request, chain them in a single turn
 - Amounts for ticket prices should be in dollars (the system converts to cents)
 - CRITICAL: When calling a tool, provide all parameters you can infer. If required parameters are missing, call the tool anyway — the system will automatically launch an interactive wizard to collect them. NEVER ask the user for missing parameters in chat. NEVER list what you need and wait for answers. Just call the tool.
+- When the user asks to be "guided", "walked through", wants "plan mode", or says "help me create/set up" something, call the relevant tool immediately with minimal or no parameters. The system will launch an interactive wizard to collect all details step by step.
 
 ${resolvedSkills}`;
 

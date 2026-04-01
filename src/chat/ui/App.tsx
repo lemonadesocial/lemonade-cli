@@ -14,7 +14,7 @@ import { THINKING_WORDS } from './ThinkingIndicator.js';
 import { truncateResult } from './ToolCall.js';
 import { LEMON, SUGGESTED_PROMPTS } from './WelcomeBanner.js';
 import { VERSION } from '../version.js';
-import { renderMarkdown } from './MarkdownText.js';
+import { MarkdownRenderer } from './MarkdownRenderer.js';
 import { useChatEngine, UIMessage, ToolStatus } from './hooks/useChatEngine.js';
 import { usePlanMode } from './hooks/usePlanMode.js';
 import { PlanWizard } from './PlanWizard.js';
@@ -138,7 +138,7 @@ function MessageView({ msg }: { msg: UIMessage }): React.JSX.Element {
   // assistant
   return (
     <Box flexDirection="column">
-      {msg.content ? <Text wrap="wrap">{renderMarkdown(msg.content)}</Text> : null}
+      {msg.content ? <MarkdownRenderer text={msg.content} /> : null}
       {msg.tools?.map((tool) => (
         <Box key={tool.id} marginLeft={1}>
           <ToolResultLine tool={tool} />
