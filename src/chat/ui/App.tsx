@@ -221,6 +221,7 @@ export function App({
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
   const streamAbortRef = useRef<AbortController | null>(null);
+  const shiftEnterRef = useRef(false);
 
   // Autocomplete state
   const [acIndex, setAcIndex] = useState(0);
@@ -237,6 +238,16 @@ export function App({
     setAcIndex(0);
     setAcScrollOffset(0);
   }, [inputValue]);
+
+  // Hide thinking spinner once assistant starts streaming text
+  useEffect(() => {
+    if (isStreaming && messages.length > 0) {
+      const last = messages[messages.length - 1];
+      if (last?.role === 'assistant' && last.content !== '') {
+        setShowThinking(false);
+      }
+    }
+  }, [isStreaming, messages]);
 
   // Update tip on each turn completion
   useEffect(() => {
@@ -352,6 +363,13 @@ export function App({
 
   // Keyboard handling
   useInput((input, key) => {
+    // Shift+Enter: insert newline instead of submitting
+    if (key.return && key.shift) {
+      shiftEnterRef.current = true;
+      setInputValue((prev) => prev + '\n');
+      return;
+    }
+
     if (key.escape) {
       if (streamAbortRef.current) {
         streamAbortRef.current.abort();
@@ -401,6 +419,11 @@ export function App({
 
   // Wrap submit to intercept autocomplete selection on Enter
   const onSubmit = useCallback((value: string) => {
+    // Skip submission if shift+enter was pressed (multiline insert)
+    if (shiftEnterRef.current) {
+      shiftEnterRef.current = false;
+      return;
+    }
     if (showAutocomplete && filteredCommands.length > 0) {
       const selected = filteredCommands[acIndex].name;
       setInputValue(selected);
@@ -424,9 +447,10 @@ export function App({
 
   // Build visible messages
   const visibleMessages = messages;
-  const hasThinking = showThinking && isStreaming && (
+  const hasThinking = showThinking && (
     messages.length === 0 ||
-    messages[messages.length - 1]?.role === 'user'
+    messages[messages.length - 1]?.role !== 'assistant' ||
+    messages[messages.length - 1]?.content === ''
   );
 
   // Toolbar parts
