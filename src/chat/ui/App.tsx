@@ -380,7 +380,7 @@ export function App({
     <Box flexDirection="column" height={termHeight}>
       {/* Message area - grows to fill */}
       <Box flexDirection="column" flexGrow={1} overflow="hidden">
-        <Box flexDirection="column" justifyContent="flex-end" flexGrow={1}>
+        <Box flexDirection="column" justifyContent={visibleMessages.length === 0 && !hasThinking ? 'flex-start' : 'flex-end'} flexGrow={1}>
           {visibleMessages.length === 0 && !hasThinking ? (
             <WelcomeBannerView
               firstName={firstName}
