@@ -1117,6 +1117,14 @@ export function App({
       return;
     }
 
+    // Backspace on empty line: merge back into previous line
+    if (key.backspace && inputValue === '' && previousLines.length > 0) {
+      const lastLine = previousLines[previousLines.length - 1];
+      setPreviousLines((prev) => prev.slice(0, -1));
+      setInputValue(lastLine);
+      return;
+    }
+
     // Ctrl+L: clear screen (same as /clear)
     if (key.ctrl && input === 'l') {
       chatMessages.length = 0;
