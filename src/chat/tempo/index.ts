@@ -1,26 +1,46 @@
 import { execSync, spawnSync } from 'child_process';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
+
+// Tempo installs to ~/.tempo/bin/tempo — may not be in current process PATH
+function getTempoBin(): string | null {
+  // Check PATH first
+  try {
+    execSync('which tempo', { encoding: 'utf-8', stdio: 'pipe', timeout: 3000 });
+    return 'tempo';
+  } catch {
+    // Check default install location
+    const defaultPath = join(homedir(), '.tempo', 'bin', 'tempo');
+    if (existsSync(defaultPath)) return defaultPath;
+    return null;
+  }
+}
 
 export function isTempoInstalled(): boolean {
-  try {
-    execSync('tempo --version', { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 });
-    return true;
-  } catch {
-    return false;
-  }
+  return getTempoBin() !== null;
 }
 
 export async function installTempo(): Promise<boolean> {
   try {
-    execSync('curl -fsSL https://tempo.xyz/install | bash', { stdio: 'inherit', timeout: 60000 });
-    return true;
+    // Use pipe instead of inherit to avoid breaking Ink's terminal
+    execSync('curl -fsSL https://tempo.xyz/install | bash', {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+      timeout: 120000,
+    });
+    // Verify installation
+    return isTempoInstalled();
   } catch {
     return false;
   }
 }
 
 export function tempoExec(args: string): string {
+  const bin = getTempoBin();
+  if (!bin) throw new Error('Tempo CLI not installed. Use /tempo install.');
   try {
-    return execSync(`tempo ${args}`, { encoding: 'utf-8', stdio: 'pipe', timeout: 15000 }).trim();
+    return execSync(`${bin} ${args}`, { encoding: 'utf-8', stdio: 'pipe', timeout: 15000 }).trim();
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     throw new Error(`Tempo CLI error: ${msg}`);
@@ -28,7 +48,9 @@ export function tempoExec(args: string): string {
 }
 
 export function tempoSpawn(args: string[]): { code: number | null; stdout: string; stderr: string } {
-  const result = spawnSync('tempo', args, { encoding: 'utf-8', timeout: 30000 });
+  const bin = getTempoBin();
+  if (!bin) return { code: 1, stdout: '', stderr: 'Tempo CLI not installed' };
+  const result = spawnSync(bin, args, { encoding: 'utf-8', timeout: 30000 });
   return { code: result.status, stdout: result.stdout?.trim() || '', stderr: result.stderr?.trim() || '' };
 }
 
@@ -46,12 +68,10 @@ export function getWalletInfo(): TempoWalletInfo {
   }
   try {
     const output = tempoExec('wallet whoami -t');
-    // Try to parse as JSON (machine-readable output)
     try {
       const data = JSON.parse(output);
       return { installed: true, loggedIn: true, ...data };
     } catch {
-      // Parse text output
       const addressMatch = output.match(/address[:\s]+(\S+)/i);
       const readyMatch = output.match(/ready[:\s]+(true|false)/i);
       return {
