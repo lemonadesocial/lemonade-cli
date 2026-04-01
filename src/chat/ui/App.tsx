@@ -536,6 +536,7 @@ export function App({
               cancelPlan();
               addSystemMessage('(plan cancelled)');
             }}
+            spaceOptions={planState.spaces}
           />
         </Box>
       ) : (

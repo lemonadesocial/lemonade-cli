@@ -1,6 +1,6 @@
 import { ToolParam } from '../providers/interface.js';
 
-export type StepInputType = 'choice' | 'text' | 'multiline';
+export type StepInputType = 'choice' | 'text' | 'multiline' | 'space_select';
 
 const FRIENDLY_LABELS: Record<string, string> = {
   title: 'Title',
@@ -37,7 +37,7 @@ export interface WizardStepDef {
 export function generateSteps(params: ToolParam[]): WizardStepDef[] {
   const sorted = [...params].sort((a, b) => (a.required === b.required ? 0 : a.required ? -1 : 1));
 
-  const steps = sorted.map((param): WizardStepDef => {
+  const result = sorted.map((param): WizardStepDef => {
     const friendlyLabel = FRIENDLY_LABELS[param.name] || humanize(param.name);
 
     // Boolean -> choice Yes/No
@@ -78,6 +78,18 @@ export function generateSteps(params: ToolParam[]): WizardStepDef[] {
       };
     }
 
+    // Space param -> space selector
+    if (param.type === 'string' && (param.name === 'space' || param.name === 'space_id')) {
+      return {
+        paramName: param.name,
+        label: param.description || 'Select a space',
+        friendlyLabel: 'Space',
+        inputType: 'space_select' as const,
+        required: param.required,
+        defaultValue: param.default !== undefined ? String(param.default) : undefined,
+      };
+    }
+
     // Everything else -> text
     return {
       paramName: param.name,
@@ -90,11 +102,18 @@ export function generateSteps(params: ToolParam[]): WizardStepDef[] {
   });
 
   // Merge end into start for date compound step
-  const startIdx = steps.findIndex((s) => s.paramName === 'start');
-  const endIdx = steps.findIndex((s) => s.paramName === 'end');
+  const startIdx = result.findIndex((s) => s.paramName === 'start');
+  const endIdx = result.findIndex((s) => s.paramName === 'end');
   if (startIdx >= 0 && endIdx >= 0) {
-    steps[endIdx].merged = true;
+    result[endIdx].merged = true;
   }
 
-  return steps;
+  // Move space_select steps to the front
+  const spaceIdx = result.findIndex(s => s.inputType === 'space_select');
+  if (spaceIdx > 0) {
+    const [spaceStep] = result.splice(spaceIdx, 1);
+    result.unshift(spaceStep);
+  }
+
+  return result;
 }
