@@ -86,20 +86,28 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetHostingEvents: unknown }>(
-        `query($draft: Boolean, $search: String, $limit: Int, $skip: Int) {
-          aiGetHostingEvents(draft: $draft, search: $search, limit: $limit, skip: $skip) {
-            items { _id title shortid start end published }
+      const result = await graphqlRequest<{ getHostingEvents: Array<Record<string, unknown>> }>(
+        `query($skip: Int, $limit: Int, $draft: Boolean) {
+          getHostingEvents(skip: $skip, limit: $limit, draft: $draft) {
+            _id title shortid slug start end published timezone virtual private
+            space { _id title slug }
           }
         }`,
         {
-          draft: args.draft || undefined,
-          search: args.search as string | undefined,
-          limit: (args.limit as number) || 20,
           skip: (args.skip as number) || 0,
+          limit: (args.limit as number) || 20,
+          draft: args.draft as boolean | undefined,
         },
       );
-      return result.aiGetHostingEvents;
+      let items = result.getHostingEvents;
+      // Client-side search filter
+      if (args.search) {
+        const query = (args.search as string).toLowerCase();
+        items = items.filter(e =>
+          (e.title as string)?.toLowerCase().includes(query),
+        );
+      }
+      return { items };
     },
   });
 
@@ -148,16 +156,18 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEvent: unknown }>(
-        `query($id: MongoID!) {
-          aiGetEvent(id: $id) {
-            _id title shortid start end published description
+      const result = await graphqlRequest<{ getEvent: Record<string, unknown> | null }>(
+        `query($id: ID) {
+          getEvent(_id: $id) {
+            _id title shortid slug start end published timezone virtual private
+            description
+            space { _id title slug }
             address { title city country latitude longitude }
           }
         }`,
         { id: args.event_id },
       );
-      return result.aiGetEvent;
+      return result.getEvent;
     },
   });
 

@@ -484,14 +484,16 @@ export function App({
               args.search = slashResult.args;
             }
           }
-          const result = await tool.execute(args) as { items?: Array<{ _id: string; title: string; start?: string; published?: boolean }> };
+          const result = await tool.execute(args) as { items?: Array<Record<string, unknown>> };
           if (!result?.items?.length) {
             addSystemMessage('No events found.');
           } else {
-            const lines = result.items.map((e, i) => {
+            const lines = result.items.map((e: Record<string, unknown>, i: number) => {
               const status = e.published ? 'Published' : 'Draft';
-              const date = e.start ? new Date(e.start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
-              return `${i + 1}. ${e.title} — ${date} — ${status}`;
+              const date = e.start ? new Date(e.start as string).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+              const spaceName = (e.space as Record<string, unknown>)?.title || '';
+              const spaceLabel = spaceName ? ` — ${spaceName}` : '';
+              return `${i + 1}. ${e.title}${spaceLabel} — ${date} — ${status}`;
             });
             addSystemMessage(lines.join('\n'));
           }
@@ -585,6 +587,85 @@ export function App({
           });
           addSystemMessage(`Last ${recentMessages.length} messages:\n${lines.join('\n')}`);
         }
+        return;
+      }
+      if (slashResult.action === 'export') {
+        const parts = (slashResult.args || '').split(/\s+/);
+        const exportType = parts[0];
+        const exportId = parts[1];
+
+        if (!exportType || !exportId) {
+          addSystemMessage('Usage:\n  /export guests <event_id> — Export guest list as CSV\n  /export apps <event_id> — Export applications as CSV');
+          return;
+        }
+
+        if (exportType === 'guests') {
+          addSystemMessage('Exporting guests...');
+          try {
+            const tool = registry['event_export_guests'];
+            const result = await tool.execute({ event_id: exportId }) as { count: number; tickets: Array<Record<string, unknown>> };
+            if (!result?.tickets?.length) {
+              addSystemMessage('No guest data found.');
+              return;
+            }
+            // Build CSV
+            const headers = ['Name', 'Email', 'Ticket Type', 'Amount', 'Currency', 'Purchase Date', 'Check-in Date', 'Active'];
+            const rows = result.tickets.map((t: Record<string, unknown>) => [
+              t.buyer_name || '',
+              t.buyer_email || '',
+              t.ticket_type || '',
+              t.payment_amount || '',
+              t.currency || '',
+              t.purchase_date || '',
+              t.checkin_date || '',
+              t.active !== false ? 'Yes' : 'No',
+            ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+            const csv = [headers.join(','), ...rows].join('\n');
+            const filename = `guests-${exportId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.csv`;
+            const { writeFileSync } = await import('fs');
+            writeFileSync(filename, csv);
+            addSystemMessage(`Exported ${result.count} guests to ${filename}`);
+          } catch (err) {
+            addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
+          return;
+        }
+
+        if (exportType === 'apps' || exportType === 'applications') {
+          addSystemMessage('Exporting applications...');
+          try {
+            const tool = registry['event_application_export'];
+            const result = await tool.execute({ event_id: exportId }) as { applications: Array<Record<string, unknown>>; count: number };
+            if (!result?.applications?.length) {
+              addSystemMessage('No application data found.');
+              return;
+            }
+            // Build CSV
+            const firstApp = result.applications[0] as Record<string, unknown>;
+            const questions = (firstApp.questions as string[]) || [];
+            const headers = ['Name', 'Email', ...questions];
+            const rows = result.applications.map((app: Record<string, unknown>) => {
+              const user = (app.user || app.non_login_user) as Record<string, unknown> | undefined;
+              const answers = (app.answers as Array<Record<string, unknown>>) || [];
+              const answerValues = answers.map(a => String(a.answer || ''));
+              return [
+                user?.name || '',
+                user?.email || '',
+                ...answerValues,
+              ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+            });
+            const csv = [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','), ...rows].join('\n');
+            const filename = `applications-${exportId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.csv`;
+            const { writeFileSync } = await import('fs');
+            writeFileSync(filename, csv);
+            addSystemMessage(`Exported ${result.count} applications to ${filename}`);
+          } catch (err) {
+            addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
+          return;
+        }
+
+        addSystemMessage(`Unknown export type: ${exportType}. Use "guests" or "apps".`);
         return;
       }
       if (slashResult.output) {

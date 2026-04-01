@@ -1,7 +1,7 @@
 export interface SlashCommandResult {
   handled: boolean;
   output?: string;
-  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history';
+  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history' | 'export';
   args?: string;
 }
 
@@ -23,6 +23,7 @@ export const SLASH_COMMANDS = [
   { name: '/spaces', description: 'List or switch spaces' },
   { name: '/credits', description: 'Check credits balance' },
   { name: '/history', description: 'Show recent conversation' },
+  { name: '/export', description: 'Export data as CSV file' },
 ] as const;
 
 const HELP_TABLE = `
@@ -47,6 +48,8 @@ Commands:
   /spaces <name>     Switch to space by name
   /credits           Check credits balance
   /history [n]       Show last n conversation turns (default 10)
+  /export guests <event_id>   Export guest list as CSV
+  /export apps <event_id>     Export applications as CSV
   /exit, /quit       Exit the app
 
 Keyboard shortcuts:
@@ -132,6 +135,9 @@ export function parseSlashCommand(input: string): SlashCommandResult {
       return { handled: true, action: 'credits' };
     case '/history':
       return { handled: true, action: 'history', args: rest || undefined };
+
+    case '/export':
+      return { handled: true, action: 'export', args: rest || undefined };
 
     case '/exit':
     case '/quit':
