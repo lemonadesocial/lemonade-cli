@@ -224,6 +224,7 @@ export function App({
   const { planState, completePlan, cancelPlan, startManualPlan } = usePlanMode(engine);
 
   const [inputValue, setInputValue] = useState('');
+  const [previousLines, setPreviousLines] = useState<string[]>([]);
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
@@ -281,6 +282,7 @@ export function App({
     const input = value.trim();
     if (!input) return;
     setInputValue('');
+    setPreviousLines([]);
 
     // Exit commands (always allowed)
     if (['exit', 'quit', 'bye'].includes(input.toLowerCase())) {
@@ -496,12 +498,15 @@ export function App({
     // Enter key handling (submit or multiline)
     if (key.return) {
       if (key.shift) {
-        // Shift+Enter: insert newline (requires Kitty keyboard protocol)
-        setInputValue((prev) => prev + '\n');
+        // Shift+Enter: move current line to previous lines, reset input
+        setPreviousLines((prev) => [...prev, inputValue]);
+        setInputValue('');
         return;
       }
-      // Plain Enter: submit
-      onSubmit(inputValue);
+      // Plain Enter: join all lines and submit
+      const fullText = [...previousLines, inputValue].join('\n');
+      setPreviousLines([]);
+      onSubmit(fullText);
       return;
     }
 
@@ -513,9 +518,10 @@ export function App({
       return;
     }
 
-    // Ctrl+U: clear input line
+    // Ctrl+U: clear input line (and all previous lines)
     if (key.ctrl && input === 'u') {
       setInputValue('');
+      setPreviousLines([]);
       return;
     }
 
@@ -536,6 +542,7 @@ export function App({
         addSystemMessage('(btw cancelled)');
       } else {
         setInputValue('');
+        setPreviousLines([]);
       }
       return;
     }
@@ -658,15 +665,21 @@ export function App({
             borderColor="#FDE047"
             paddingLeft={1}
             paddingRight={1}
+            flexDirection="column"
           >
-            <Text color="#FDE047">{'> '}</Text>
-            <TextInput
-              value={inputValue}
-              onChange={setInputValue}
-              focus={!pendingConfirm && !planState.active}
-              showCursor={true}
-              placeholder={isStreaming ? '' : 'Ask anything... (Shift+Enter for newline)'}
-            />
+            {previousLines.map((line, i) => (
+              <Text key={i} dimColor>{'  '}{line}</Text>
+            ))}
+            <Box>
+              <Text color="#FDE047">{'> '}</Text>
+              <TextInput
+                value={inputValue}
+                onChange={setInputValue}
+                focus={!pendingConfirm && !planState.active}
+                showCursor={true}
+                placeholder={isStreaming ? '' : 'Ask anything... (Shift+Enter for newline)'}
+              />
+            </Box>
           </Box>
 
           {/* Toolbar - flows after input */}
