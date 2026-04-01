@@ -25,6 +25,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetMe.user;
     },
+    formatResult: (result) => {
+      const r = result as { _id: string; name: string; email: string };
+      return `Logged in as ${r.name} (${r.email})`;
+    },
   });
 
   // --- Event ---
@@ -67,6 +71,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         },
       );
       return result.aiCreateEvent;
+    },
+    formatResult: (result) => {
+      const r = result as { _id: string; title: string; published: boolean };
+      return `Event created: "${r.title}" (${r.published ? 'published' : 'draft'}). Add tickets with /plan tickets_create_type.`;
     },
   });
 
@@ -190,6 +198,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiUpdateEvent;
     },
+    formatResult: (result) => {
+      const r = result as { _id: string; title: string };
+      return `"${r.title}" updated.`;
+    },
   });
 
   register({
@@ -208,6 +220,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         { id: args.event_id },
       );
       return result.aiPublishEvent;
+    },
+    formatResult: (result) => {
+      const r = result as { _id: string; title: string };
+      return `"${r.title}" is now published and live.`;
     },
   });
 
@@ -291,6 +307,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         { event: args.event_id },
       );
       return result.aiGetEventGuestStats;
+    },
+    formatResult: (result) => {
+      const r = result as { going: number; pending: number; declined: number; checked_in: number };
+      return `Guests: ${r.going} going, ${r.pending} pending, ${r.declined} declined, ${r.checked_in} checked in.`;
     },
   });
 
@@ -389,6 +409,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetEventFeedbackSummary;
     },
+    formatResult: (result) => {
+      const r = result as { average_rating: number; total_reviews: number };
+      return `Feedback: ${r.average_rating}/5 average from ${r.total_reviews} reviews.`;
+    },
   });
 
   register({
@@ -465,6 +489,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         { event: args.event_id },
       );
       return result.aiGetEventPaymentStats;
+    },
+    formatResult: (result) => {
+      const r = result as { total_revenue: number; currency: string; payment_count: number };
+      return `Revenue: ${r.currency} ${r.total_revenue} from ${r.payment_count} payments.`;
     },
   });
 
@@ -710,6 +738,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiCalculateTicketPrice;
     },
+    formatResult: (result) => {
+      const r = result as { subtotal: number; discount_amount: number; total: number; currency: string };
+      if (r.discount_amount > 0) return `Price: ${r.currency} ${r.total} (${r.currency} ${r.subtotal} - ${r.currency} ${r.discount_amount} discount).`;
+      return `Price: ${r.currency} ${r.total}`;
+    },
   });
 
   register({
@@ -842,6 +875,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       }
       return { _id: match._id, title: match.title, slug: match.slug };
     },
+    formatResult: (result) => {
+      const r = result as { _id: string; title: string };
+      return `Switched to ${r.title}.`;
+    },
   });
 
   register({
@@ -890,6 +927,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         { space: args.space_id },
       );
       return result.aiGetSpaceStats;
+    },
+    formatResult: (result) => {
+      const r = result as { total_members: number; total_events: number; total_attendees: number; average_rating: number };
+      return `Space: ${r.total_members} members, ${r.total_events} events, ${r.total_attendees} attendees, ${r.average_rating}/5 rating.`;
     },
   });
 
@@ -1027,6 +1068,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         connected: !!account?.connected,
         account_id: account?.account_id || null,
       };
+    },
+    formatResult: (result) => {
+      const r = result as { connected: boolean; account_id?: string };
+      if (r.connected) return `Stripe is connected (${r.account_id}).`;
+      return 'Stripe is not connected. Use /plan space_stripe_connect to set up.';
     },
   });
 
@@ -1403,6 +1449,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiGetBackendVersion;
     },
+    formatResult: (result) => {
+      const r = result as { version: string };
+      return `Backend version: ${r.version}`;
+    },
   });
 
   register({
@@ -1430,6 +1480,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       } catch {
         return { current: VERSION, latest: 'unknown', up_to_date: 'unknown', error: 'Could not check npm registry' };
       }
+    },
+    formatResult: (result) => {
+      const r = result as { current: string; latest: string; up_to_date: boolean };
+      if (r.up_to_date) return `You're on the latest CLI version (v${r.current}).`;
+      return `Update available: v${r.current} \u2192 v${r.latest}. Run /version to install.`;
     },
   });
 
