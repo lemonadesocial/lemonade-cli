@@ -15,6 +15,8 @@ import { truncateResult } from './ToolCall.js';
 import { LEMON, SUGGESTED_PROMPTS } from './WelcomeBanner.js';
 import { VERSION } from '../version.js';
 import { useChatEngine, UIMessage, ToolStatus } from './hooks/useChatEngine.js';
+import { usePlanMode } from './hooks/usePlanMode.js';
+import { PlanWizard } from './PlanWizard.js';
 
 const SPINNER_FRAMES = ['\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'];
 
@@ -217,6 +219,8 @@ export function App({
     confirmAction,
   } = useChatEngine(engine);
 
+  const { planState, completePlan, cancelPlan, startManualPlan } = usePlanMode(engine);
+
   const [inputValue, setInputValue] = useState('');
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
@@ -320,6 +324,30 @@ export function App({
         }
         return;
       }
+      if (slashResult.action === 'plan') {
+        if (slashResult.args) {
+          const tool = registry[slashResult.args];
+          if (tool) {
+            addSystemMessage(`Starting guided mode for ${tool.displayName}...`);
+            startManualPlan(tool);
+          } else {
+            // Try to find by displayName
+            const match = Object.values(registry).find(
+              (t) => t.displayName.toLowerCase() === slashResult.args!.toLowerCase() ||
+                     t.name.toLowerCase() === slashResult.args!.toLowerCase(),
+            );
+            if (match) {
+              addSystemMessage(`Starting guided mode for ${match.displayName}...`);
+              startManualPlan(match);
+            } else {
+              addSystemMessage(`Unknown tool: ${slashResult.args}. Use a tool name like "event_create".`);
+            }
+          }
+        } else {
+          addSystemMessage('Usage: /plan <tool_name>\nExample: /plan event_create');
+        }
+        return;
+      }
       if (slashResult.output) {
         addSystemMessage(slashResult.output);
         return;
@@ -371,7 +399,10 @@ export function App({
     }
 
     if (key.escape) {
-      if (streamAbortRef.current) {
+      if (planState.active) {
+        cancelPlan();
+        addSystemMessage('(plan cancelled)');
+      } else if (streamAbortRef.current) {
         streamAbortRef.current.abort();
         streamAbortRef.current = null;
         setShowThinking(false);
@@ -485,58 +516,75 @@ export function App({
         </Box>
       ) : null}
 
-      {/* Input field - flows after messages */}
-      <Box
-        marginTop={2}
-        borderStyle="round"
-        borderColor="#FDE047"
-        paddingLeft={1}
-        paddingRight={1}
-      >
-        <Text color="#FDE047">{'> '}</Text>
-        <TextInput
-          value={inputValue}
-          onChange={setInputValue}
-          onSubmit={onSubmit}
-          focus={!pendingConfirm}
-          showCursor={true}
-          placeholder={isStreaming ? '' : 'Ask anything...'}
-        />
-      </Box>
-
-      {/* Toolbar - flows after input */}
-      {showAutocomplete ? (
-        <Box flexDirection="column" paddingLeft={1}>
-          {filteredCommands.length > 0 ? (
-            filteredCommands
-              .slice(acScrollOffset, acScrollOffset + AC_MAX_VISIBLE)
-              .map((cmd, i) => {
-                const realIndex = i + acScrollOffset;
-                const isHighlighted = realIndex === acIndex;
-                return (
-                  <Box key={cmd.name} justifyContent="space-between">
-                    <Text inverse={isHighlighted}>
-                      {isHighlighted ? '> ' : '  '}{cmd.name}
-                    </Text>
-                    <Text dimColor inverse={isHighlighted}>{cmd.description}</Text>
-                  </Box>
-                );
-              })
-          ) : (
-            <Text dimColor>No matching commands</Text>
-          )}
+      {/* Input area OR Plan Wizard */}
+      {planState.active ? (
+        <Box marginTop={2}>
+          <PlanWizard
+            toolDisplayName={planState.toolDisplayName}
+            steps={planState.steps}
+            onComplete={completePlan}
+            onCancel={() => {
+              cancelPlan();
+              addSystemMessage('(plan cancelled)');
+            }}
+          />
         </Box>
       ) : (
-        <Box flexDirection="column" paddingLeft={1}>
-          <Box justifyContent="space-between">
-            <Text dimColor>Space: {spaceLabel}</Text>
-            <Text dimColor>{displayOpts.modelName}</Text>
+        <>
+          {/* Input field - flows after messages */}
+          <Box
+            marginTop={2}
+            borderStyle="round"
+            borderColor="#FDE047"
+            paddingLeft={1}
+            paddingRight={1}
+          >
+            <Text color="#FDE047">{'> '}</Text>
+            <TextInput
+              value={inputValue}
+              onChange={setInputValue}
+              onSubmit={onSubmit}
+              focus={!pendingConfirm && !planState.active}
+              showCursor={true}
+              placeholder={isStreaming ? '' : 'Ask anything...'}
+            />
           </Box>
-          <Box justifyContent="space-between">
-            <Text>{''}</Text>
-            <Text dimColor>Tip: {tip}</Text>
-          </Box>
-        </Box>
+
+          {/* Toolbar - flows after input */}
+          {showAutocomplete ? (
+            <Box flexDirection="column" paddingLeft={1}>
+              {filteredCommands.length > 0 ? (
+                filteredCommands
+                  .slice(acScrollOffset, acScrollOffset + AC_MAX_VISIBLE)
+                  .map((cmd, i) => {
+                    const realIndex = i + acScrollOffset;
+                    const isHighlighted = realIndex === acIndex;
+                    return (
+                      <Box key={cmd.name} justifyContent="space-between">
+                        <Text inverse={isHighlighted}>
+                          {isHighlighted ? '> ' : '  '}{cmd.name}
+                        </Text>
+                        <Text dimColor inverse={isHighlighted}>{cmd.description}</Text>
+                      </Box>
+                    );
+                  })
+              ) : (
+                <Text dimColor>No matching commands</Text>
+              )}
+            </Box>
+          ) : (
+            <Box flexDirection="column" paddingLeft={1}>
+              <Box justifyContent="space-between">
+                <Text dimColor>Space: {spaceLabel}</Text>
+                <Text dimColor>{displayOpts.modelName}</Text>
+              </Box>
+              <Box justifyContent="space-between">
+                <Text>{''}</Text>
+                <Text dimColor>Tip: {tip}</Text>
+              </Box>
+            </Box>
+          )}
+        </>
       )}
     </Box>
   );
