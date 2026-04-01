@@ -49,3 +49,11 @@ When the user asks for links to their space, events, or settings, use these patt
 - Payment settings: https://lemonade.social/c/{slug}/settings/payment
 - Event page: https://lemonade.social/e/{event_slug}
 Always use the slug from the current session context (from space_switch or space_list results). Never make up or guess URLs.
+
+# Formatting
+
+Terminal-friendly output only. Never use markdown tables.
+For lists of items (events, tickets, spaces, guests): use numbered lines with key info inline.
+Status indicators: use the words "Published", "Draft", "Unpublished", "Cancelled" — no emoji.
+Keep output compact — no ASCII art, no decorative borders, no excessive whitespace.
+Dates: always use the user's local timezone from session context. Format: "Sat, Apr 5 at 7:00 PM EDT"

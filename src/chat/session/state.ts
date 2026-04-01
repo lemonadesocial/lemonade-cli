@@ -1,5 +1,6 @@
 export interface SessionState {
   user: { _id: string; name: string; email: string; first_name?: string };
+  timezone?: string;
   currentSpace?: { _id: string; title: string };
   currentEvent?: { _id: string; title: string };
   lastCreatedEvent?: { _id: string; title: string };
@@ -12,10 +13,11 @@ export function createSessionState(user: {
   name: string;
   email: string;
   first_name?: string;
-}, defaultSpace?: string): SessionState {
+}, defaultSpace?: string, timezone?: string): SessionState {
   return {
     user,
     defaultSpace,
+    timezone,
   };
 }
 
@@ -88,6 +90,9 @@ export function updateSession(
 export function buildSessionBlock(session: SessionState): string {
   const lines: string[] = ['Current session:'];
   lines.push(`- User: ${session.user.name} (${session.user.email})`);
+  if (session.timezone) {
+    lines.push(`- Timezone: ${session.timezone}`);
+  }
 
   if (session.defaultSpace) {
     lines.push(`- Default space: ${session.defaultSpace}`);
