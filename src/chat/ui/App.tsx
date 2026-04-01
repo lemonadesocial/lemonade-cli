@@ -454,6 +454,105 @@ export function App({
         }
         return;
       }
+      if (slashResult.action === 'status') {
+        const lines: string[] = [
+          `Model: ${displayOpts.modelName}`,
+          `Provider: ${displayOpts.providerName}`,
+          `Mode: ${getAiModeDisplay()}`,
+          `Space: ${spaceName}`,
+        ];
+        if (session.currentEvent) {
+          lines.push(`Event: ${session.currentEvent.title} (${session.currentEvent._id})`);
+        }
+        if (session.timezone) {
+          lines.push(`Timezone: ${session.timezone}`);
+        }
+        lines.push(`Agent: ${getAgentName()}`);
+        lines.push(`CLI: v${VERSION}`);
+        addSystemMessage(lines.join('\n'));
+        return;
+      }
+      if (slashResult.action === 'events') {
+        addSystemMessage('Fetching events...');
+        try {
+          const tool = registry['event_list'];
+          const args: Record<string, unknown> = {};
+          if (slashResult.args) {
+            if (slashResult.args === '--draft' || slashResult.args === 'draft') {
+              args.draft = true;
+            } else {
+              args.search = slashResult.args;
+            }
+          }
+          const result = await tool.execute(args) as { items?: Array<{ _id: string; title: string; start?: string; published?: boolean }> };
+          if (!result?.items?.length) {
+            addSystemMessage('No events found.');
+          } else {
+            const lines = result.items.map((e, i) => {
+              const status = e.published ? 'Published' : 'Draft';
+              const date = e.start ? new Date(e.start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+              return `${i + 1}. ${e.title} — ${date} — ${status}`;
+            });
+            addSystemMessage(lines.join('\n'));
+          }
+        } catch (err) {
+          addSystemMessage(`Failed to fetch events: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+        return;
+      }
+      if (slashResult.action === 'spaces') {
+        addSystemMessage('Fetching spaces...');
+        try {
+          const tool = registry['space_list'];
+          const result = await tool.execute({}) as { items?: Array<{ _id: string; title: string; slug?: string }> };
+          if (!result?.items?.length) {
+            addSystemMessage('No spaces found.');
+          } else {
+            const lines = result.items.map((s, i) => {
+              const current = session.currentSpace?._id === s._id ? ' (current)' : '';
+              return `${i + 1}. ${s.title}${current}`;
+            });
+            addSystemMessage(lines.join('\n'));
+          }
+        } catch (err) {
+          addSystemMessage(`Failed to fetch spaces: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+        return;
+      }
+      if (slashResult.action === 'credits') {
+        try {
+          const tool = registry['credits_balance'];
+          if (!tool) {
+            addSystemMessage('Credits tool not available. Check your AI mode with /mode.');
+            return;
+          }
+          const result = await tool.execute({}) as Record<string, unknown>;
+          const lines: string[] = [];
+          if (result.credits !== undefined) lines.push(`Credits: ${result.credits}`);
+          if (result.subscription_tier) lines.push(`Tier: ${result.subscription_tier}`);
+          if (result.subscription_renewal_date) lines.push(`Renews: ${result.subscription_renewal_date}`);
+          if (lines.length === 0) lines.push('No credits information available.');
+          addSystemMessage(lines.join('\n'));
+        } catch (err) {
+          addSystemMessage(`Failed to fetch credits: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+        return;
+      }
+      if (slashResult.action === 'history') {
+        const count = slashResult.args ? parseInt(slashResult.args, 10) : 10;
+        const recentMessages = messages.slice(-count);
+        if (recentMessages.length === 0) {
+          addSystemMessage('No conversation history yet.');
+        } else {
+          const lines = recentMessages.map((msg) => {
+            const role = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Zesty' : 'System';
+            const content = msg.content.length > 100 ? msg.content.slice(0, 100) + '...' : msg.content;
+            return `[${role}] ${content}`;
+          });
+          addSystemMessage(`Last ${recentMessages.length} messages:\n${lines.join('\n')}`);
+        }
+        return;
+      }
       if (slashResult.output) {
         addSystemMessage(slashResult.output);
         return;
