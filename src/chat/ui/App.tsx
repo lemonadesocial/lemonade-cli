@@ -227,6 +227,7 @@ export function App({
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
   const streamAbortRef = useRef<AbortController | null>(null);
+  const turnInProgressRef = useRef(false);
 
   // Autocomplete state
   const [acIndex, setAcIndex] = useState(0);
@@ -278,6 +279,12 @@ export function App({
     const input = value.trim();
     if (!input) return;
     setInputValue('');
+
+    // Prevent concurrent turns
+    if (turnInProgressRef.current) {
+      addSystemMessage('Please wait for the current response to finish, or press Escape to cancel.');
+      return;
+    }
 
     // Exit commands
     if (['exit', 'quit', 'bye'].includes(input.toLowerCase())) {
@@ -375,6 +382,7 @@ export function App({
     const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
     const abort = new AbortController();
     streamAbortRef.current = abort;
+    turnInProgressRef.current = true;
 
     try {
       await handleTurn(
@@ -397,17 +405,18 @@ export function App({
         addSystemMessage(`Error: ${msg}`);
       }
     }
+    turnInProgressRef.current = false;
     streamAbortRef.current = null;
     setShowThinking(false);
   }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit]);
 
   // Keyboard handling
   useInput((input, key) => {
-    // Enter key handling (submit or newline)
+    // Enter key handling (submit or multiline continuation)
     if (key.return) {
-      if (key.shift) {
-        // Shift+Enter: insert newline
-        setInputValue((prev) => prev + '\n');
+      if (inputValue.endsWith('\\')) {
+        // Backslash at end: continue on next line (multiline)
+        setInputValue((prev) => prev.slice(0, -1) + '\n');
         return;
       }
       // Plain Enter: submit
@@ -555,7 +564,7 @@ export function App({
               onChange={setInputValue}
               focus={!pendingConfirm && !planState.active}
               showCursor={true}
-              placeholder={isStreaming ? '' : 'Ask anything...'}
+              placeholder={isStreaming ? '' : 'Ask anything... (end with \\ for newline)'}
             />
           </Box>
 
