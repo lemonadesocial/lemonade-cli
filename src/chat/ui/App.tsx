@@ -138,6 +138,7 @@ function MessageView({ msg }: { msg: UIMessage }): React.JSX.Element {
   // assistant
   return (
     <Box flexDirection="column">
+      {msg.turnId?.startsWith('btw-') ? <Text color="#67E8F9">{'btw \u2192 '}</Text> : null}
       {msg.content ? <MarkdownRenderer text={msg.content} /> : null}
       {msg.tools?.map((tool) => (
         <Box key={tool.id} marginLeft={1}>
@@ -228,6 +229,7 @@ export function App({
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
   const streamAbortRef = useRef<AbortController | null>(null);
   const turnInProgressRef = useRef(false);
+  const btwAbortsRef = useRef<Map<string, AbortController>>(new Map());
 
   // Autocomplete state
   const [acIndex, setAcIndex] = useState(0);
@@ -280,19 +282,13 @@ export function App({
     if (!input) return;
     setInputValue('');
 
-    // Prevent concurrent turns
-    if (turnInProgressRef.current) {
-      addSystemMessage('Please wait for the current response to finish, or press Escape to cancel.');
-      return;
-    }
-
-    // Exit commands
+    // Exit commands (always allowed)
     if (['exit', 'quit', 'bye'].includes(input.toLowerCase())) {
       exit();
       return;
     }
 
-    // Help shortcut
+    // Help shortcut (always allowed)
     if (input.toLowerCase() === 'help') {
       addSystemMessage(
         'Tips:\n' +
@@ -305,9 +301,51 @@ export function App({
       return;
     }
 
-    // Slash commands
+    // Slash commands - parse first, some allowed during active turn
     const slashResult = parseSlashCommand(input);
     if (slashResult.handled) {
+      // /btw - ALWAYS allowed, even during active turn
+      if (slashResult.action === 'btw') {
+        const btwInput = slashResult.args;
+        if (!btwInput) {
+          addSystemMessage('Usage: /btw <message>');
+          return;
+        }
+
+        // Show btw user message in chat
+        addUserMessage(`btw: ${btwInput}`);
+
+        // Clone message history for isolation
+        const snapshot: Message[] = JSON.parse(JSON.stringify(chatMessages));
+        snapshot.push({ role: 'user', content: btwInput });
+
+        // Clone session for isolation
+        const btwSession = { ...session };
+
+        const btwTurnId = `btw-${Date.now()}`;
+        const btwSystemPrompt: SystemMessage[] = buildSystemMessages(btwSession, provider.name);
+        btwSystemPrompt.push({
+          type: 'text',
+          text: 'BTW SIDE REQUEST: Keep response to 1-2 sentences MAX. Answer the specific question only. Do not reference or modify the main task in progress. No follow-up questions. Execute at most one tool call. No personality flair.',
+        });
+
+        const btwAbort = new AbortController();
+        btwAbortsRef.current.set(btwTurnId, btwAbort);
+
+        // Fire and forget - runs in parallel
+        handleTurn(
+          provider, snapshot, formattedTools, btwSystemPrompt,
+          btwSession, registry, null, true, engine, btwAbort.signal, btwTurnId,
+        ).catch((err) => {
+          addSystemMessage(`btw error: ${err instanceof Error ? err.message : 'Unknown'}`);
+        }).finally(() => {
+          btwAbortsRef.current.delete(btwTurnId);
+        });
+
+        return;
+      }
+
+      // All other slash commands require no active turn (except already handled above)
       if (slashResult.action === 'clear') {
         chatMessages.length = 0;
         clearMessages();
@@ -374,6 +412,12 @@ export function App({
       return;
     }
 
+    // Regular messages: block during active turn
+    if (turnInProgressRef.current) {
+      addSystemMessage('Please wait for the current response to finish, or press Escape to cancel. Use /btw for side questions.');
+      return;
+    }
+
     // Regular message: send to AI
     addUserMessage(input);
     setShowThinking(true);
@@ -433,6 +477,12 @@ export function App({
         streamAbortRef.current = null;
         setShowThinking(false);
         addSystemMessage('(cancelled)');
+      } else if (btwAbortsRef.current.size > 0) {
+        for (const [, controller] of btwAbortsRef.current) {
+          controller.abort();
+        }
+        btwAbortsRef.current.clear();
+        addSystemMessage('(btw cancelled)');
       } else {
         setInputValue('');
       }
