@@ -63,7 +63,6 @@ export function tempoLogin(onOutput: (line: string) => void): Promise<{ success:
     let allOutput = '';
     const child = spawnChild(bin, ['wallet', 'login'], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 120000,
     });
 
     child.stdout?.on('data', (data: Buffer) => {
@@ -93,11 +92,11 @@ export function tempoLogin(onOutput: (line: string) => void): Promise<{ success:
       resolve({ success: false, output: err.message });
     });
 
-    // 2 minute timeout
+    // 5 minute timeout — multi-step auth may need more time
     setTimeout(() => {
       child.kill();
-      resolve({ success: false, output: 'Login timed out (2 minutes).' });
-    }, 120000);
+      resolve({ success: false, output: 'Login timed out (5 minutes). Try /tempo login again.' });
+    }, 300000);
   });
 }
 
