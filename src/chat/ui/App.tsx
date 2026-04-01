@@ -945,43 +945,19 @@ export function App({
 
         if (subcommand === 'login') {
           addSystemMessage('Opening browser for Tempo wallet login...');
+          addSystemMessage('Follow the instructions below. The login may require multiple steps.');
+          addSystemMessage('');
           try {
             const { tempoLogin, getWalletInfo } = await import('../tempo/index.js');
 
-            // Fire and forget — tempoLogin spawns the process and streams output
-            // Don't await it — start polling immediately after the auth URL is shown
-            let authUrlShown = false;
-            tempoLogin((line) => {
+            // Await the full login process — it's multi-step and must stay alive
+            // The process streams output (auth URL, verification code, second auth link)
+            // 5 minute timeout for the full multi-step flow
+            const result = await tempoLogin((line) => {
               addSystemMessage(line);
-              if (line.includes('Auth URL:') || line.includes('wallet.tempo.xyz') || line.includes('Verification code')) {
-                authUrlShown = true;
-              }
-            }).catch(() => {
-              // Login process exited — polling handles the result
             });
 
-            // Wait briefly for the auth URL and verification code to be printed
-            await new Promise(r => setTimeout(r, 3000));
-            if (!authUrlShown) {
-              await new Promise(r => setTimeout(r, 3000));
-            }
-
-            addSystemMessage('Complete these steps in your browser:');
-            addSystemMessage('  1. Open the auth URL above');
-            addSystemMessage('  2. Verify the code matches what is shown here');
-            addSystemMessage('  3. Tap "Continue" to authorize this device');
-            addSystemMessage('  4. Complete passkey verification if prompted');
-            addSystemMessage('');
-            addSystemMessage('Waiting for browser authentication... (up to 2 minutes)');
-
-            // Poll for wallet connection in parallel with the login process
-            const POLL_TIMEOUT = 120_000;
-            const POLL_INTERVAL = 3_000;
-            const startTime = Date.now();
-            let connected = false;
-
-            while (Date.now() - startTime < POLL_TIMEOUT) {
-              await new Promise(r => setTimeout(r, POLL_INTERVAL));
+            if (result.success) {
               const info = getWalletInfo();
               if (info.loggedIn && info.address) {
                 addSystemMessage(`Tempo wallet connected: ${info.address}`);
@@ -994,13 +970,18 @@ export function App({
                 } catch {
                   addSystemMessage('Note: Could not auto-link wallet to Lemonade. Update manually in settings.');
                 }
-                connected = true;
-                break;
+              } else {
+                addSystemMessage('Login process completed. Check /tempo status.');
               }
-            }
-
-            if (!connected) {
-              addSystemMessage('Login timed out. Complete the auth in your browser, then try /tempo status.');
+            } else {
+              // Process exited but may have succeeded — check wallet
+              const info = getWalletInfo();
+              if (info.loggedIn && info.address) {
+                addSystemMessage(`Tempo wallet connected: ${info.address}`);
+              } else {
+                addSystemMessage('Login did not complete. Try again with /tempo login.');
+                if (result.output) addSystemMessage(result.output);
+              }
             }
           } catch (err) {
             addSystemMessage(`Login failed: ${err instanceof Error ? err.message : 'Unknown'}`);
