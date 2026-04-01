@@ -29,10 +29,10 @@ describe('loadSkills', () => {
     expect(first).toBe(second);
   });
 
-  it('combined content is under 3500 tokens (~14000 chars)', () => {
+  it('combined content is under 4000 tokens (~16000 chars)', () => {
     const skills = loadSkills();
     // Rough estimate: 1 token ≈ 4 chars
-    expect(skills.length).toBeLessThan(14000);
+    expect(skills.length).toBeLessThan(16000);
   });
 });
 

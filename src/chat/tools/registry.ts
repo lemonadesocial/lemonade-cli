@@ -1075,6 +1075,225 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
+  register({
+    name: 'space_delete',
+    displayName: 'space delete',
+    description: 'Delete a space permanently. This cannot be undone.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID to delete', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ deleteSpace: boolean }>(
+        `mutation($_id: String!) {
+          deleteSpace(_id: $_id)
+        }`,
+        { _id: args.space_id },
+      );
+      return { deleted: result.deleteSpace };
+    },
+    formatResult: (result) => {
+      const r = result as { deleted: boolean };
+      return r.deleted ? 'Space deleted permanently.' : 'Failed to delete space.';
+    },
+  });
+
+  register({
+    name: 'space_deep_stats',
+    displayName: 'space deep analytics',
+    description: 'Get detailed community statistics including admins, ambassadors, subscribers, events, attendees, and ratings.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getSpaceStatistics: unknown }>(
+        `query($space: String!) {
+          getSpaceStatistics(space: $space) {
+            admins ambassadors subscribers
+            created_events submitted_events event_attendees
+            avg_event_rating
+          }
+        }`,
+        { space: args.space_id },
+      );
+      return result.getSpaceStatistics;
+    },
+    formatResult: (result) => {
+      const r = result as { admins: number; ambassadors: number; subscribers: number; created_events: number; submitted_events: number; event_attendees: number; avg_event_rating?: number };
+      const rating = r.avg_event_rating ? `${r.avg_event_rating.toFixed(1)}/5 avg rating` : 'no ratings yet';
+      return `Community: ${r.admins} admins, ${r.ambassadors} ambassadors, ${r.subscribers} subscribers. ${r.created_events} events created, ${r.submitted_events} submitted, ${r.event_attendees} total attendees. ${rating}.`;
+    },
+  });
+
+  register({
+    name: 'space_top_hosts',
+    displayName: 'space top hosts',
+    description: 'Get leaderboard of top event hosts in a space.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '10' },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getTopSpaceHosts: unknown }>(
+        `query($space: String!, $limit: Float!) {
+          getTopSpaceHosts(space: $space, limit: $limit) {
+            user_expanded { _id name email }
+            space_member { _id role }
+            hosted_event_count
+          }
+        }`,
+        { space: args.space_id, limit: (args.limit as number) || 10 },
+      );
+      return result.getTopSpaceHosts;
+    },
+  });
+
+  register({
+    name: 'space_member_leaderboard',
+    displayName: 'space member leaderboard',
+    description: 'Get member activity leaderboard — attended events, hosted events, submitted events.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '10' },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+      { name: 'search', type: 'string', description: 'Search by name', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getSpaceMembersLeaderboard: unknown }>(
+        `query($space: String!, $limit: Float!, $skip: Float!, $search: String) {
+          getSpaceMembersLeaderboard(space: $space, limit: $limit, skip: $skip, search: $search) {
+            total
+            items { _id user_name email role attended_count hosted_event_count submitted_event_count }
+          }
+        }`,
+        {
+          space: args.space_id,
+          limit: (args.limit as number) || 10,
+          skip: (args.skip as number) || 0,
+          search: args.search as string | undefined,
+        },
+      );
+      return result.getSpaceMembersLeaderboard;
+    },
+  });
+
+  register({
+    name: 'space_events_insight',
+    displayName: 'space events insight',
+    description: 'Get events performance overview for a space — checkins, ticket sales, ratings.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '10' },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+      { name: 'search', type: 'string', description: 'Search events', required: false },
+      { name: 'event_tense', type: 'string', description: 'Filter by timing', required: false, enum: ['past', 'upcoming', 'live'] },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getSpaceEventsInsight: unknown }>(
+        `query($space: String!, $limit: Float!, $skip: Float!, $search: String, $eventTense: String) {
+          getSpaceEventsInsight(space: $space, limit: $limit, skip: $skip, search: $search, event_tense: $eventTense) {
+            total
+            items { _id title checkins tickets_count rating }
+          }
+        }`,
+        {
+          space: args.space_id,
+          limit: (args.limit as number) || 10,
+          skip: (args.skip as number) || 0,
+          search: args.search as string | undefined,
+          eventTense: args.event_tense as string | undefined,
+        },
+      );
+      return result.getSpaceEventsInsight;
+    },
+  });
+
+  register({
+    name: 'space_member_update',
+    displayName: 'space member update',
+    description: 'Update a space member role or visibility.',
+    params: [
+      { name: 'member_id', type: 'string', description: 'Space member ID', required: true },
+      { name: 'role', type: 'string', description: 'New role', required: false, enum: ['admin', 'ambassador', 'member'] },
+      { name: 'visible', type: 'boolean', description: 'Member visibility', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = { _id: args.member_id };
+      if (args.role) input.role = args.role;
+      if (args.visible !== undefined) input.visible = args.visible;
+      const result = await graphqlRequest<{ updateSpaceMember: unknown }>(
+        `mutation($input: UpdateSpaceMemberInput!) {
+          updateSpaceMember(input: $input) {
+            _id role visible state
+          }
+        }`,
+        { input },
+      );
+      return result.updateSpaceMember;
+    },
+    formatResult: (result) => {
+      const r = result as { _id: string; role: string } | null;
+      if (!r) return 'Member not found.';
+      return `Member updated: role=${r.role}.`;
+    },
+  });
+
+  register({
+    name: 'space_pin_event',
+    displayName: 'space pin event',
+    description: 'Pin/feature events on a space page.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'event_ids', type: 'string[]', description: 'Event IDs to pin', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ pinEventsToSpace: { requests?: Array<{ _id: string; event: string; state: string }> } }>(
+        `mutation($space: String!, $events: [String!]!) {
+          pinEventsToSpace(space: $space, events: $events) {
+            requests { _id event state }
+          }
+        }`,
+        { space: args.space_id, events: args.event_ids },
+      );
+      return result.pinEventsToSpace;
+    },
+    formatResult: (result) => {
+      const r = result as { requests?: Array<{ state: string }> };
+      const count = r.requests?.length || 0;
+      return `${count} event(s) pinned to space.`;
+    },
+  });
+
+  register({
+    name: 'space_unpin_event',
+    displayName: 'space unpin event',
+    description: 'Unpin/unfeature events from a space page.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'event_ids', type: 'string[]', description: 'Event IDs to unpin', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ unpinEventsFromSpace: boolean }>(
+        `mutation($space: String!, $events: [String!]!) {
+          unpinEventsFromSpace(space: $space, events: $events)
+        }`,
+        { space: args.space_id, events: args.event_ids },
+      );
+      return { unpinned: result.unpinEventsFromSpace };
+    },
+    formatResult: (result) => {
+      const r = result as { unpinned: boolean };
+      return r.unpinned ? 'Events unpinned from space.' : 'Failed to unpin events.';
+    },
+  });
+
   // --- Rewards ---
 
   register({

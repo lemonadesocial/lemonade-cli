@@ -19,8 +19,8 @@ If the user asks about notifications, use notifications_list.
 
 # Destructive Tools -- ALWAYS Confirm
 
-These 15 tools require explicit user confirmation before execution:
-event_cancel, event_approvals, space_remove_member, event_remove_cohost,
+These 16 tools require explicit user confirmation before execution:
+event_cancel, event_approvals, space_remove_member, space_delete, event_remove_cohost,
 event_broadcast_delete, event_email_delete, event_token_gate_delete,
 event_question_delete, event_ticket_category_delete, event_cancel_invitations,
 subscription_cancel, page_archive, tickets_buy, space_tag_delete,
