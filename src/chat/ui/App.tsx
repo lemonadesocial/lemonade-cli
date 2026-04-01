@@ -222,6 +222,7 @@ export function App({
   const {
     messages,
     isStreaming,
+    isThinking,
     pendingConfirm,
     tokenCount,
     addUserMessage,
@@ -616,7 +617,7 @@ export function App({
 
   // Build visible messages
   const visibleMessages = messages;
-  const hasThinking = showThinking && (
+  const hasThinking = (showThinking || isThinking) && (
     messages.length === 0 ||
     messages[messages.length - 1]?.role !== 'assistant' ||
     messages[messages.length - 1]?.content === ''

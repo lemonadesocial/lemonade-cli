@@ -6,7 +6,8 @@ space_create (name, description, slug), space_update, space_list, space_switch (
 
 space_members -- list with roles. space_add_member -- roles: admin, host, member (default).
 space_remove_member -- destructive, cannot remove self.
-space_stats -- total_members, admin_count, host_count, total_events, total_attendees, average_rating.
+space_stats -- total_members, admins, ambassadors, subscribers, total_events, total_attendees, average_event_rating.
+If space_stats or space_members returns an error, the user may not have admin/host access to that space. Suggest they check their role or switch to a space they manage.
 
 # Tags
 

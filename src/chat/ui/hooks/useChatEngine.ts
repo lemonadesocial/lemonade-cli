@@ -24,6 +24,7 @@ export interface ConfirmRequest {
 export interface UseChatEngineResult {
   messages: UIMessage[];
   isStreaming: boolean;
+  isThinking: boolean;
   pendingConfirm: ConfirmRequest | null;
   tokenCount: number;
   addUserMessage: (text: string) => void;
@@ -35,6 +36,7 @@ export interface UseChatEngineResult {
 export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<ConfirmRequest | null>(null);
   const [tokenCount, setTokenCount] = useState(0);
 
@@ -43,8 +45,14 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   const activeTurns = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    const onThinkingStart = (data: { turnId?: string }) => {
+      const tid = data.turnId || 'main';
+      if (tid === 'main') setIsThinking(true);
+    };
+
     const onTextDelta = (data: { text: string; turnId?: string }) => {
       const tid = data.turnId || 'main';
+      if (tid === 'main') setIsThinking(false);
 
       if (!activeTurns.current.has(tid)) {
         activeTurns.current.add(tid);
@@ -114,6 +122,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
       turnMessageIndex.current.delete(tid);
       if (tid === 'main') {
         setIsStreaming(false);
+        setIsThinking(false);
       }
       setTokenCount(data.usage.input_tokens + data.usage.output_tokens);
     };
@@ -124,6 +133,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
       turnMessageIndex.current.delete(tid);
       if (tid === 'main') {
         setIsStreaming(false);
+        setIsThinking(false);
       }
       setMessages((prev) => [...prev, { role: 'system', content: `Error: ${data.message}`, turnId: tid === 'main' ? undefined : tid }]);
     };
@@ -132,6 +142,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
       setMessages((prev) => [...prev, { role: 'system', content: data.message }]);
     };
 
+    engine.on('thinking_start', onThinkingStart);
     engine.on('text_delta', onTextDelta);
     engine.on('tool_start', onToolStart);
     engine.on('tool_done', onToolDone);
@@ -141,6 +152,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     engine.on('warning', onWarning);
 
     return () => {
+      engine.off('thinking_start', onThinkingStart);
       engine.off('text_delta', onTextDelta);
       engine.off('tool_start', onToolStart);
       engine.off('tool_done', onToolDone);
@@ -174,6 +186,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   return {
     messages,
     isStreaming,
+    isThinking,
     pendingConfirm,
     tokenCount,
     addUserMessage,

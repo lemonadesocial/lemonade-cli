@@ -14,6 +14,7 @@ export interface ChatEngineEvents {
     missingParams: ToolParam[];
     turnId?: string;
   };
+  thinking_start: { turnId?: string };
   turn_done: { usage: { input_tokens: number; output_tokens: number }; turnId?: string };
   error: { message: string; fatal: boolean; turnId?: string };
   warning: { message: string; turnId?: string };
