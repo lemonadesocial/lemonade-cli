@@ -167,6 +167,26 @@ function WelcomeBannerView({ firstName, agentName, providerName, modelName }: {
   providerName: string;
   modelName: string;
 }): React.JSX.Element {
+  const [tempoHint, setTempoHint] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { isTempoInstalled, getWalletInfo } = await import('../tempo/index.js');
+        if (!isTempoInstalled()) {
+          setTempoHint('Tempo wallet: /tempo install for stablecoin payments');
+        } else {
+          const info = getWalletInfo();
+          if (!info.loggedIn) {
+            setTempoHint('Tempo wallet: /tempo login to connect');
+          }
+        }
+      } catch {
+        // Silent
+      }
+    })();
+  }, []);
+
   return (
     <Box flexDirection="column" paddingLeft={1}>
       {LEMON.map((line, i) => (
@@ -184,6 +204,7 @@ function WelcomeBannerView({ firstName, agentName, providerName, modelName }: {
       ))}
       <Text>{''}</Text>
       <Text dimColor>   Type /help for commands, Ctrl+D to quit</Text>
+      {tempoHint ? <Text dimColor>   {tempoHint}</Text> : null}
       <Text>{''}</Text>
       <Text dimColor>   Note: Tool results (including event and guest data) are sent to your AI provider.</Text>
     </Box>
@@ -266,25 +287,6 @@ export function App({
     engine.on('tool_done', onToolDone);
     return () => { engine.off('tool_done', onToolDone); };
   }, [engine]);
-
-  // One-time startup: check Tempo CLI and show hint
-  useEffect(() => {
-    (async () => {
-      try {
-        const { isTempoInstalled, getWalletInfo } = await import('../tempo/index.js');
-        if (!isTempoInstalled()) {
-          addSystemMessage('Tip: Install Tempo wallet for stablecoin payments — /tempo install');
-        } else {
-          const info = getWalletInfo();
-          if (!info.loggedIn) {
-            addSystemMessage('Tip: Connect your Tempo wallet — /tempo login');
-          }
-        }
-      } catch {
-        // Tempo check failed silently — no big deal
-      }
-    })();
-  }, []);
 
   // Reset autocomplete index when input changes
   useEffect(() => {
