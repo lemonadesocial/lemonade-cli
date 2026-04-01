@@ -85,13 +85,46 @@ export async function executeToolCalls(
 
     const validation = validateArgs(call.arguments, tool.params);
     if (!validation.valid) {
-      results.push({
-        type: 'tool_result',
-        tool_use_id: call.id,
-        content: JSON.stringify({ error: validation.errors.join(', ') }),
-        is_error: true,
-      });
-      continue;
+      // If in Ink UI mode, try plan mode for missing required params
+      const missingRequired = tool.params.filter(
+        (p) => p.required && !(p.name in call.arguments),
+      );
+      if (engine && isTTY && missingRequired.length > 0) {
+        const planResult = await engine.requestPlan(
+          call.id, tool, call.arguments, missingRequired,
+        );
+        if (planResult === null) {
+          // User cancelled plan mode
+          results.push({
+            type: 'tool_result',
+            tool_use_id: call.id,
+            content: JSON.stringify({ cancelled: true, reason: 'User cancelled plan mode' }),
+          });
+          engine.emit('tool_done', { id: call.id, name: tool.displayName, error: 'Plan cancelled' });
+          continue;
+        }
+        // Re-assign arguments with merged params and re-validate
+        call.arguments = planResult;
+        const revalidation = validateArgs(call.arguments, tool.params);
+        if (!revalidation.valid) {
+          results.push({
+            type: 'tool_result',
+            tool_use_id: call.id,
+            content: JSON.stringify({ error: revalidation.errors.join(', ') }),
+            is_error: true,
+          });
+          continue;
+        }
+        // Fall through to execution below
+      } else {
+        results.push({
+          type: 'tool_result',
+          tool_use_id: call.id,
+          content: JSON.stringify({ error: validation.errors.join(', ') }),
+          is_error: true,
+        });
+        continue;
+      }
     }
 
     if (tool.destructive && isTTY) {

@@ -26,6 +26,7 @@ Guidelines:
 - If a tool call fails, explain the error and suggest what to try next
 - When multiple tools are needed for a request, chain them in a single turn
 - Amounts for ticket prices should be in dollars (the system converts to cents)
+- When calling a tool, provide all parameters you can infer from the conversation. If required parameters are missing, the system will automatically collect them from the user via an interactive wizard. Do not ask the user for missing parameters in chat.
 
 ${resolvedSkills}`;
 
