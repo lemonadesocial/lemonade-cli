@@ -946,9 +946,8 @@ export function App({
         if (subcommand === 'login') {
           addSystemMessage('Opening browser for Tempo wallet login...');
           try {
-            const { execSync } = await import('child_process');
-            execSync('tempo wallet login', { stdio: 'inherit', timeout: 120000 });
-            const { getWalletInfo } = await import('../tempo/index.js');
+            const { tempoExec, getWalletInfo } = await import('../tempo/index.js');
+            tempoExec('wallet login');
             const info = getWalletInfo();
             if (info.address) {
               addSystemMessage(`Tempo wallet connected: ${info.address}`);
@@ -1014,9 +1013,9 @@ export function App({
 
         if (subcommand === 'fund') {
           try {
-            const { execSync } = await import('child_process');
-            execSync('tempo wallet fund', { stdio: 'inherit', timeout: 30000 });
-            addSystemMessage('Funding flow completed. Check /tempo balance.');
+            const { tempoExec } = await import('../tempo/index.js');
+            const output = tempoExec('wallet fund');
+            addSystemMessage(`${output}\n\nCheck /tempo balance.`);
           } catch (err) {
             addSystemMessage(`Fund failed: ${err instanceof Error ? err.message : 'Unknown'}`);
           }
