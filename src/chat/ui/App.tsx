@@ -491,9 +491,7 @@ export function App({
             const lines = result.items.map((e: Record<string, unknown>, i: number) => {
               const status = e.published ? 'Published' : 'Draft';
               const date = e.start ? new Date(e.start as string).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
-              const spaceName = (e.space as Record<string, unknown>)?.title || '';
-              const spaceLabel = spaceName ? ` — ${spaceName}` : '';
-              return `${i + 1}. ${e.title}${spaceLabel} — ${date} — ${status}`;
+              return `${i + 1}. ${e.title} — ${date} — ${status}`;
             });
             addSystemMessage(lines.join('\n'));
           }
