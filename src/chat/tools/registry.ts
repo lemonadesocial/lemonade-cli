@@ -36,7 +36,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'event_create',
     displayName: 'event create',
-    description: 'Create a new event. Returns the event ID, title, and status.',
+    description: 'Create a new event. Returns the event ID, title, and status. Virtual and private settings can be changed via the web app after creation.',
     params: [
       { name: 'title', type: 'string', description: 'Event title', required: true },
       { name: 'start', type: 'string', description: 'Start date (ISO 8601)', required: true },
@@ -44,8 +44,6 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'description', type: 'string', description: 'Event description', required: false },
       { name: 'space', type: 'string', description: 'Space ID', required: false },
       { name: 'address', type: 'string', description: 'Venue address', required: false },
-      { name: 'virtual', type: 'boolean', description: 'Virtual event', required: false },
-      { name: 'private', type: 'boolean', description: 'Private event', required: false },
     ],
     destructive: false,
     execute: async (args) => {
@@ -65,8 +63,6 @@ export function buildToolRegistry(): Record<string, ToolDef> {
             description: args.description,
             space: spaceId,
             address: args.address ? { title: args.address } : undefined,
-            virtual: args.virtual || false,
-            private: args.private || false,
           },
         },
       );
@@ -589,12 +585,14 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
-      const priceInCents = Math.round((args.price as number) * 100);
       const input: Record<string, unknown> = {
         event: args.event_id,
         title: args.name,
-        default_price: priceInCents,
-        default_currency: (args.currency as string) || 'USD',
+        prices: args.price ? [{
+          cost: String(Math.round((args.price as number) * 100)),
+          currency: (args.currency as string) || 'USD',
+          default: true,
+        }] : [],
       };
       if (args.limit !== undefined) input.limit = args.limit;
       if (args.description) input.description = args.description;
@@ -602,7 +600,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiCreateEventTicketType: unknown }>(
         `mutation($input: EventTicketTypeInput!) {
           aiCreateEventTicketType(input: $input) {
-            _id title default_price default_currency limit active
+            _id title prices { cost currency default } limit active
           }
         }`,
         { input },
@@ -726,7 +724,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiCalculateTicketPrice: unknown }>(
         `query($event: MongoID!, $ticket_type: MongoID!, $count: Int!, $discount_code: String) {
           aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
-            subtotal discount_amount total currency
+            subtotal_cents discount_cents total_cents currency
           }
         }`,
         {
@@ -739,9 +737,12 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.aiCalculateTicketPrice;
     },
     formatResult: (result) => {
-      const r = result as { subtotal: number; discount_amount: number; total: number; currency: string };
-      if (r.discount_amount > 0) return `Price: ${r.currency} ${r.total} (${r.currency} ${r.subtotal} - ${r.currency} ${r.discount_amount} discount).`;
-      return `Price: ${r.currency} ${r.total}`;
+      const r = result as { subtotal_cents: number; discount_cents: number; total_cents: number; currency: string };
+      const total = (r.total_cents / 100).toFixed(2);
+      const subtotal = (r.subtotal_cents / 100).toFixed(2);
+      const discount = (r.discount_cents / 100).toFixed(2);
+      if (r.discount_cents > 0) return `Price: ${r.currency} ${total} (${r.currency} ${subtotal} - ${r.currency} ${discount} discount).`;
+      return `Price: ${r.currency} ${total}`;
     },
   });
 
@@ -775,21 +776,18 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
-      const input: Record<string, unknown> = {
-        event: args.event_id,
-        code: args.code,
-        ratio: args.ratio,
-      };
-      if (args.ticket_type_id) input.ticket_type = args.ticket_type_id;
-      if (args.limit !== undefined) input.stamp = args.limit;
-
       const result = await graphqlRequest<{ aiCreateEventTicketDiscount: unknown }>(
-        `mutation($input: EventTicketDiscountInput!) {
-          aiCreateEventTicketDiscount(input: $input) {
-            _id code ratio stamp
+        `mutation($event: MongoID!, $code: String!, $ratio: Float!, $limit: Int) {
+          aiCreateEventTicketDiscount(event: $event, code: $code, ratio: $ratio, limit: $limit) {
+            code discount_type value limit created_at
           }
         }`,
-        { input },
+        {
+          event: args.event_id,
+          code: args.code,
+          ratio: args.ratio,
+          limit: args.limit || undefined,
+        },
       );
       return result.aiCreateEventTicketDiscount;
     },
@@ -1428,11 +1426,14 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiReadNotifications: unknown }>(
-        'mutation($ids: [MongoID!]!) { aiReadNotifications(ids: $ids) }',
-        { ids: args.notification_ids },
-      );
-      return result.aiReadNotifications;
+      const ids = args.notification_ids as string[];
+      for (const id of ids) {
+        await graphqlRequest<{ aiReadNotifications: boolean }>(
+          'mutation($id: MongoID) { aiReadNotifications(id: $id) }',
+          { id },
+        );
+      }
+      return { read: true, count: ids.length };
     },
   });
 
@@ -1445,10 +1446,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     params: [],
     destructive: false,
     execute: async () => {
-      const result = await graphqlRequest<{ aiGetBackendVersion: unknown }>(
-        'query { aiGetBackendVersion { version } }',
+      const result = await graphqlRequest<{ aiGetBackendVersion: string }>(
+        'query { aiGetBackendVersion }',
       );
-      return result.aiGetBackendVersion;
+      return { version: result.aiGetBackendVersion };
     },
     formatResult: (result) => {
       const r = result as { version: string };
