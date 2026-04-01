@@ -78,10 +78,16 @@ export async function handleTurn(
             break;
         }
       }
-      if (signal?.aborted) return;
+      if (signal?.aborted) {
+        if (engine) {
+          engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
+        }
+        return;
+      }
     } catch (err) {
       if (engine) {
         engine.emit('error', { message: `Streaming error: ${safeErrorMessage(err)}`, fatal: false, turnId });
+        engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
       } else {
         if (textStarted) {
           const { writeNewline } = await import('./display.js');
@@ -147,7 +153,12 @@ export async function handleTurn(
       turnId,
     );
 
-    if (fatal) return;
+    if (fatal) {
+      if (engine) {
+        engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
+      }
+      return;
+    }
 
     // Append tool results as a user message
     messages.push({ role: 'user', content: results as Message['content'] });
@@ -156,7 +167,7 @@ export async function handleTurn(
     truncateHistory(messages);
   }
 
-  if (engine && finalUsage) {
-    engine.emit('turn_done', { usage: finalUsage, turnId });
+  if (engine) {
+    engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
   }
 }
