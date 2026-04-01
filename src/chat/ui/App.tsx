@@ -229,9 +229,11 @@ export function App({
     addSystemMessage,
     clearMessages,
     confirmAction,
+    resetStreaming,
   } = useChatEngine(engine);
 
   const { planState, completePlan, cancelPlan, startManualPlan } = usePlanMode(engine);
+  const cachedSpacesRef = useRef<Array<{ _id: string; title: string; slug?: string }> | null>(null);
 
   const [inputValue, setInputValue] = useState('');
   const [previousLines, setPreviousLines] = useState<string[]>([]);
@@ -501,17 +503,24 @@ export function App({
         return;
       }
       if (slashResult.action === 'spaces') {
-        addSystemMessage('Fetching spaces...');
         try {
-          const tool = registry['space_list'];
-          const result = await tool.execute({}) as { items?: Array<{ _id: string; title: string; slug?: string }> };
-          if (!result?.items?.length) {
-            addSystemMessage('No spaces found.');
-            return;
+          // Use cached spaces for /spaces <n> to avoid re-fetch ordering mismatch
+          let spaces: Array<{ _id: string; title: string; slug?: string }>;
+          if (slashResult.args && cachedSpacesRef.current) {
+            spaces = cachedSpacesRef.current;
+          } else {
+            addSystemMessage('Fetching spaces...');
+            const tool = registry['space_list'];
+            const result = await tool.execute({}) as { items?: Array<{ _id: string; title: string; slug?: string }> };
+            if (!result?.items?.length) {
+              addSystemMessage('No spaces found.');
+              return;
+            }
+            spaces = result.items;
+            cachedSpacesRef.current = spaces;
           }
-          const spaces = result.items;
 
-          // /spaces <number> — switch directly
+          // /spaces <number> — switch directly using cached list
           if (slashResult.args && /^\d+$/.test(slashResult.args)) {
             const idx = parseInt(slashResult.args, 10) - 1;
             if (idx >= 0 && idx < spaces.length) {
@@ -755,12 +764,15 @@ export function App({
         streamAbortRef.current.abort();
         streamAbortRef.current = null;
         setShowThinking(false);
+        resetStreaming();
+        turnInProgressRef.current = false;
         addSystemMessage('(cancelled)');
       } else if (btwAbortsRef.current.size > 0) {
         for (const [, controller] of btwAbortsRef.current) {
           controller.abort();
         }
         btwAbortsRef.current.clear();
+        resetStreaming();
         addSystemMessage('(btw cancelled)');
       } else {
         setInputValue('');
