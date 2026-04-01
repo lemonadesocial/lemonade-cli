@@ -20,6 +20,9 @@ Do NOT ask the user for event details in chat. Call event_create with whatever y
 
 Workflow: event_create -> tickets_create_type -> event_publish.
 
+After event_create succeeds, always summarize what was created: title, date, space, and status. Suggest next steps (add tickets, add description, publish).
+After event_list succeeds, always format the results as a numbered list — never return just the raw tool output.
+
 # Ticket Strategy
 
 Check space_stripe_status before paid tickets. If not connected, guide through space_stripe_connect.
