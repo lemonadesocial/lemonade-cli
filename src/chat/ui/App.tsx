@@ -947,14 +947,29 @@ export function App({
           addSystemMessage('Opening browser for Tempo wallet login...');
           try {
             const { tempoLogin, getWalletInfo } = await import('../tempo/index.js');
-            // Stream login output so user can see confirmation code + auth URL
-            await tempoLogin((line) => {
+
+            // Fire and forget — tempoLogin spawns the process and streams output
+            // Don't await it — start polling immediately after the auth URL is shown
+            let authUrlShown = false;
+            tempoLogin((line) => {
               addSystemMessage(line);
+              if (line.includes('Auth URL:') || line.includes('wallet.tempo.xyz')) {
+                authUrlShown = true;
+              }
+            }).catch(() => {
+              // Login process exited — polling handles the result
             });
 
-            // The login command may exit after printing the URL
-            // Poll for wallet connection (user completes auth in browser)
+            // Wait briefly for the auth URL to be printed
+            await new Promise(r => setTimeout(r, 2000));
+            if (!authUrlShown) {
+              // Give it a bit more time
+              await new Promise(r => setTimeout(r, 3000));
+            }
+
             addSystemMessage('Waiting for browser authentication... (up to 2 minutes)');
+
+            // Poll for wallet connection in parallel with the login process
             const POLL_TIMEOUT = 120_000;
             const POLL_INTERVAL = 3_000;
             const startTime = Date.now();
