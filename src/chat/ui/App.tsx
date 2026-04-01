@@ -888,8 +888,13 @@ export function App({
         const subcommand = (slashResult.args || '').split(/\s+/)[0];
 
         if (!subcommand || subcommand === 'status') {
-          addSystemMessage('Checking Tempo wallet...');
           try {
+            const { isTempoInstalled } = await import('../tempo/index.js');
+            if (!isTempoInstalled()) {
+              addSystemMessage('Tempo CLI is not installed.\n\n  /tempo install — install Tempo CLI\n\nAfter installing:\n  /tempo login — connect or create a wallet\n  /tempo balance — check USDC balance\n  /tempo fund — add funds\n  /tempo request <url> — make a paid MPP request');
+              return;
+            }
+            addSystemMessage('Checking Tempo wallet...');
             const tool = registry['tempo_status'];
             const result = await tool.execute({});
             const formatted = tool.formatResult?.(result) || JSON.stringify(result);
