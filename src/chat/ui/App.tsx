@@ -953,20 +953,25 @@ export function App({
             let authUrlShown = false;
             tempoLogin((line) => {
               addSystemMessage(line);
-              if (line.includes('Auth URL:') || line.includes('wallet.tempo.xyz')) {
+              if (line.includes('Auth URL:') || line.includes('wallet.tempo.xyz') || line.includes('Verification code')) {
                 authUrlShown = true;
               }
             }).catch(() => {
               // Login process exited — polling handles the result
             });
 
-            // Wait briefly for the auth URL to be printed
-            await new Promise(r => setTimeout(r, 2000));
+            // Wait briefly for the auth URL and verification code to be printed
+            await new Promise(r => setTimeout(r, 3000));
             if (!authUrlShown) {
-              // Give it a bit more time
               await new Promise(r => setTimeout(r, 3000));
             }
 
+            addSystemMessage('Complete these steps in your browser:');
+            addSystemMessage('  1. Open the auth URL above');
+            addSystemMessage('  2. Verify the code matches what is shown here');
+            addSystemMessage('  3. Tap "Continue" to authorize this device');
+            addSystemMessage('  4. Complete passkey verification if prompted');
+            addSystemMessage('');
             addSystemMessage('Waiting for browser authentication... (up to 2 minutes)');
 
             // Poll for wallet connection in parallel with the login process
