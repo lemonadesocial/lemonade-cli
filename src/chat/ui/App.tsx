@@ -1277,19 +1277,38 @@ export function App({
             paddingRight={1}
             flexDirection="column"
           >
-            {previousLines.map((line, i) => (
-              <Text key={i}>{'  '}{line}</Text>
-            ))}
-            <Box>
-              <Text color="#FDE047">{'> '}</Text>
-              <TextInput
-                value={inputValue}
-                onChange={setInputValue}
-                focus={!pendingConfirm && !planState.active}
-                showCursor={true}
-                placeholder={isStreaming || previousLines.length > 0 ? '' : 'How can I help... #makelemonade (Shift+Enter for new line)'}
-              />
-            </Box>
+            {previousLines.length === 0 ? (
+              <Box>
+                <Text color="#FDE047">{'> '}</Text>
+                <TextInput
+                  value={inputValue}
+                  onChange={setInputValue}
+                  focus={!pendingConfirm && !planState.active}
+                  showCursor={true}
+                  placeholder={isStreaming ? '' : 'How can I help... #makelemonade (Shift+Enter for new line)'}
+                />
+              </Box>
+            ) : (
+              <>
+                <Box>
+                  <Text color="#FDE047">{'> '}</Text>
+                  <Text>{previousLines[0]}</Text>
+                </Box>
+                {previousLines.slice(1).map((line, i) => (
+                  <Text key={i}>{'  '}{line}</Text>
+                ))}
+                <Box>
+                  <Text>{'  '}</Text>
+                  <TextInput
+                    value={inputValue}
+                    onChange={setInputValue}
+                    focus={!pendingConfirm && !planState.active}
+                    showCursor={true}
+                    placeholder=""
+                  />
+                </Box>
+              </>
+            )}
           </Box>
 
           {/* Toolbar - flows after input */}
