@@ -1,6 +1,19 @@
 import { DiagReporter } from './reporter.js';
 
-export class InputMonitor {
+/** Public surface of InputMonitor — use this type for stubs/NOOPs so TS catches drift. */
+export interface IInputMonitor {
+  onKeypress(input: string, key: Record<string, boolean | undefined>): void;
+  onStateChange(prev: { text: string; cursor: number }, next: { text: string; cursor: number }, trigger: string): void;
+  onValueSync(source: 'internal' | 'external', prevValue: string, newValue: string, editorText: string | undefined): void;
+  onOnChange(text: string): void;
+  onOnSubmit(text: string): void;
+  assertCursorBounds(text: string, cursor: number): void;
+  assertBackspaceResult(prevText: string, nextText: string, prevCursor: number, nextCursor: number): void;
+  assertInsertResult(prevText: string, nextText: string, inserted: string, prevCursor: number, nextCursor: number): void;
+  assertSelectionValid(anchor: number, cursor: number, textLen: number): void;
+}
+
+export class InputMonitor implements IInputMonitor {
   private reporter: DiagReporter;
   private recentTexts: string[] = [];  // Rolling window of last 5 texts for revert detection
   private lastOperation: string = '';

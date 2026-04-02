@@ -200,4 +200,10 @@ describe('InputMonitor', () => {
     expect(reporter.assertion).toHaveBeenCalledWith(true, 'input', 'selection anchor in bounds', expect.objectContaining({ anchor: 2, textLen: 5 }));
     expect(reporter.assertion).toHaveBeenCalledWith(false, 'input', 'selection cursor in bounds', expect.objectContaining({ cursor: 10, textLen: 5 }));
   });
+
+  it('asserts selection validity — fails for negative cursor', () => {
+    monitor.assertSelectionValid(-1, -2, 5);
+    expect(reporter.assertion).toHaveBeenCalledWith(true, 'input', 'selection anchor in bounds', expect.objectContaining({ anchor: -1, textLen: 5 }));
+    expect(reporter.assertion).toHaveBeenCalledWith(false, 'input', 'selection cursor in bounds', expect.objectContaining({ cursor: -2, textLen: 5 }));
+  });
 });
