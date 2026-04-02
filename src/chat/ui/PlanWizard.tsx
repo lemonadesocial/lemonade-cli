@@ -364,7 +364,7 @@ export function PlanWizard({
   // Build footer hints
   const footerParts: string[] = [];
   if (step.inputType === 'multiline') {
-    footerParts.push('[Enter] New line', '[Ctrl+D] Done');
+    footerParts.push('[Enter] New line', '[Tab/Ctrl+D] Done');
   } else if (isDateStep && datePhase === 'duration') {
     footerParts.push('[Enter] Select');
   } else {
@@ -518,7 +518,7 @@ export function PlanWizard({
                   columns={wizardInputColumns}
                   submitOnEnter={false}
                   maxVisibleLines={6}
-                  placeholder="Type here... (Tab to finish)"
+                  placeholder="Type here... (Tab/Ctrl+D to finish)"
                   continuationPrefix="  "
                 />
               </Box>
