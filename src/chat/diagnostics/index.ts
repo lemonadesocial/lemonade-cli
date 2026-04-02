@@ -11,7 +11,7 @@ const NOOP_INPUT: InputMonitor = {
   assertCursorBounds() {},
   assertBackspaceResult() {},
   assertInsertResult() {},
-  assertSelectionValid() {},
+  assertSelectionValid(_anchor: number, _cursor: number, _textLen: number) {},
 } as unknown as InputMonitor;
 
 class CLIDiagnostics {

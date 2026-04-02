@@ -135,7 +135,8 @@ export class InputMonitor {
     });
   }
 
-  assertSelectionValid(anchor: number, textLen: number): void {
-    this.reporter.assertion(anchor === -1 || (anchor >= 0 && anchor <= textLen), 'input', 'selection anchor valid', { anchor, textLen });
+  assertSelectionValid(anchor: number, cursor: number, textLen: number): void {
+    this.reporter.assertion(anchor === -1 || (anchor >= 0 && anchor <= textLen), 'input', 'selection anchor in bounds', { anchor, textLen });
+    this.reporter.assertion(cursor >= 0 && cursor <= textLen, 'input', 'selection cursor in bounds', { cursor, textLen });
   }
 }
