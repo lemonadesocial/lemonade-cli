@@ -179,6 +179,13 @@ export class MeasuredText {
     const line = Math.max(0, Math.min(pos.line, this.wrappedLines.length - 1));
     const wl = this.wrappedLines[line];
     const targetCol = Math.max(0, pos.column);
+
+    // Column 0 always maps to start-of-line, even when every grapheme is
+    // zero-width (e.g. tab-only lines where lineDisplayWidth === 0).
+    if (targetCol === 0) {
+      return wl.startOffset;
+    }
+
     const lineDisplayWidth = MeasuredText.displayWidth(wl.text);
 
     // Clamp to line display width
@@ -186,12 +193,26 @@ export class MeasuredText {
       return wl.startOffset + wl.length;
     }
 
-    // Walk graphemes to find the source offset matching the display column
+    // Walk graphemes to find the source offset matching the display column.
+    //
+    // Rounding contract (asymmetric with offsetToPosition):
+    //   offsetToPosition  — snaps *forward*: a mid-grapheme source offset is
+    //                       reported at the column *after* that grapheme.
+    //   positionToOffset  — snaps *backward*: a mid-wide-character column
+    //                       (e.g. column 1 inside a 2-wide CJK char starting
+    //                       at column 0) returns the offset of that grapheme's
+    //                       *start*, not its end.
+    //
+    // For zero-width graphemes (tabs, some control chars) the loop breaks
+    // *before* consuming them when displayCol has already reached targetCol.
+    // This ensures the first offset at a given column is returned, preventing
+    // a "black hole" where leading or consecutive zero-width graphemes would
+    // be unreachable.
     let displayCol = 0;
     let localOffset = 0;
     for (const seg of GRAPHEME_SEGMENTER.segment(wl.text)) {
       const gWidth = MeasuredText.displayWidth(seg.segment);
-      if (displayCol + gWidth > targetCol) break;
+      if (gWidth === 0 ? displayCol >= targetCol : displayCol + gWidth > targetCol) break;
       displayCol += gWidth;
       localOffset = seg.index + seg.segment.length;
     }

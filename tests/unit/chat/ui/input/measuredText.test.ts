@@ -349,8 +349,48 @@ describe('MeasuredText', () => {
       const pos1 = m.offsetToPosition(1);
       const pos2 = m.offsetToPosition(2);
       expect(pos1).toEqual(pos2); // both map to column 1
-      // positionToOffset walks past zero-width graphemes, so col 1 → offset 2 (after tab)
+      // positionToOffset returns the *first* offset at column 1 (before the tab)
+      expect(m.positionToOffset({ line: 0, column: 1 })).toBe(1);
+    });
+
+    it('leading tab: column 0 maps to start-of-line (offset 0)', () => {
+      const m = new MeasuredText('\ta', 80);
+      // '\t' at offset 0 has 0 display width, 'a' at offset 1 has width 1
+      expect(m.offsetToPosition(0)).toEqual({ line: 0, column: 0 });
+      expect(m.offsetToPosition(1)).toEqual({ line: 0, column: 0 });
+      expect(m.offsetToPosition(2)).toEqual({ line: 0, column: 1 });
+      // column 0 must return offset 0 (before the tab), not skip past it
+      expect(m.positionToOffset({ line: 0, column: 0 })).toBe(0);
       expect(m.positionToOffset({ line: 0, column: 1 })).toBe(2);
+    });
+
+    it('consecutive tabs: column 0 maps to first offset, not past all tabs', () => {
+      const m = new MeasuredText('\t\t\tb', 80);
+      // offsets 0–2 are tabs (all 0-width), offset 3 is 'b' (width 1)
+      expect(m.offsetToPosition(0)).toEqual({ line: 0, column: 0 });
+      expect(m.offsetToPosition(1)).toEqual({ line: 0, column: 0 });
+      expect(m.offsetToPosition(2)).toEqual({ line: 0, column: 0 });
+      expect(m.offsetToPosition(3)).toEqual({ line: 0, column: 0 });
+      expect(m.offsetToPosition(4)).toEqual({ line: 0, column: 1 });
+      // column 0 must return offset 0, not offset 3
+      expect(m.positionToOffset({ line: 0, column: 0 })).toBe(0);
+    });
+
+    it('tab-only line: column 0 maps to start-of-line', () => {
+      const m = new MeasuredText('\t\t', 80);
+      expect(m.getLineLength(0)).toBe(0); // all zero-width
+      // column 0 must return start-of-line (offset 0), not end-of-line
+      expect(m.positionToOffset({ line: 0, column: 0 })).toBe(0);
+    });
+
+    it('mixed visible and zero-width: positions before each zero-width run are reachable', () => {
+      // "a\t\tb" — 'a'(w1) '\t'(w0) '\t'(w0) 'b'(w1)
+      const m = new MeasuredText('a\t\tb', 80);
+      expect(m.getLineLength(0)).toBe(2); // a + b visible
+      // column 0 → offset 0 (before 'a')
+      expect(m.positionToOffset({ line: 0, column: 0 })).toBe(0);
+      // column 1 → offset 1 (before first tab, not after second tab)
+      expect(m.positionToOffset({ line: 0, column: 1 })).toBe(1);
     });
   });
 
