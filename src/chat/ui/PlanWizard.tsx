@@ -89,7 +89,7 @@ export function PlanWizard({
   const [multilineValue, setMultilineValue] = useState('');
   const [requiredHint, setRequiredHint] = useState(false);
 
-  const wizardInputColumns = columns - 4; // 2 for '> ' prompt + 2 for safety margin
+  const wizardInputColumns = columns - 2; // 2 for '> ' prompt (flex box handles the rest)
 
   // Space selector state
   const [spaceScrollOffset, setSpaceScrollOffset] = useState(0);
@@ -519,7 +519,7 @@ export function PlanWizard({
                   submitOnEnter={false}
                   maxVisibleLines={6}
                   placeholder="Type here... (Tab/Ctrl+D to finish)"
-                  continuationPrefix="  "
+                  continuationPrefix=""
                 />
               </Box>
             </Box>

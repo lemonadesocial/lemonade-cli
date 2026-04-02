@@ -76,6 +76,7 @@ export function MultilineInput({
   const prevValueRef = useRef(value);
   const editorStateRef = useRef(editorState);
   editorStateRef.current = editorState;
+  const internalChangeRef = useRef(false);
 
   // Clear killRing and undoStack when mask prop changes
   const prevMaskRef = useRef(mask);
@@ -87,10 +88,15 @@ export function MultilineInput({
     }
   }, [mask]);
 
-  // Sync with parent value prop
+  // Sync with parent value prop (only reset state for EXTERNAL changes)
   useEffect(() => {
     if (value !== prevValueRef.current) {
       prevValueRef.current = value;
+      if (internalChangeRef.current) {
+        // This value change was triggered by our own onChange — don't reset state
+        internalChangeRef.current = false;
+        return;
+      }
       if (value !== editorStateRef.current?.text) {
         setEditorState(EditorState.from(value, effectiveColumns));
         setScrollOffset(0);
@@ -151,6 +157,7 @@ export function MultilineInput({
     setEditorState(newState);
     ensureCursorVisible(newState);
     if (!opts?.skipOnChange && newState.text !== editorStateRef.current.text) {
+      internalChangeRef.current = true;
       onChange(newState.text);
     }
   }, [ensureCursorVisible, onChange]);
