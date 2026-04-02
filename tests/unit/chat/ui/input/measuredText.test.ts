@@ -343,6 +343,13 @@ describe('MeasuredText', () => {
     });
 
     it('zero-width tab creates non-invertible offset mapping', () => {
+      // Zero-width graphemes (tabs, some control chars) collapse multiple source
+      // offsets onto the same display column. This is inherent to the mapping —
+      // position-space has fewer slots than offset-space — and is NOT a bug.
+      // positionToOffset picks the *first* offset at that column so cursor
+      // movement stays predictable; trailing zero-width graphemes at the same
+      // column are only reachable via offsetToPosition (arrow-key from the
+      // preceding visible grapheme).
       const m = new MeasuredText('a\tb', 80);
       // offset 1 (before tab) and offset 2 (after tab) both map to column 1
       // because tab has 0 display width

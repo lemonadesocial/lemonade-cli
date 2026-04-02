@@ -188,8 +188,13 @@ export class MeasuredText {
 
     const lineDisplayWidth = MeasuredText.displayWidth(wl.text);
 
-    // Clamp to line display width
-    if (targetCol >= lineDisplayWidth) {
+    // Clamp past-end columns to end-of-line.
+    // Intentionally `>` not `>=`: targetCol == lineDisplayWidth falls through
+    // to the grapheme walk and lands at the same end-of-line offset naturally.
+    // Using `>` ensures tab-only lines (lineDisplayWidth === 0, targetCol === 0)
+    // are handled correctly by the walk regardless of whether the early-return
+    // above is present.
+    if (targetCol > lineDisplayWidth) {
       return wl.startOffset + wl.length;
     }
 
