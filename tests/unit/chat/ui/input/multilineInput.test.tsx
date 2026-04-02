@@ -773,6 +773,34 @@ describe('renderLine — display-column rendering', () => {
     expect((children[2] as React.ReactElement).props.inverse).toBeFalsy();
   });
 
+  it('cursorChar width mismatch does not corrupt selection after cursor', () => {
+    // Regression: text 'a你b', cursor on '你' (width 2), cursorChar='|' (width 1),
+    // selection covering 'b'. Without fix, displayCol after cursor advances by 1
+    // (cursorChar width) instead of 2 (original grapheme width), so 'b' at
+    // selStartCol=3 is never reached and selection highlighting is lost.
+    const result = renderLine(
+      'a你b',
+      'a你b',
+      0,
+      0,
+      { line: 0, column: 1 },  // cursor at display col 1 (on '你')
+      1,                         // cursorOffset
+      { start: 2, end: 3 },     // selection covers 'b' (source offsets 2..3)
+      null,
+      true,
+      '|',                       // cursorChar width 1, replacing width-2 '你'
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    // Expect: 'a' normal, '|' cursor (inverse), 'b' selected (inverse)
+    expect(children.length).toBe(3);
+    expect((children[0] as React.ReactElement).props.children).toBe('a');
+    expect((children[0] as React.ReactElement).props.inverse).toBeFalsy();
+    expect((children[1] as React.ReactElement).props.children).toBe('|');
+    expect((children[1] as React.ReactElement).props.inverse).toBe(true);
+    expect((children[2] as React.ReactElement).props.children).toBe('b');
+    expect((children[2] as React.ReactElement).props.inverse).toBe(true);
+  });
+
   it('returns plain text when no cursor or selection on line', () => {
     const result = renderLine(
       'hello',

@@ -664,7 +664,9 @@ export function renderLine(
       flush(`seg-${lineIdx}-${gi}`);
       segments.push(<Text key={`cur-${lineIdx}`} inverse>{cursorChar}</Text>);
       currentMode = 'normal';
-      displayCol += MeasuredText.displayWidth(cursorChar);
+      // Advance by original grapheme width to stay in the same column space
+      // as selStartCol/selEndCol (computed from original text display widths).
+      displayCol += gWidth;
     } else {
       currentText += grapheme;
       displayCol += gWidth;
