@@ -1,5 +1,7 @@
 import stringWidth from 'string-width';
 
+const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
 export interface WrappedLine {
   text: string;
   startOffset: number;
@@ -72,8 +74,7 @@ export class MeasuredText {
   }
 
   private _wrapLogicalLine(line: string, baseOffset: number, endsWithNewline: boolean): WrappedLine[] {
-    const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-    const segments = [...segmenter.segment(line)];
+    const segments = [...GRAPHEME_SEGMENTER.segment(line)];
     const result: WrappedLine[] = [];
 
     let currentText = '';
