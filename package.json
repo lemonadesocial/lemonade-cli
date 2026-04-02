@@ -51,7 +51,6 @@
     "commander": "^12.1.0",
     "figures": "^6",
     "ink": "^6.8.0",
-    "ink-text-input": "^6.0.0",
     "open": "^10.1.0",
     "openai": "^6.33.0",
     "ora": "^8.2.0",

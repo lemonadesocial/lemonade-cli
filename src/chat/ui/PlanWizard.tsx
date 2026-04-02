@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
-import TextInput from 'ink-text-input';
+import { MultilineInput } from './input/index.js';
 import { WizardStepDef } from '../plan/stepGenerator.js';
 import { ParamType } from '../providers/interface.js';
 
@@ -42,6 +42,8 @@ export interface PlanWizardProps {
   /** Optional param types for value conversion */
   paramTypes?: Record<string, ParamType>;
   spaceOptions?: Array<{ _id: string; title: string }>;
+  /** Available content width from parent */
+  columns: number;
 }
 
 function convertValue(
@@ -75,6 +77,7 @@ export function PlanWizard({
   onCancel,
   paramTypes,
   spaceOptions,
+  columns,
 }: PlanWizardProps): React.JSX.Element {
   // Filter out merged steps (e.g., 'end' merged into 'start')
   const steps = allSteps.filter((s) => !s.merged);
@@ -83,8 +86,10 @@ export function PlanWizard({
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [textValue, setTextValue] = useState('');
   const [choiceIndex, setChoiceIndex] = useState(0);
-  const [multilineLines, setMultilineLines] = useState<string[]>(['']);
+  const [multilineValue, setMultilineValue] = useState('');
   const [requiredHint, setRequiredHint] = useState(false);
+
+  const wizardInputColumns = columns - 4; // 2 for '> ' prompt + 2 for safety margin
 
   // Space selector state
   const [spaceScrollOffset, setSpaceScrollOffset] = useState(0);
@@ -116,7 +121,7 @@ export function PlanWizard({
         setCurrentStep(currentStep + 1);
         setTextValue('');
         setChoiceIndex(0);
-        setMultilineLines(['']);
+        setMultilineValue('');
         setDatePhase('date');
         setDateStartValue('');
         setDurationChoiceIndex(0);
@@ -158,8 +163,7 @@ export function PlanWizard({
         const idx = prevStep.options.indexOf(String(prevAnswer));
         setChoiceIndex(idx >= 0 ? idx : 0);
       } else if (prevStep.inputType === 'multiline') {
-        const lines = typeof prevAnswer === 'string' ? prevAnswer.split('\n') : [''];
-        setMultilineLines(lines);
+        setMultilineValue(typeof prevAnswer === 'string' ? prevAnswer : '');
       } else {
         setTextValue(prevAnswer !== undefined ? String(prevAnswer) : '');
       }
@@ -272,44 +276,15 @@ export function PlanWizard({
       }
 
       if (step.inputType === 'multiline') {
-        // Ctrl+D finishes multiline
-        if (input === '\x04' || key.tab) {
-          const value = multilineLines.join('\n');
+        // Tab finishes multiline
+        if (key.tab) {
+          const value = multilineValue;
           if (!value.trim() && step.required) {
             setRequiredHint(true);
             return;
           }
           storeAndAdvance(value);
           return;
-        }
-        if (key.return) {
-          setMultilineLines((prev) => [...prev, '']);
-          return;
-        }
-        if (key.backspace || key.delete) {
-          setMultilineLines((prev) => {
-            if (prev.length === 1 && prev[0] === '') {
-              // Empty multiline, go back
-              goBack();
-              return prev;
-            }
-            const updated = [...prev];
-            const lastLine = updated[updated.length - 1];
-            if (lastLine === '' && updated.length > 1) {
-              updated.pop();
-            } else {
-              updated[updated.length - 1] = lastLine.slice(0, -1);
-            }
-            return updated;
-          });
-          return;
-        }
-        if (!key.ctrl && !key.meta && input && !key.upArrow && !key.downArrow && !key.leftArrow && !key.rightArrow) {
-          setMultilineLines((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = (updated[updated.length - 1] || '') + input;
-            return updated;
-          });
         }
       }
     },
@@ -389,7 +364,7 @@ export function PlanWizard({
   // Build footer hints
   const footerParts: string[] = [];
   if (step.inputType === 'multiline') {
-    footerParts.push('[Enter] New line', '[Ctrl+D] Done');
+    footerParts.push('[Enter] New line', '[Tab/Ctrl+D] Done');
   } else if (isDateStep && datePhase === 'duration') {
     footerParts.push('[Enter] Select');
   } else {
@@ -495,51 +470,59 @@ export function PlanWizard({
         {step.inputType === 'space_select' && spaceCreateMode ? (
           <Box>
             <Text color="#F472B6">{'> '}</Text>
-            <TextInput
-              value={spaceCreateName}
-              onChange={setSpaceCreateName}
-              onSubmit={(val) => {
-                if (val.trim()) {
-                  storeAndAdvance(val.trim());
-                }
-              }}
-              focus={true}
-              showCursor={true}
-              placeholder="Enter space name..."
-            />
+            <Box flexGrow={1}>
+              <MultilineInput
+                value={spaceCreateName}
+                onChange={setSpaceCreateName}
+                onSubmit={(val) => { if (val.trim()) storeAndAdvance(val.trim()); }}
+                focus={true}
+                columns={wizardInputColumns}
+                singleLine={true}
+                placeholder="Enter space name..."
+              />
+            </Box>
           </Box>
         ) : null}
 
         {(step.inputType === 'text' || (isDateStep && (datePhase === 'date' || datePhase === 'end_date'))) && !(isDateStep && datePhase === 'duration') ? (
           <Box>
             <Text color="#F472B6">{'> '}</Text>
-            <TextInput
-              value={textValue}
-              onChange={(val) => {
-                setTextValue(val);
-                setRequiredHint(false);
-              }}
-              onSubmit={handleTextSubmit}
-              focus={true}
-              showCursor={true}
-              placeholder={isDateStep ? (datePhase === 'date' ? 'e.g. next Saturday at 7pm' : 'e.g. Sunday at 11am') : (step.defaultValue || '')}
-            />
+            <Box flexGrow={1}>
+              <MultilineInput
+                value={textValue}
+                onChange={(val) => { setTextValue(val); setRequiredHint(false); }}
+                onSubmit={handleTextSubmit}
+                focus={true}
+                columns={wizardInputColumns}
+                singleLine={true}
+                placeholder={isDateStep ? (datePhase === 'date' ? 'e.g. next Saturday at 7pm' : 'e.g. Sunday at 11am') : (step.defaultValue || '')}
+              />
+            </Box>
           </Box>
         ) : null}
 
         {step.inputType === 'multiline' ? (
           <Box flexDirection="column">
-            {multilineLines.map((line, i) => (
-              <Text key={i}>
-                {i === multilineLines.length - 1 ? (
-                  <Text color="#F472B6">{'> '}</Text>
-                ) : (
-                  <Text>{'  '}</Text>
-                )}
-                {line}
-                {i === multilineLines.length - 1 ? <Text color="#666">_</Text> : null}
-              </Text>
-            ))}
+            <Box>
+              <Text color="#F472B6">{'> '}</Text>
+              <Box flexGrow={1}>
+                <MultilineInput
+                  value={multilineValue}
+                  onChange={setMultilineValue}
+                  onSubmit={() => {/* Enter inserts newline when submitOnEnter=false */}}
+                  onCtrlD={(text) => {
+                    if (!text.trim() && step.required) { setRequiredHint(true); return; }
+                    storeAndAdvance(text);
+                  }}
+                  focus={true}
+                  columns={wizardInputColumns}
+                  submitOnEnter={false}
+                  maxVisibleLines={6}
+                  placeholder="Type here... (Tab/Ctrl+D to finish)"
+                  continuationPrefix="  "
+                />
+              </Box>
+            </Box>
           </Box>
         ) : null}
 
