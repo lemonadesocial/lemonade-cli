@@ -1,3 +1,5 @@
+// UndoEntry intentionally does not store selection state (selectionAnchor).
+// After undo, selection is cleared. This matches VS Code behavior.
 export interface UndoEntry {
   text: string;
   cursor: number;

@@ -159,6 +159,20 @@ describe('MeasuredText', () => {
     });
   });
 
+  describe('isPrecededByNewline flag', () => {
+    it('is true for first sub-line of each logical line, false for soft-wrapped continuations', () => {
+      // "abcdef" wraps at 4 cols into "abcd" + "ef" (soft wrap)
+      // "\ngh" is a new logical line
+      const m = new MeasuredText('abcdef\ngh', 4);
+      // Line 0: "abcd" — first logical line, first sub-line → true
+      expect(m.wrappedLines[0].isPrecededByNewline).toBe(true);
+      // Line 1: "ef" — soft-wrapped continuation of line 0 → false
+      expect(m.wrappedLines[1].isPrecededByNewline).toBe(false);
+      // Line 2: "gh" — first sub-line of second logical line → true
+      expect(m.wrappedLines[2].isPrecededByNewline).toBe(true);
+    });
+  });
+
   describe('displayWidth', () => {
     it('handles ASCII', () => {
       expect(MeasuredText.displayWidth('hello')).toBe(5);

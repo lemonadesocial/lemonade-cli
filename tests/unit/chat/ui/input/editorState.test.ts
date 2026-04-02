@@ -210,6 +210,16 @@ describe('EditorState', () => {
     });
   });
 
+  describe('stickyColumn behavior', () => {
+    it('insert resets stickyColumn', () => {
+      const s = EditorState.from('abcde\nfg\nhijkl', 80);
+      const s2 = s.up(); // sets stickyColumn
+      expect(s2.stickyColumn).not.toBe(-1);
+      const s3 = s2.insert('x');
+      expect(s3.stickyColumn).toBe(-1);
+    });
+  });
+
   describe('text operations - insert', () => {
     it('inserts at cursor position', () => {
       const s = EditorState.empty(80).insert('ac');
@@ -271,13 +281,17 @@ describe('EditorState', () => {
 
   describe('text operations - deleteToLineEnd', () => {
     it('deletes from cursor to end of line', () => {
-      const s = EditorState.from('abcde', 80).startOfBuffer();
-      const result = s.insert('ab').startOfLine().deleteToLineEnd();
-      // Actually let's use a simpler approach
-      const s2 = EditorState.empty(80).insert('hello world').startOfLine();
-      const { state, killed } = s2.deleteToLineEnd();
+      const s = EditorState.empty(80).insert('hello world').startOfLine();
+      const { state, killed } = s.deleteToLineEnd();
       expect(state.text).toBe('');
       expect(killed).toBe('hello world');
+    });
+
+    it('at end of line deletes the newline character', () => {
+      const s = EditorState.empty(80).insert('ab\ncd').startOfBuffer().endOfLine();
+      const { state, killed } = s.deleteToLineEnd();
+      expect(killed).toBe('\n');
+      expect(state.text).toBe('abcd');
     });
   });
 
@@ -310,8 +324,8 @@ describe('EditorState', () => {
     it('deletes next word', () => {
       const s = EditorState.empty(80).insert('hello world').startOfBuffer();
       const { state, killed } = s.deleteWordAfter();
-      expect(killed.length).toBeGreaterThan(0);
-      // Should delete "hello" and possibly following space
+      expect(killed).toBe('hello ');
+      expect(state.text).toBe('world');
     });
   });
 

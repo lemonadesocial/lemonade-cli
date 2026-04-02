@@ -65,10 +65,8 @@ export class MeasuredText {
       offset += logicalLine.length + (hasNewline ? 1 : 0);
     }
 
-    // Handle trailing newline: text ending with \n produces an extra empty line
-    if (this.text.endsWith('\n')) {
-      // The split already produced an empty string at the end, handled above
-    }
+    // Trailing newline: text ending with \n produces an extra empty line,
+    // already handled by the split loop above (last element is '').
 
     return lines;
   }

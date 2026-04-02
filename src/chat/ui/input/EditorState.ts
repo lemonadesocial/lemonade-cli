@@ -1,5 +1,8 @@
 import { MeasuredText, type Position } from './MeasuredText.js';
 
+const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+const WORD_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'word' });
+
 export class EditorState {
   readonly text: string;
   readonly cursor: number;
@@ -33,6 +36,11 @@ export class EditorState {
   }
 
   // --- Lazy measured text ---
+  // Note: MeasuredText wraps using `this.columns` uniformly for all lines.
+  // In practice, line 1 may display 2 chars shorter than its capacity because
+  // effectiveColumns = columns - prefixLength, but line 1 has no prefix.
+  // This is intentional — the caller (InputRenderer) adjusts the columns value
+  // passed to EditorState to account for the prefix, so all lines wrap consistently.
 
   get measuredText(): MeasuredText {
     if (!this._measured) {
@@ -82,14 +90,6 @@ export class EditorState {
 
   // --- Private helpers ---
 
-  private _graphemeSegments(): Intl.Segmenter {
-    return new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-  }
-
-  private _wordSegments(): Intl.Segmenter {
-    return new Intl.Segmenter(undefined, { granularity: 'word' });
-  }
-
   private _new(
     text: string,
     cursor: number,
@@ -105,7 +105,7 @@ export class EditorState {
    */
   private _graphemeBefore(offset: number): [number, number] | null {
     if (offset <= 0) return null;
-    const segments = [...this._graphemeSegments().segment(this.text)];
+    const segments = [...GRAPHEME_SEGMENTER.segment(this.text)];
     let result: [number, number] | null = null;
     for (const seg of segments) {
       const segEnd = seg.index + seg.segment.length;
@@ -124,7 +124,7 @@ export class EditorState {
 
   private _graphemeAfter(offset: number): [number, number] | null {
     if (offset >= this.text.length) return null;
-    const segments = [...this._graphemeSegments().segment(this.text)];
+    const segments = [...GRAPHEME_SEGMENTER.segment(this.text)];
     for (const seg of segments) {
       if (seg.index >= offset) {
         return [seg.index, seg.index + seg.segment.length];
@@ -212,7 +212,7 @@ export class EditorState {
 
   private _findPrevWordBoundary(from: number): number {
     if (from <= 0) return 0;
-    const segments = [...this._wordSegments().segment(this.text)];
+    const segments = [...WORD_SEGMENTER.segment(this.text)];
     // Find segments before cursor: skip non-word segments, then skip one word segment
     // Collect segment boundaries up to `from`
     let pos = from;
@@ -254,7 +254,7 @@ export class EditorState {
 
   private _findNextWordBoundary(from: number): number {
     if (from >= this.text.length) return this.text.length;
-    const segments = [...this._wordSegments().segment(this.text)];
+    const segments = [...WORD_SEGMENTER.segment(this.text)];
 
     let pos = from;
 
@@ -284,26 +284,22 @@ export class EditorState {
   // --- Text operations ---
 
   insert(str: string): EditorState {
+    // Normalize to NFC to prevent combining character issues
+    const normalized = str.normalize('NFC');
     if (this.hasSelection) {
-      return this.replaceSelection(str);
+      return this.replaceSelection(normalized);
     }
-    const newText = this.text.slice(0, this.cursor) + str + this.text.slice(this.cursor);
-    return this._new(newText, this.cursor + str.length);
+    const newText = this.text.slice(0, this.cursor) + normalized + this.text.slice(this.cursor);
+    return this._new(newText, this.cursor + normalized.length);
   }
 
   backspace(): EditorState {
     if (this.hasSelection) return this.deleteSelection().state;
     if (this.cursor === 0) return this;
-    const segments = [...this._graphemeSegments().segment(this.text)];
-    // Find the grapheme that ends at or contains cursor
-    for (const seg of segments) {
-      const segEnd = seg.index + seg.segment.length;
-      if (segEnd >= this.cursor) {
-        const newText = this.text.slice(0, seg.index) + this.text.slice(segEnd);
-        return this._new(newText, seg.index);
-      }
-    }
-    return this;
+    const prev = this._graphemeBefore(this.cursor);
+    if (!prev) return this;
+    const newText = this.text.slice(0, prev[0]) + this.text.slice(prev[1]);
+    return this._new(newText, prev[0]);
   }
 
   delete(): EditorState {
