@@ -157,15 +157,41 @@ export class MeasuredText {
     }
 
     const line = lo;
-    const col = clampedOffset - lines[line].startOffset;
-    return { line, column: Math.max(0, col) };
+    const wl = lines[line];
+    const localOffset = clampedOffset - wl.startOffset;
+
+    // Walk graphemes to compute visual display column
+    let displayCol = 0;
+    for (const seg of GRAPHEME_SEGMENTER.segment(wl.text)) {
+      if (seg.index >= localOffset) break;
+      displayCol += MeasuredText.displayWidth(seg.segment);
+    }
+
+    return { line, column: displayCol };
   }
 
   positionToOffset(pos: Position): number {
     const line = Math.max(0, Math.min(pos.line, this.wrappedLines.length - 1));
     const wl = this.wrappedLines[line];
-    const col = Math.max(0, Math.min(pos.column, wl.length));
-    return wl.startOffset + col;
+    const targetCol = Math.max(0, pos.column);
+    const lineDisplayWidth = MeasuredText.displayWidth(wl.text);
+
+    // Clamp to line display width
+    if (targetCol >= lineDisplayWidth) {
+      return wl.startOffset + wl.length;
+    }
+
+    // Walk graphemes to find the source offset matching the display column
+    let displayCol = 0;
+    let localOffset = 0;
+    for (const seg of GRAPHEME_SEGMENTER.segment(wl.text)) {
+      const gWidth = MeasuredText.displayWidth(seg.segment);
+      if (displayCol + gWidth > targetCol) break;
+      displayCol += gWidth;
+      localOffset = seg.index + seg.segment.length;
+    }
+
+    return wl.startOffset + localOffset;
   }
 
   get lineCount(): number {
@@ -174,7 +200,7 @@ export class MeasuredText {
 
   getLineLength(line: number): number {
     if (line < 0 || line >= this.wrappedLines.length) return 0;
-    return this.wrappedLines[line].length;
+    return MeasuredText.displayWidth(this.wrappedLines[line].text);
   }
 
   static displayWidth(str: string): number {
