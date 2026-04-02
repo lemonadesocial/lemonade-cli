@@ -123,7 +123,7 @@ async function renderComponentAsync(element: React.ReactElement): Promise<{ unmo
   };
 }
 
-import { MultilineInput, type MultilineInputProps } from '../../../../../src/chat/ui/input/MultilineInput.js';
+import { MultilineInput, type MultilineInputProps, renderLine, sourceOffsetToDisplayCol } from '../../../../../src/chat/ui/input/MultilineInput.js';
 
 async function getHandler(props: Partial<MultilineInputProps> & { value: string; onChange: any; onSubmit: any; columns: number }) {
   useInputHandlers.length = 0;
@@ -454,5 +454,233 @@ describe('MultilineInput — component tests', () => {
       handler('l', key({ ctrl: true }));
       expect(onChange).not.toHaveBeenCalled();
     });
+  });
+
+  describe('wide character navigation', () => {
+    it('backspace after CJK character removes the whole grapheme', async () => {
+      const onChange = vi.fn();
+      const handler = await getHandler({
+        value: 'a你b',
+        onChange,
+        onSubmit: vi.fn(),
+        columns: 80,
+      });
+      // Cursor starts at end. Backspace removes 'b'.
+      handler('', key({ backspace: true }));
+      expect(onChange).toHaveBeenCalledWith('a你');
+    });
+
+    it('two backspaces remove CJK char and preceding ASCII', async () => {
+      const onChange = vi.fn();
+      // Start with cursor at end of "a你"
+      const handler = await getHandler({
+        value: 'a你',
+        onChange,
+        onSubmit: vi.fn(),
+        columns: 80,
+      });
+      // First backspace removes '你'
+      handler('', key({ backspace: true }));
+      expect(onChange).toHaveBeenCalledWith('a');
+    });
+
+    it('inserting after CJK text produces correct value', async () => {
+      const onChange = vi.fn();
+      const handler = await getHandler({
+        value: '你好',
+        onChange,
+        onSubmit: vi.fn(),
+        columns: 80,
+      });
+      handler('x', key());
+      expect(onChange).toHaveBeenCalledWith('你好x');
+    });
+  });
+
+  describe('selection with wide characters', () => {
+    it('Shift+Left then backspace deletes one grapheme from CJK text', async () => {
+      const onChange = vi.fn();
+      const handler = await getHandler({
+        value: '你好世',
+        onChange,
+        onSubmit: vi.fn(),
+        columns: 80,
+      });
+      // Shift+Left to select last grapheme
+      handler('', key({ leftArrow: true, shift: true }));
+      // Backspace to delete selection
+      handler('', key({ backspace: true }));
+      expect(onChange).toHaveBeenCalledWith('你好');
+    });
+  });
+
+  describe('wrapped-line cursor behavior', () => {
+    it('cursor navigates down into a wrapped line correctly', async () => {
+      const onChange = vi.fn();
+      // 'abcde' with columns=5 (effectiveColumns=3 after prefix) wraps to ['abc', 'de']
+      const handler = await getHandler({
+        value: 'abcde',
+        onChange,
+        onSubmit: vi.fn(),
+        columns: 5,
+        continuationPrefix: '  ',
+      });
+      // Cursor starts at end (line 1 col 2). Up arrow moves to line 0.
+      handler('', key({ upArrow: true }));
+      // Now on line 0. Backspace deletes from that position.
+      handler('', key({ backspace: true }));
+      expect(onChange).toHaveBeenCalled();
+      // The text should lose one character from within the first wrapped segment
+      const result = onChange.mock.calls[0][0];
+      expect(result.length).toBe(4);
+    });
+  });
+});
+
+describe('sourceOffsetToDisplayCol', () => {
+  it('returns 0 for offset 0', () => {
+    expect(sourceOffsetToDisplayCol('hello', 0)).toBe(0);
+  });
+
+  it('returns correct column for ASCII text', () => {
+    expect(sourceOffsetToDisplayCol('hello', 3)).toBe(3);
+  });
+
+  it('returns display width for CJK character', () => {
+    // '你' is 2 display columns wide, source length 1
+    expect(sourceOffsetToDisplayCol('你好', 1)).toBe(2);
+  });
+
+  it('handles mixed ASCII and CJK', () => {
+    // 'a你b': a=1col, 你=2col → offset 1 (start of 你)=1, offset 2 (after 你)=3
+    expect(sourceOffsetToDisplayCol('a你b', 1)).toBe(1);
+    expect(sourceOffsetToDisplayCol('a你b', 2)).toBe(3);
+    expect(sourceOffsetToDisplayCol('a你b', 3)).toBe(4);
+  });
+
+  it('returns full width for offset at end of text', () => {
+    expect(sourceOffsetToDisplayCol('ab', 2)).toBe(2);
+  });
+
+  it('handles emoji graphemes', () => {
+    // '😀' is 2 display columns, source length 2 (surrogate pair)
+    const text = '😀x';
+    expect(sourceOffsetToDisplayCol(text, 2)).toBe(2);
+    expect(sourceOffsetToDisplayCol(text, 3)).toBe(3);
+  });
+});
+
+describe('renderLine — display-column rendering', () => {
+  it('places cursor on correct grapheme for CJK text', () => {
+    // '你好' at columns wide enough, cursor at display column 2 (after 你, on 好)
+    const result = renderLine(
+      '你好',       // displayText
+      '你好',       // originalText
+      0,            // startOffset
+      0,            // lineIdx
+      { line: 0, column: 2 }, // cursorPos (display column 2 = start of 好)
+      1,            // cursorOffset (source offset 1 = start of 好)
+      null,         // selRange
+      null,         // mask
+      true,         // hasFocus
+    );
+    // Result should have segments: '你' (normal), '好' (cursor/inverse)
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    expect(children.length).toBe(2);
+    // First segment: normal '你'
+    const seg0 = children[0] as React.ReactElement;
+    expect(seg0.props.children).toBe('你');
+    expect(seg0.props.inverse).toBeFalsy();
+    // Second segment: inverse '好'
+    const seg1 = children[1] as React.ReactElement;
+    expect(seg1.props.children).toBe('好');
+    expect(seg1.props.inverse).toBe(true);
+  });
+
+  it('highlights correct graphemes for selection spanning CJK', () => {
+    // 'a你b' — select '你' (source offsets 1..2)
+    const result = renderLine(
+      'a你b',
+      'a你b',
+      0,
+      0,
+      { line: 1, column: 0 }, // cursor on different line
+      99,                      // cursor offset elsewhere
+      { start: 1, end: 2 },   // selection covers '你'
+      null,
+      true,
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    // 'a' normal, '你' inverse (selected), 'b' normal
+    expect(children.length).toBe(3);
+    const seg0 = children[0] as React.ReactElement;
+    expect(seg0.props.children).toBe('a');
+    expect(seg0.props.inverse).toBeFalsy();
+    const seg1 = children[1] as React.ReactElement;
+    expect(seg1.props.children).toBe('你');
+    expect(seg1.props.inverse).toBe(true);
+    const seg2 = children[2] as React.ReactElement;
+    expect(seg2.props.children).toBe('b');
+    expect(seg2.props.inverse).toBeFalsy();
+  });
+
+  it('cursor at end of CJK line shows trailing cursor block', () => {
+    const result = renderLine(
+      '你',
+      '你',
+      0,
+      0,
+      { line: 0, column: 2 }, // display column 2 = past end of '你'
+      1,                       // source offset past the char
+      null,
+      null,
+      true,
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    // '你' normal + trailing cursor block ' '
+    expect(children.length).toBe(2);
+    const trailing = children[1] as React.ReactElement;
+    expect(trailing.props.inverse).toBe(true);
+    expect(trailing.props.children).toBe(' ');
+  });
+
+  it('masked input cursor uses source-offset-based column', () => {
+    // Real text '你好' (2 CJK chars), mask '*' → display '**'
+    // Cursor at source offset 1 (after '你') → masked display col 1
+    const result = renderLine(
+      '**',         // displayText (mask.repeat(2))
+      '你好',       // originalText
+      0,
+      0,
+      { line: 0, column: 2 }, // cursorPos from real text (display col 2)
+      1,                       // cursorOffset (source offset 1)
+      null,
+      '*',                     // mask
+      true,
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    // '*' normal, '*' cursor (inverse)
+    expect(children.length).toBe(2);
+    const seg0 = children[0] as React.ReactElement;
+    expect(seg0.props.children).toBe('*');
+    expect(seg0.props.inverse).toBeFalsy();
+    const seg1 = children[1] as React.ReactElement;
+    expect(seg1.props.children).toBe('*');
+    expect(seg1.props.inverse).toBe(true);
+  });
+
+  it('returns plain text when no cursor or selection on line', () => {
+    const result = renderLine(
+      'hello',
+      'hello',
+      0,
+      1,                       // lineIdx=1, cursor on line 0
+      { line: 0, column: 0 },
+      0,
+      null,
+      null,
+      true,
+    );
+    expect(result).toBe('hello');
   });
 });
