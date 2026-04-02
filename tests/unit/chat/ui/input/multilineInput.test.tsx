@@ -707,6 +707,77 @@ describe('renderLine — display-column rendering', () => {
     expect(seg1.props.inverse).toBeFalsy();
   });
 
+  it('masked input selection highlights correct mask characters', () => {
+    // Source 'abc', mask '*' → display '***'
+    // Selection covers source offsets 1..2 ('b') → masked display col 1..2
+    const result = renderLine(
+      '***',        // displayText
+      'abc',        // originalText
+      0,
+      0,
+      { line: 1, column: 0 }, // cursor on different line
+      99,
+      { start: 1, end: 2 },   // selection covers 'b'
+      '*',
+      true,
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    // '*' normal, '*' selected (inverse), '*' normal
+    expect(children.length).toBe(3);
+    expect((children[0] as React.ReactElement).props.children).toBe('*');
+    expect((children[0] as React.ReactElement).props.inverse).toBeFalsy();
+    expect((children[1] as React.ReactElement).props.children).toBe('*');
+    expect((children[1] as React.ReactElement).props.inverse).toBe(true);
+    expect((children[2] as React.ReactElement).props.children).toBe('*');
+    expect((children[2] as React.ReactElement).props.inverse).toBeFalsy();
+  });
+
+  it('masked input selection with CJK source maps graphemes correctly', () => {
+    // Source '你好世' (3 CJK graphemes), mask '*' → display '***'
+    // Selection covers source offsets 1..2 ('好') → grapheme index 1..2 → masked col 1..2
+    const result = renderLine(
+      '***',
+      '你好世',
+      0,
+      0,
+      { line: 1, column: 0 },
+      99,
+      { start: 1, end: 2 },   // source offsets of '好'
+      '*',
+      true,
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    expect(children.length).toBe(3);
+    expect((children[0] as React.ReactElement).props.children).toBe('*');
+    expect((children[0] as React.ReactElement).props.inverse).toBeFalsy();
+    expect((children[1] as React.ReactElement).props.children).toBe('*');
+    expect((children[1] as React.ReactElement).props.inverse).toBe(true);
+    expect((children[2] as React.ReactElement).props.children).toBe('*');
+    expect((children[2] as React.ReactElement).props.inverse).toBeFalsy();
+  });
+
+  it('masked input selection with emoji source uses grapheme count', () => {
+    // Source '😀x' (2 graphemes), mask '*' → display '**'
+    // Selection covers source offset 0..2 (the emoji surrogate pair) → grapheme 0..1 → col 0..1
+    const result = renderLine(
+      '**',
+      '😀x',
+      0,
+      0,
+      { line: 1, column: 0 },
+      99,
+      { start: 0, end: 2 },   // source offsets of '😀'
+      '*',
+      true,
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    expect(children.length).toBe(2);
+    expect((children[0] as React.ReactElement).props.children).toBe('*');
+    expect((children[0] as React.ReactElement).props.inverse).toBe(true);
+    expect((children[1] as React.ReactElement).props.children).toBe('*');
+    expect((children[1] as React.ReactElement).props.inverse).toBeFalsy();
+  });
+
   it('masked cursor on emoji source at grapheme boundary', () => {
     // Source '😀x', cursor after '😀' (source offset 2) → grapheme index 1
     // Masked display '**', cursor should be on second '*'

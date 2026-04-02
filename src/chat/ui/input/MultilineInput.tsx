@@ -605,13 +605,18 @@ export function renderLine(
     return displayText;
   }
 
-  // Selection bounds in display columns (non-masked only)
+  // Selection bounds in display columns
   let selStartCol = -1;
   let selEndCol = -1;
-  if (selRange && !isMasked) {
-    if (selRange.end > startOffset && selRange.start < lineEnd) {
-      const localSelStart = Math.max(0, selRange.start - startOffset);
-      const localSelEnd = Math.min(originalText.length, selRange.end - startOffset);
+  if (selRange && selRange.end > startOffset && selRange.start < lineEnd) {
+    const localSelStart = Math.max(0, selRange.start - startOffset);
+    const localSelEnd = Math.min(originalText.length, selRange.end - startOffset);
+    if (isMasked) {
+      // Map source offsets to masked display columns via grapheme counting
+      const maskWidth = MeasuredText.displayWidth(mask!);
+      selStartCol = graphemesBeforeOffset(originalText, localSelStart) * maskWidth;
+      selEndCol = graphemesBeforeOffset(originalText, localSelEnd) * maskWidth;
+    } else {
       selStartCol = sourceOffsetToDisplayCol(originalText, localSelStart);
       selEndCol = sourceOffsetToDisplayCol(originalText, localSelEnd);
     }
