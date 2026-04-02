@@ -517,7 +517,10 @@ export function MultilineInput({
   );
 }
 
-/** Render a single line with cursor and selection highlighting */
+/**
+ * Render a single line with cursor and selection highlighting.
+ * @param isMasked When true, skip selection highlighting (mask shows uniform characters)
+ */
 function renderLine(
   displayText: string,
   startOffset: number,
@@ -555,6 +558,8 @@ function renderLine(
   const chars = [...displayText];
 
   let currentText = '';
+  // Note: cursor and selected currently render identically (<Text inverse>).
+  // Kept separate for future visual differentiation (e.g., cursor blink, different color).
   let currentMode: 'normal' | 'selected' | 'cursor' = 'normal';
 
   const flush = (key: string): void => {
