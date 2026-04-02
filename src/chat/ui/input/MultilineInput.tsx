@@ -10,6 +10,7 @@ import { EditorState } from './EditorState.js';
 import { KillRing } from './KillRing.js';
 import { UndoStack } from './UndoStack.js';
 import type { Position } from './MeasuredText.js';
+import { getDiag } from '../../diagnostics/index.js';
 
 export interface MultilineInputProps {
   value: string;
@@ -91,6 +92,10 @@ export function MultilineInput({
   // Sync with parent value prop (only reset state for EXTERNAL changes)
   useEffect(() => {
     if (value !== prevValueRef.current) {
+      getDiag().input.onValueSync(
+        internalChangeRef.current ? 'internal' : 'external',
+        prevValueRef.current, value, editorStateRef.current?.text,
+      );
       prevValueRef.current = value;
       if (internalChangeRef.current) {
         // This value change was triggered by our own onChange — don't reset state
@@ -154,16 +159,23 @@ export function MultilineInput({
   // before updateState for text-modifying operations. Navigation-only changes
   // (cursor moves without text change) intentionally skip undo saves.
   const updateState = useCallback((newState: EditorState, opts?: { force?: boolean; skipOnChange?: boolean }) => {
+    getDiag().input.onStateChange(
+      { text: editorStateRef.current.text, cursor: editorStateRef.current.cursor },
+      { text: newState.text, cursor: newState.cursor },
+      'updateState',
+    );
     setEditorState(newState);
     ensureCursorVisible(newState);
     if (!opts?.skipOnChange && newState.text !== editorStateRef.current.text) {
       internalChangeRef.current = true;
+      getDiag().input.onOnChange(newState.text);
       onChange(newState.text);
     }
   }, [ensureCursorVisible, onChange]);
 
   // Keyboard handler
   useInput((input, key) => {
+    getDiag().input.onKeypress(input, key as unknown as Record<string, boolean | undefined>);
     const state = editorStateRef.current;
 
     // Default: any action resets kill ring accumulation.
@@ -210,6 +222,7 @@ export function MultilineInput({
       }
       // Plain Enter
       if (effectiveSubmitOnEnter) {
+        getDiag().input.onOnSubmit(state.text);
         onSubmit(state.text);
       } else {
         saveUndoDebounced(state, false);
@@ -233,19 +246,16 @@ export function MultilineInput({
     }
 
     // --- Backspace ---
-    if (key.backspace) {
+    // Ink maps \x7f (macOS Backspace) to key.delete and \b to key.backspace.
+    // With CSI u enabled, codepoint 127 also maps to key.delete.
+    // We treat BOTH as backward-delete (backspace). Forward-delete is Ctrl+D.
+    if (key.backspace || key.delete) {
       if (state.text !== '' || state.hasSelection) {
         saveUndoDebounced(state, false);
-        updateState(state.backspace());
-      }
-      return;
-    }
-
-    // --- Delete ---
-    if (key.delete) {
-      if (!state.isAtEnd || state.hasSelection) {
-        saveUndoDebounced(state, false);
-        updateState(state.delete());
+        const nextState = state.backspace();
+        getDiag().input.assertCursorBounds(nextState.text, nextState.cursor);
+        getDiag().input.assertBackspaceResult(state.text, nextState.text, state.cursor, nextState.cursor);
+        updateState(nextState);
       }
       return;
     }
@@ -482,7 +492,9 @@ export function MultilineInput({
     if (input && input.length > 0 && !key.ctrl && !key.meta) {
       saveUndoDebounced(state, false);
       const toInsert = singleLine ? input.replace(/\n/g, ' ') : input;
-      updateState(state.insert(toInsert));
+      const nextState = state.insert(toInsert);
+      getDiag().input.assertInsertResult(state.text, nextState.text, toInsert, state.cursor, nextState.cursor);
+      updateState(nextState);
       return;
     }
   }, { isActive: focus });

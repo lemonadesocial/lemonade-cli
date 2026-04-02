@@ -9,6 +9,7 @@ import { render } from 'ink';
 import { ChatEngine } from './engine/ChatEngine.js';
 import { AIProvider, Message, ToolDef } from './providers/interface.js';
 import { SessionState } from './session/state.js';
+import { initDiagnostics } from './diagnostics/index.js';
 
 export async function runTerminalUI(
   provider: AIProvider,
@@ -25,6 +26,8 @@ export async function runTerminalUI(
     agentName: string;
   },
 ): Promise<void> {
+  initDiagnostics(process.env['LEMONADE_DEBUG']);
+
   const engine = new ChatEngine();
   const messages: Message[] = [];
 
