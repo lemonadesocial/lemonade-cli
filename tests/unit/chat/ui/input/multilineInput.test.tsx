@@ -364,33 +364,45 @@ describe('MultilineInput — component tests', () => {
       expect(onChange).toHaveBeenCalledWith('s'); // Real text, not masked
     });
 
-    it('mask prop change clears undo stack', async () => {
+    it('mask prop change allows component to function (undo stack cleared internally)', async () => {
       const onChange = vi.fn();
       // Render without mask, type to create undo history
+      useInputHandlers.length = 0;
       const { unmount: unmount1 } = await renderComponentAsync(React.createElement(MultilineInput, {
         value: 'test', onChange, onSubmit: vi.fn(), columns: 80, focus: true
       }));
-      expect(useInputHandlers.length).toBeGreaterThanOrEqual(1);
+      const handler1 = useInputHandlers[useInputHandlers.length - 1];
+      handler1('x', key()); // Insert 'x' — creates undo entry
+      expect(onChange).toHaveBeenCalledWith('testx');
       await unmount1();
 
-      // Re-render with mask — undo stack should be cleared internally
+      // Re-render with mask — undo stack cleared by mask useEffect
+      onChange.mockClear();
       useInputHandlers.length = 0;
       const { unmount: unmount2 } = await renderComponentAsync(React.createElement(MultilineInput, {
-        value: 'test', onChange, onSubmit: vi.fn(), columns: 80, focus: true, mask: '*'
+        value: 'secret', onChange, onSubmit: vi.fn(), columns: 80, focus: true, mask: '*'
       }));
-      expect(useInputHandlers.length).toBe(1); // Component rendered successfully with mask
+      const handler2 = useInputHandlers[useInputHandlers.length - 1];
+      // Ctrl+Z (undo) should be a no-op since undo stack was cleared on mask change
+      handler2('z', key({ ctrl: true }));
+      // onChange should NOT have been called — undo had nothing to restore
+      expect(onChange).not.toHaveBeenCalled();
       await unmount2();
     });
   });
 
   describe('scroll behavior', () => {
-    it('scrollOffset adjusts when content exceeds maxVisibleLines', async () => {
-      // 10 lines of content with maxVisibleLines=3
+    it('cursor movement on long content triggers onChange without crash', async () => {
+      // 10 lines of content with maxVisibleLines=3 — cursor starts at end (line 9)
       const longText = Array.from({ length: 10 }, (_, i) => `line${i}`).join('\n');
-      const handler = await getHandler({ value: longText, onChange: vi.fn(), onSubmit: vi.fn(), columns: 80, maxVisibleLines: 3 });
-      // Component rendered — cursor is at end (line 9), scroll should have adjusted
-      // We verify indirectly that the component doesn't crash with long content
+      const onChange = vi.fn();
+      const handler = await getHandler({ value: longText, onChange, onSubmit: vi.fn(), columns: 80, maxVisibleLines: 3 });
       expect(handler).toBeDefined();
+      // Navigate up — should move cursor without crashing (scroll adjusts internally)
+      handler('', key({ upArrow: true }));
+      // Backspace — deletes from current position, proves cursor is valid after scroll
+      handler('', key({ backspace: true }));
+      expect(onChange).toHaveBeenCalled();
     });
   });
 
@@ -398,8 +410,9 @@ describe('MultilineInput — component tests', () => {
     it('singleLine mode replaces newlines with spaces in typed input', async () => {
       const onChange = vi.fn();
       const handler = await getHandler({ value: '', onChange, onSubmit: vi.fn(), columns: 80, singleLine: true });
-      handler('a', key());
-      expect(onChange).toHaveBeenCalledWith('a');
+      // Simulate input containing a newline (e.g., from paste or terminal quirk)
+      handler('hello\nworld', key());
+      expect(onChange).toHaveBeenCalledWith('hello world');
     });
 
     it('Shift+Enter does not insert newline in singleLine mode', async () => {
@@ -414,21 +427,23 @@ describe('MultilineInput — component tests', () => {
   });
 
   describe('external value reset', () => {
-    it('renders without error when value prop changes', async () => {
-      const onChange = vi.fn();
+    it('onSubmit receives new value after external value change', async () => {
+      const onSubmit = vi.fn();
+      // Render with 'initial', then re-render with 'changed'
       useInputHandlers.length = 0;
       const { unmount: unmount1 } = await renderComponentAsync(React.createElement(MultilineInput, {
-        value: 'initial', onChange, onSubmit: vi.fn(), columns: 80, focus: true
+        value: 'initial', onChange: vi.fn(), onSubmit, columns: 80, focus: true
       }));
-      expect(useInputHandlers.length).toBeGreaterThanOrEqual(1);
       await unmount1();
 
       useInputHandlers.length = 0;
-      const { unmount: unmount2 } = await renderComponentAsync(React.createElement(MultilineInput, {
-        value: 'changed', onChange, onSubmit: vi.fn(), columns: 80, focus: true
+      await renderComponentAsync(React.createElement(MultilineInput, {
+        value: 'changed', onChange: vi.fn(), onSubmit, columns: 80, focus: true
       }));
-      expect(useInputHandlers.length).toBeGreaterThanOrEqual(1);
-      await unmount2();
+      const handler = useInputHandlers[useInputHandlers.length - 1];
+      // Press Enter — should submit the NEW value ('changed'), not the old one
+      handler('', key({ return: true }));
+      expect(onSubmit).toHaveBeenCalledWith('changed');
     });
   });
 
