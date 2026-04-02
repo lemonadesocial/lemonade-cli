@@ -35,6 +35,12 @@ export class EditorState {
     return new EditorState(text, text.length, columns);
   }
 
+  /** Create a state with cursor clamped to [0, text.length]. */
+  static withCursor(text: string, cursor: number, columns: number): EditorState {
+    const clamped = Math.max(0, Math.min(cursor, text.length));
+    return new EditorState(text, clamped, columns);
+  }
+
   // --- Lazy measured text ---
   // Note: MeasuredText wraps using `this.columns` uniformly for all lines.
   // In practice, line 1 may display 2 chars shorter than its capacity because
