@@ -885,6 +885,61 @@ describe('renderLine — display-column rendering', () => {
     expect((children[2] as React.ReactElement).props.inverse).toBe(true);
   });
 
+  it('masked mode cursor within selection on same line', () => {
+    // Source 'abcd', mask '*' → display '****'
+    // Cursor at source offset 2 (after 'ab'), selection covers offsets 1..3 ('bc')
+    // Cursor is inside the selection range on the same line.
+    const result = renderLine(
+      '****',        // displayText
+      'abcd',        // originalText
+      0,
+      0,
+      { line: 0, column: 2 }, // cursorPos (display col 2 from real text)
+      2,                       // cursorOffset
+      { start: 1, end: 3 },   // selection covers 'bc'
+      '*',
+      true,
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    // '*' normal (a), '*' selected (b), '*' cursor (c), '*' normal (d)
+    expect(children.length).toBe(4);
+    // 'a' — normal
+    expect((children[0] as React.ReactElement).props.children).toBe('*');
+    expect((children[0] as React.ReactElement).props.inverse).toBeFalsy();
+    // 'b' — selected
+    expect((children[1] as React.ReactElement).props.children).toBe('*');
+    expect((children[1] as React.ReactElement).props.inverse).toBe(true);
+    // 'c' — cursor (takes priority over selection)
+    expect((children[2] as React.ReactElement).props.children).toBe('*');
+    expect((children[2] as React.ReactElement).props.inverse).toBe(true);
+    // 'd' — normal
+    expect((children[3] as React.ReactElement).props.children).toBe('*');
+    expect((children[3] as React.ReactElement).props.inverse).toBeFalsy();
+  });
+
+  it('masked mode cursor at position 0', () => {
+    // Source 'abc', mask '*' → display '***'
+    // Cursor at source offset 0 (start of text)
+    const result = renderLine(
+      '***',
+      'abc',
+      0,
+      0,
+      { line: 0, column: 0 },
+      0,
+      null,
+      '*',
+      true,
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    // First '*' is cursor (inverse), rest normal
+    expect(children.length).toBe(2);
+    expect((children[0] as React.ReactElement).props.children).toBe('*');
+    expect((children[0] as React.ReactElement).props.inverse).toBe(true);
+    expect((children[1] as React.ReactElement).props.children).toBe('**');
+    expect((children[1] as React.ReactElement).props.inverse).toBeFalsy();
+  });
+
   it('returns plain text when no cursor or selection on line', () => {
     const result = renderLine(
       'hello',
