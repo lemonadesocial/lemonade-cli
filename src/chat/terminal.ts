@@ -35,6 +35,16 @@ export async function runTerminalUI(
   // Enable Kitty keyboard protocol for modifier detection (Shift+Enter, etc.)
   process.stdout.write('\x1b[>1u');
 
+  // Process exit cleanup for crash safety — ensures terminal is restored
+  const terminalCleanup = () => {
+    process.stdout.write('\x1b[<u');        // Disable CSI u
+    process.stdout.write('\x1b[?2004l');    // Disable bracketed paste
+    process.stdout.write('\x1b[?25h');      // Show cursor
+    process.stdout.write('\x1b[?1049l');    // Leave alt screen
+  };
+  process.on('exit', terminalCleanup);
+  process.on('SIGTERM', () => { terminalCleanup(); process.exit(143); });
+
   const { App } = await import('./ui/App.js');
 
   const instance = render(

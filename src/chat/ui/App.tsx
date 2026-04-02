@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
-import TextInput from 'ink-text-input';
+import { MultilineInput } from './input/index.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
 import { AIProvider, Message, ToolDef, SystemMessage } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
@@ -237,14 +237,30 @@ export function App({
   const cachedSpacesRef = useRef<Array<{ _id: string; title: string; slug?: string }> | null>(null);
 
   const [inputValue, setInputValue] = useState('');
-  const [previousLines, setPreviousLines] = useState<string[]>([]);
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
   const streamAbortRef = useRef<AbortController | null>(null);
   const turnInProgressRef = useRef(false);
   const btwAbortsRef = useRef<Map<string, AbortController>>(new Map());
-  const pendingApiKeyRef = useRef<{ connectionId: string; connectorType: string } | null>(null);
+
+  // Reactive terminal width
+  const [termColumns, setTermColumns] = useState(process.stdout.columns || 80);
+  useEffect(() => {
+    const onResize = () => setTermColumns(process.stdout.columns || 80);
+    process.stdout.on('resize', onResize);
+    return () => { process.stdout.off('resize', onResize); };
+  }, []);
+  const contentWidth = termColumns - 4;
+
+  // Command history
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [savedInput, setSavedInput] = useState('');
+
+  // API key state (replaces pendingApiKeyRef)
+  const [apiKeyPrompt, setApiKeyPrompt] = useState<{ connectionId: string; connectorType: string } | null>(null);
+  const [apiKeyValue, setApiKeyValue] = useState('');
 
   // Autocomplete state
   const [acIndex, setAcIndex] = useState(0);
@@ -296,22 +312,12 @@ export function App({
     const input = value.trim();
     if (!input) return;
     setInputValue('');
-    setPreviousLines([]);
-
-    // Check if we're collecting an API key (from /connectors connect)
-    if (pendingApiKeyRef.current) {
-      const { connectionId, connectorType } = pendingApiKeyRef.current;
-      pendingApiKeyRef.current = null;
-      addSystemMessage('Submitting API key...');
-      try {
-        const submitTool = registry['connector_submit_api_key'];
-        await submitTool.execute({ connection_id: connectionId, api_key: input });
-        addSystemMessage(`${connectorType} connected! Use /connectors connected to verify.`);
-      } catch (err) {
-        addSystemMessage(`Failed to submit API key: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-      return;
-    }
+    setCommandHistory(prev => {
+      if (prev[prev.length - 1] === input) return prev;
+      return [...prev, input];
+    });
+    setHistoryIndex(-1);
+    setSavedInput('');
 
     // Exit commands (always allowed)
     if (['exit', 'quit', 'bye'].includes(input.toLowerCase())) {
@@ -791,11 +797,11 @@ export function App({
               addSystemMessage(`Type your ${subArg} API key below and press Enter:`);
               addSystemMessage('(Your key will be sent securely to the backend — it will NOT be stored in chat history.)');
 
-              // Store pending connection so the next regular message is treated as an API key
-              pendingApiKeyRef.current = {
+              // Show masked API key input
+              setApiKeyPrompt({
                 connectionId: connectResult.connectionId,
                 connectorType: subArg,
-              };
+              });
             } else if (connectResult.authUrl) {
               // Step 2b: OAuth flow — open browser and poll for completion
               addSystemMessage('Opening browser for authorization...');
@@ -1100,31 +1106,57 @@ export function App({
     setShowThinking(false);
   }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit]);
 
-  // Keyboard handling
+  // History navigation callbacks
+  const handleHistoryUp = useCallback(() => {
+    if (commandHistory.length === 0) return;
+    if (historyIndex === -1) setSavedInput(inputValue);
+    const idx = historyIndex === -1 ? commandHistory.length - 1 : Math.max(0, historyIndex - 1);
+    setHistoryIndex(idx);
+    setInputValue(commandHistory[idx]);
+  }, [commandHistory, historyIndex, inputValue]);
+
+  const handleHistoryDown = useCallback(() => {
+    if (historyIndex === -1) return;
+    const idx = historyIndex + 1;
+    if (idx >= commandHistory.length) {
+      setHistoryIndex(-1);
+      setInputValue(savedInput);
+    } else {
+      setHistoryIndex(idx);
+      setInputValue(commandHistory[idx]);
+    }
+  }, [commandHistory, historyIndex, savedInput]);
+
+  // Reset history browsing on manual edit
+  const handleChange = useCallback((val: string) => {
+    setInputValue(val);
+    if (historyIndex !== -1) {
+      setHistoryIndex(-1);
+      setSavedInput('');
+    }
+  }, [historyIndex]);
+
+  const handleExit = useCallback(() => { exit(); }, [exit]);
+
+  const handleApiKeySubmit = useCallback(async (value: string) => {
+    if (!apiKeyPrompt || !value.trim()) return;
+    const { connectionId, connectorType } = apiKeyPrompt;
+    addSystemMessage('Submitting API key...');
+    try {
+      const submitTool = registry['connector_submit_api_key'];
+      await submitTool.execute({ connection_id: connectionId, api_key: value.trim() });
+      setApiKeyPrompt(null);
+      setApiKeyValue('');
+      addSystemMessage(`${connectorType} connected! Use /connectors connected to verify.`);
+    } catch (err) {
+      // Keep apiKeyPrompt set so the masked input stays visible for retry
+      setApiKeyValue('');
+      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}. Try again or press Escape to cancel.`);
+    }
+  }, [apiKeyPrompt, registry, addSystemMessage]);
+
+  // Keyboard handling — only keys NOT handled by MultilineInput
   useInput((input, key) => {
-    // Enter key handling (submit or multiline)
-    if (key.return) {
-      if (key.shift) {
-        // Shift+Enter: move current line to previous lines, reset input
-        setPreviousLines((prev) => [...prev, inputValue]);
-        setInputValue('');
-        return;
-      }
-      // Plain Enter: join all lines and submit
-      const fullText = [...previousLines, inputValue].join('\n');
-      setPreviousLines([]);
-      onSubmit(fullText);
-      return;
-    }
-
-    // Backspace on empty line: merge back into previous line
-    if (key.backspace && inputValue === '' && previousLines.length > 0) {
-      const lastLine = previousLines[previousLines.length - 1];
-      setPreviousLines((prev) => prev.slice(0, -1));
-      setInputValue(lastLine);
-      return;
-    }
-
     // Ctrl+L: clear screen (same as /clear)
     if (key.ctrl && input === 'l') {
       chatMessages.length = 0;
@@ -1133,15 +1165,12 @@ export function App({
       return;
     }
 
-    // Ctrl+U: clear input line (and all previous lines)
-    if (key.ctrl && input === 'u') {
-      setInputValue('');
-      setPreviousLines([]);
-      return;
-    }
-
     if (key.escape) {
-      if (planState.active) {
+      if (apiKeyPrompt) {
+        setApiKeyPrompt(null);
+        setApiKeyValue('');
+        addSystemMessage('API key entry cancelled.');
+      } else if (planState.active) {
         cancelPlan();
         addSystemMessage('(plan cancelled)');
       } else if (streamAbortRef.current) {
@@ -1160,7 +1189,6 @@ export function App({
         addSystemMessage('(btw cancelled)');
       } else {
         setInputValue('');
-        setPreviousLines([]);
       }
       return;
     }
@@ -1272,52 +1300,49 @@ export function App({
               addSystemMessage('(plan cancelled)');
             }}
             spaceOptions={planState.spaces}
+            columns={contentWidth}
           />
         </Box>
       ) : (
         <>
           {/* Input field - flows after messages */}
-          <Box
-            marginTop={2}
-            borderStyle="round"
-            borderColor="#FDE047"
-            paddingLeft={1}
-            paddingRight={1}
-            flexDirection="column"
-          >
-            {previousLines.length === 0 ? (
-              <Box>
-                <Text color="#FDE047">{'> '}</Text>
-                <TextInput
-                  value={inputValue}
-                  onChange={setInputValue}
-                  focus={!pendingConfirm && !planState.active}
-                  showCursor={true}
-                  placeholder={isStreaming ? '' : 'How can I help... #makelemonade (Shift+Enter for new line)'}
+          {apiKeyPrompt ? (
+            <Box marginTop={2} borderStyle="round" borderColor="yellow" paddingLeft={1} paddingRight={1}>
+              <Text color="yellow">{'\uD83D\uDD11 '}</Text>
+              <Box flexGrow={1}>
+                <MultilineInput
+                  value={apiKeyValue}
+                  onChange={setApiKeyValue}
+                  onSubmit={handleApiKeySubmit}
+                  focus={!!apiKeyPrompt && !pendingConfirm}
+                  columns={contentWidth - 6}
+                  mask="*"
+                  singleLine={true}
+                  placeholder="Paste API key... (Escape to cancel)"
                 />
               </Box>
-            ) : (
-              <>
-                <Box>
-                  <Text color="#FDE047">{'> '}</Text>
-                  <Text>{previousLines[0]}</Text>
-                </Box>
-                {previousLines.slice(1).map((line, i) => (
-                  <Text key={i}>{'  '}{line}</Text>
-                ))}
-                <Box>
-                  <Text>{'  '}</Text>
-                  <TextInput
-                    value={inputValue}
-                    onChange={setInputValue}
-                    focus={!pendingConfirm && !planState.active}
-                    showCursor={true}
-                    placeholder=""
-                  />
-                </Box>
-              </>
-            )}
-          </Box>
+            </Box>
+          ) : (
+            <Box marginTop={2} borderStyle="round" borderColor="#FDE047" paddingLeft={1} paddingRight={1}>
+              <Text color="#FDE047">{'> '}</Text>
+              <Box flexGrow={1}>
+                <MultilineInput
+                  value={inputValue}
+                  onChange={handleChange}
+                  onSubmit={onSubmit}
+                  onHistoryUp={handleHistoryUp}
+                  onHistoryDown={handleHistoryDown}
+                  onExit={handleExit}
+                  focus={!pendingConfirm && !planState.active && !apiKeyPrompt}
+                  columns={contentWidth - 2}
+                  maxVisibleLines={8}
+                  placeholder={isStreaming ? '' : 'How can I help... #makelemonade (Shift+Enter for new line)'}
+                  continuationPrefix="  "
+                  suppressNavigation={showAutocomplete && filteredCommands.length > 0}
+                />
+              </Box>
+            </Box>
+          )}
 
           {/* Toolbar - flows after input */}
           {showAutocomplete ? (
