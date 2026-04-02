@@ -1337,7 +1337,7 @@ export function App({
                   columns={contentWidth - 2}
                   maxVisibleLines={8}
                   placeholder={isStreaming ? '' : 'How can I help... #makelemonade (Shift+Enter for new line)'}
-                  continuationPrefix="  "
+                  continuationPrefix=""
                   suppressNavigation={showAutocomplete && filteredCommands.length > 0}
                 />
               </Box>
