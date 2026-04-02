@@ -4,6 +4,19 @@ import React from 'react';
 // Captured useInput handlers from component renders
 const useInputHandlers: Array<(input: string, key: Record<string, boolean | undefined>) => void> = [];
 
+vi.mock('../../../../../src/chat/input-runtime/TerminalProtocolController.js', () => {
+  const mockController = {
+    onPasteStateChange: vi.fn(() => vi.fn()),
+    enable: vi.fn(),
+    disable: vi.fn(),
+  };
+  return {
+    getTerminalProtocol: () => mockController,
+    initTerminalProtocol: () => mockController,
+    TerminalProtocolController: vi.fn(() => mockController),
+  };
+});
+
 vi.mock('ink', () => ({
   Box: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
   Text: ({ children, dimColor, inverse }: { children?: React.ReactNode; dimColor?: boolean; inverse?: boolean }) =>
