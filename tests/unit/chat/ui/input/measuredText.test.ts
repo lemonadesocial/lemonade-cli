@@ -320,4 +320,195 @@ describe('MeasuredText', () => {
       });
     });
   });
+
+  describe('tab handling', () => {
+    it('tab has zero display width (string-width treats \\t as control char)', () => {
+      expect(MeasuredText.displayWidth('\t')).toBe(0);
+    });
+
+    it('tab is a distinct grapheme that occupies 0 columns', () => {
+      const m = new MeasuredText('a\tb', 80);
+      expect(m.wrappedLines).toHaveLength(1);
+      expect(m.wrappedLines[0].text).toBe('a\tb');
+      // 'a' = 1, '\t' = 0, 'b' = 1
+      expect(m.getLineLength(0)).toBe(2);
+    });
+
+    it('offsetToPosition accounts for zero-width tab', () => {
+      const m = new MeasuredText('a\tb', 80);
+      expect(m.offsetToPosition(0)).toEqual({ line: 0, column: 0 }); // before 'a'
+      expect(m.offsetToPosition(1)).toEqual({ line: 0, column: 1 }); // after 'a', before '\t'
+      expect(m.offsetToPosition(2)).toEqual({ line: 0, column: 1 }); // after '\t', before 'b' (tab is 0-width)
+      expect(m.offsetToPosition(3)).toEqual({ line: 0, column: 2 }); // after 'b'
+    });
+
+    it('zero-width tab creates non-invertible offset mapping', () => {
+      const m = new MeasuredText('a\tb', 80);
+      // offset 1 (before tab) and offset 2 (after tab) both map to column 1
+      // because tab has 0 display width
+      const pos1 = m.offsetToPosition(1);
+      const pos2 = m.offsetToPosition(2);
+      expect(pos1).toEqual(pos2); // both map to column 1
+      // positionToOffset walks past zero-width graphemes, so col 1 → offset 2 (after tab)
+      expect(m.positionToOffset({ line: 0, column: 1 })).toBe(2);
+    });
+  });
+
+  describe('mid-surrogate offsets (finding #2)', () => {
+    it('offsetToPosition snaps forward for mid-surrogate offset in emoji', () => {
+      // '😀' is a surrogate pair: 2 code units at indices 1..2 in "a😀b"
+      const m = new MeasuredText('a😀b', 80);
+      // offset 1 = start of emoji → column 1 (before emoji)
+      expect(m.offsetToPosition(1)).toEqual({ line: 0, column: 1 });
+      // offset 2 = mid-surrogate → snaps forward past emoji → column 3
+      expect(m.offsetToPosition(2)).toEqual({ line: 0, column: 3 });
+      // offset 3 = after emoji → column 3
+      expect(m.offsetToPosition(3)).toEqual({ line: 0, column: 3 });
+    });
+
+    it('offsetToPosition snaps forward for mid-surrogate in flag emoji', () => {
+      // 🇯🇵 is 4 code units (two regional indicators), 1 grapheme, 2 display cols
+      const flag = '🇯🇵';
+      expect(flag.length).toBe(4); // confirm 4 code units
+      const m = new MeasuredText('x' + flag + 'y', 80);
+      // offset 1 = start of flag → column 1
+      expect(m.offsetToPosition(1)).toEqual({ line: 0, column: 1 });
+      // offsets 2, 3, 4 = mid-grapheme → snap forward past flag → column 3
+      expect(m.offsetToPosition(2)).toEqual({ line: 0, column: 3 });
+      expect(m.offsetToPosition(3)).toEqual({ line: 0, column: 3 });
+      expect(m.offsetToPosition(4)).toEqual({ line: 0, column: 3 });
+      // offset 5 = after flag, at 'y'
+      expect(m.offsetToPosition(5)).toEqual({ line: 0, column: 3 });
+    });
+  });
+
+  describe('combining-mark graphemes (finding #3)', () => {
+    it('treats base + combining mark as single grapheme', () => {
+      // 'é' as e (U+0065) + combining acute (U+0301) = 2 code units, 1 grapheme
+      const combining = 'e\u0301'; // é decomposed
+      expect(combining.length).toBe(2);
+      const m = new MeasuredText('a' + combining + 'b', 80);
+      // Intl.Segmenter treats e+combining as 1 grapheme
+      expect(m.wrappedLines[0].text).toBe('a' + combining + 'b');
+      expect(m.getLineLength(0)).toBe(3); // a(1) + é(1) + b(1)
+    });
+
+    it('offsetToPosition handles combining mark grapheme', () => {
+      const combining = 'e\u0301';
+      const m = new MeasuredText('a' + combining + 'b', 80);
+      expect(m.offsetToPosition(0)).toEqual({ line: 0, column: 0 }); // before 'a'
+      expect(m.offsetToPosition(1)).toEqual({ line: 0, column: 1 }); // after 'a', before 'é'
+      // offset 2 = mid-grapheme (between 'e' and combining mark) → snaps forward
+      expect(m.offsetToPosition(2)).toEqual({ line: 0, column: 2 });
+      expect(m.offsetToPosition(3)).toEqual({ line: 0, column: 2 }); // after 'é', before 'b'
+      expect(m.offsetToPosition(4)).toEqual({ line: 0, column: 3 }); // after 'b'
+    });
+
+    it('roundtrips at grapheme boundaries for combining marks', () => {
+      const combining = 'e\u0301';
+      const m = new MeasuredText('a' + combining + 'b', 80);
+      const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+      const boundaries = [...segmenter.segment(m.text)].map(s => s.index);
+      boundaries.push(m.text.length);
+      for (const offset of boundaries) {
+        const pos = m.offsetToPosition(offset);
+        const rt = m.positionToOffset(pos);
+        expect(rt).toBe(offset);
+      }
+    });
+
+    it('wraps combining-mark grapheme as atomic unit', () => {
+      // 3 columns: 'ab' (2) then 'é' (1) fits → 'abé' but length is 4 code units
+      const combining = 'e\u0301';
+      const m = new MeasuredText('ab' + combining + 'cd', 3);
+      expect(m.wrappedLines[0].text).toBe('ab' + combining);
+      expect(m.wrappedLines[1].text).toBe('cd');
+    });
+  });
+
+  describe('ZWJ emoji sequences (finding #4)', () => {
+    it('offsetToPosition at grapheme boundaries for ZWJ family', () => {
+      const family = '👨‍👩‍👧‍👦';
+      const m = new MeasuredText('a' + family + 'b', 80);
+      const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+      const segs = [...segmenter.segment(m.text)];
+      // Should be 3 graphemes: 'a', family, 'b'
+      expect(segs).toHaveLength(3);
+      expect(segs[0].segment).toBe('a');
+      expect(segs[1].segment).toBe(family);
+      expect(segs[2].segment).toBe('b');
+
+      // Boundary offsets
+      expect(m.offsetToPosition(0)).toEqual({ line: 0, column: 0 }); // before 'a'
+      expect(m.offsetToPosition(1)).toEqual({ line: 0, column: 1 }); // after 'a'
+      const afterFamily = 1 + family.length;
+      expect(m.offsetToPosition(afterFamily)).toEqual({ line: 0, column: 3 }); // after family
+      expect(m.offsetToPosition(afterFamily + 1)).toEqual({ line: 0, column: 4 }); // after 'b'
+    });
+
+    it('mid-grapheme offsets in ZWJ sequence snap forward', () => {
+      const family = '👨‍👩‍👧‍👦';
+      const m = new MeasuredText(family, 80);
+      // Any offset from 1 to family.length-1 is mid-grapheme → snaps to column 2 (full width)
+      for (let i = 1; i < family.length; i++) {
+        const pos = m.offsetToPosition(i);
+        expect(pos).toEqual({ line: 0, column: 2 });
+      }
+    });
+
+    it('roundtrips ZWJ sequence at grapheme boundaries only', () => {
+      const family = '👨‍👩‍👧‍👦';
+      const m = new MeasuredText('x' + family + 'y', 80);
+      const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+      const boundaries = [...segmenter.segment(m.text)].map(s => s.index);
+      boundaries.push(m.text.length);
+      for (const offset of boundaries) {
+        const pos = m.offsetToPosition(offset);
+        const rt = m.positionToOffset(pos);
+        expect(rt).toBe(offset);
+      }
+    });
+
+    it('wraps ZWJ emoji as atomic unit', () => {
+      const family = '👨‍👩‍👧‍👦'; // 2 display cols
+      // 3 columns: 'a' (1) + family (2) = 3 fits, 'b' wraps
+      const m = new MeasuredText('a' + family + 'b', 3);
+      expect(m.wrappedLines[0].text).toBe('a' + family);
+      expect(m.wrappedLines[1].text).toBe('b');
+    });
+  });
+
+  describe('mid-grapheme offset snap-forward contract (finding #5)', () => {
+    it('mid-surrogate in simple emoji snaps forward to after-grapheme column', () => {
+      const m = new MeasuredText('😀', 80);
+      // offset 0 = before emoji → column 0
+      expect(m.offsetToPosition(0)).toEqual({ line: 0, column: 0 });
+      // offset 1 = mid-surrogate → snap forward → column 2 (after emoji)
+      expect(m.offsetToPosition(1)).toEqual({ line: 0, column: 2 });
+      // offset 2 = after emoji → column 2
+      expect(m.offsetToPosition(2)).toEqual({ line: 0, column: 2 });
+    });
+
+    it('mid-grapheme offset is non-invertible (positionToOffset returns boundary)', () => {
+      const m = new MeasuredText('a😀b', 80);
+      // mid-surrogate offset 2 → column 3 (snapped forward past emoji)
+      const pos = m.offsetToPosition(2);
+      expect(pos).toEqual({ line: 0, column: 3 });
+      // column 3 → offset 3 (the canonical grapheme boundary), NOT 2
+      expect(m.positionToOffset(pos)).toBe(3);
+    });
+
+    it('combining mark mid-offset is non-invertible', () => {
+      // 'é' = e + U+0301, 2 code units
+      const m = new MeasuredText('e\u0301', 80);
+      // offset 0 = before grapheme → column 0
+      expect(m.offsetToPosition(0)).toEqual({ line: 0, column: 0 });
+      // offset 1 = mid-grapheme → snap forward → column 1
+      expect(m.offsetToPosition(1)).toEqual({ line: 0, column: 1 });
+      // offset 2 = end → column 1
+      expect(m.offsetToPosition(2)).toEqual({ line: 0, column: 1 });
+      // column 1 → offset 2 (grapheme boundary), not 1
+      expect(m.positionToOffset({ line: 0, column: 1 })).toBe(2);
+    });
+  });
 });

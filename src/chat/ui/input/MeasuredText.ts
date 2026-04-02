@@ -160,7 +160,12 @@ export class MeasuredText {
     const wl = lines[line];
     const localOffset = clampedOffset - wl.startOffset;
 
-    // Walk graphemes to compute visual display column
+    // Walk graphemes to compute visual display column.
+    // Snap-forward: if localOffset falls mid-grapheme (e.g. between surrogates
+    // of an emoji pair), the grapheme whose start index < localOffset is fully
+    // counted, so the returned column is the position *after* that grapheme.
+    // This is intentional — callers must supply grapheme-boundary offsets for
+    // exact results; mid-grapheme offsets always round forward.
     let displayCol = 0;
     for (const seg of GRAPHEME_SEGMENTER.segment(wl.text)) {
       if (seg.index >= localOffset) break;
