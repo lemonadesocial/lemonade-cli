@@ -458,6 +458,174 @@ describe('EditorState', () => {
     });
   });
 
+  describe('wide character navigation', () => {
+    // CJK characters are 2 display columns wide
+    // 'Ａ' (U+FF21 fullwidth A) = 2 cols, 'a' = 1 col
+
+    it('cursorPosition reports display columns for wide chars', () => {
+      // 'Ａ' is 2 cols wide. Text "Ａb" = 3 display cols.
+      const s = EditorState.from('Ａb', 80);
+      // cursor at end: line 0, display column 3 (2 for Ａ + 1 for b)
+      expect(s.cursorPosition).toEqual({ line: 0, column: 3 });
+    });
+
+    it('cursorPosition after left from wide char end', () => {
+      const s = EditorState.from('Ａb', 80).left();
+      // cursor before 'b': display column 2
+      expect(s.cursorPosition).toEqual({ line: 0, column: 2 });
+    });
+
+    it('cursorPosition at start of wide char', () => {
+      const s = EditorState.from('Ａb', 80).left().left();
+      // cursor before 'Ａ': display column 0
+      expect(s.cursorPosition).toEqual({ line: 0, column: 0 });
+    });
+
+    it('up/down with wide chars preserves visual column', () => {
+      // Line 0: "abcde" = 5 display cols
+      // Line 1: "ＡＢ"  = 4 display cols (2+2)
+      // Line 2: "fghij" = 5 display cols
+      const s = EditorState.withCursor('abcde\nＡＢ\nfghij', 5, 80);
+      // cursor at end of line 0, col 5
+      expect(s.cursorPosition).toEqual({ line: 0, column: 5 });
+
+      const s2 = s.down(); // line 1, clamp to col 4
+      expect(s2.cursorPosition.line).toBe(1);
+      expect(s2.cursorPosition.column).toBe(4);
+      expect(s2.stickyColumn).toBe(5);
+
+      const s3 = s2.down(); // line 2, restore sticky col 5
+      expect(s3.cursorPosition.line).toBe(2);
+      expect(s3.cursorPosition.column).toBe(5);
+    });
+
+    it('sticky column uses display columns not source offsets', () => {
+      // Line 0: "ＡＢＣ" = 6 display cols, 3 source chars
+      // Line 1: "ab"     = 2 display cols
+      // Line 2: "ＤＥＦ" = 6 display cols
+      const s = EditorState.from('ＡＢＣ\nab\nＤＥＦ', 80);
+      // cursor at end of line 2, col 6
+      expect(s.cursorPosition).toEqual({ line: 2, column: 6 });
+
+      const s2 = s.up(); // line 1, clamp to col 2, sticky = 6
+      expect(s2.cursorPosition.line).toBe(1);
+      expect(s2.cursorPosition.column).toBe(2);
+      expect(s2.stickyColumn).toBe(6);
+
+      const s3 = s2.up(); // line 0, restore sticky col 6
+      expect(s3.cursorPosition.line).toBe(0);
+      expect(s3.cursorPosition.column).toBe(6);
+    });
+
+    it('down into wide-char line lands on grapheme boundary', () => {
+      // Line 0: "abcde" = 5 display cols
+      // Line 1: "ＡＢＣ" = 6 display cols
+      // Cursor at col 3 on line 0 (after 'c')
+      const s = EditorState.withCursor('abcde\nＡＢＣ', 3, 80);
+      expect(s.cursorPosition).toEqual({ line: 0, column: 3 });
+
+      const s2 = s.down();
+      // col 3 falls inside Ｂ (cols 2-3). positionToOffset snaps backward to col 2 (start of Ｂ)
+      expect(s2.cursorPosition.line).toBe(1);
+      expect(s2.cursorPosition.column).toBe(2);
+    });
+
+    it('startOfLine/endOfLine with wide chars', () => {
+      const s = EditorState.from('aＡb\nＢc', 80);
+      // cursor at end of line 1
+      const s2 = s.startOfLine();
+      expect(s2.cursorPosition).toEqual({ line: 1, column: 0 });
+      const s3 = s2.endOfLine();
+      expect(s3.cursorPosition).toEqual({ line: 1, column: 3 }); // Ｂ=2 + c=1
+    });
+
+    it('selection with wide chars reports correct text', () => {
+      // "aＡb" — select from start to after Ａ
+      const s = EditorState.from('aＡb', 80)
+        .startOfBuffer()
+        .selectRight()   // select 'a'
+        .selectRight();  // select 'Ａ'
+      expect(s.getSelectedText()).toBe('aＡ');
+    });
+
+    it('selectUp/selectDown with wide chars', () => {
+      const s = EditorState.from('ＡＢ\ncd', 80);
+      // cursor at end of line 1
+      const s2 = s.selectUp();
+      expect(s2.hasSelection).toBe(true);
+      expect(s2.cursorPosition.line).toBe(0);
+    });
+
+    it('deleteToLineEnd with wide chars', () => {
+      // "ＡＢＣ" cursor after Ａ (offset 1 since Ａ is 1 source char)
+      const s = EditorState.withCursor('ＡＢＣ', 1, 80);
+      expect(s.cursorPosition.column).toBe(2); // Ａ = 2 display cols
+      const { state, killed } = s.deleteToLineEnd();
+      expect(killed).toBe('ＢＣ');
+      expect(state.text).toBe('Ａ');
+    });
+
+    it('deleteToLineStart with wide chars', () => {
+      const s = EditorState.withCursor('ＡＢＣ', 1, 80);
+      const { state, killed } = s.deleteToLineStart();
+      expect(killed).toBe('Ａ');
+      expect(state.text).toBe('ＢＣ');
+    });
+  });
+
+  describe('vertical navigation with wrapping', () => {
+    it('up/down across soft-wrapped lines', () => {
+      // columns=5, text "abcdefgh" wraps to:
+      //   line 0: "abcde" (cols 0-4)
+      //   line 1: "fgh"   (cols 0-2)
+      const s = EditorState.withCursor('abcdefgh', 3, 5);
+      // cursor at offset 3 = line 0, col 3
+      expect(s.cursorPosition).toEqual({ line: 0, column: 3 });
+
+      const s2 = s.down(); // line 1, col 3 clamped to 3
+      expect(s2.cursorPosition.line).toBe(1);
+      expect(s2.cursorPosition.column).toBe(3);
+
+      const s3 = s2.up(); // back to line 0, col 3
+      expect(s3.cursorPosition.line).toBe(0);
+      expect(s3.cursorPosition.column).toBe(3);
+    });
+
+    it('up/down across soft-wrapped wide-char lines', () => {
+      // columns=6, text "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴ" wraps
+      // Each fullwidth char = 2 cols, so 3 chars per 6-col line
+      const text = 'ＡＢＣＤＥＦ';
+      const s = EditorState.withCursor(text, 0, 6);
+      expect(s.cursorPosition).toEqual({ line: 0, column: 0 });
+
+      const s2 = s.down(); // line 1, col 0
+      expect(s2.cursorPosition.line).toBe(1);
+      expect(s2.cursorPosition.column).toBe(0);
+    });
+
+    it('sticky column survives wrap-line transitions with wide chars', () => {
+      // columns=6
+      // "ＡＢＣ" (6 display cols) + "\n" + "ab" (2 cols) + "\n" + "ＤＥＦ" (6 cols)
+      // Wraps to:
+      //   Line 0: "ＡＢＣ" = 6 cols (endsWithNewline)
+      //   Line 1: "ab"     = 2 cols (endsWithNewline)
+      //   Line 2: "ＤＥＦ" = 6 cols
+      const text = 'ＡＢＣ\nab\nＤＥＦ';
+      // Place cursor after ＡＢ on line 0 = offset 2, col 4
+      const s0 = EditorState.withCursor(text, 2, 6);
+      expect(s0.cursorPosition).toEqual({ line: 0, column: 4 });
+
+      const s2 = s0.down(); // line 1: "ab" = 2 cols, clamp to 2, sticky=4
+      expect(s2.cursorPosition.line).toBe(1);
+      expect(s2.cursorPosition.column).toBe(2);
+      expect(s2.stickyColumn).toBe(4);
+
+      const s3 = s2.down(); // line 2: "ＤＥＦ" = 6 cols, restore to 4
+      expect(s3.cursorPosition.line).toBe(2);
+      expect(s3.cursorPosition.column).toBe(4);
+    });
+  });
+
   describe('remeasure', () => {
     it('changes columns while preserving text and cursor', () => {
       const s = EditorState.from('hello world', 80);
