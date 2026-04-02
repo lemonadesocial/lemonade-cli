@@ -62,6 +62,10 @@ export function initTerminalProtocol(): TerminalProtocolController {
 }
 
 export function getTerminalProtocol(): TerminalProtocolController {
-  if (!_instance) _instance = new TerminalProtocolController();
+  if (!_instance) {
+    throw new Error(
+      'TerminalProtocolController not initialized — call initTerminalProtocol() first (terminal.ts owns lifecycle)',
+    );
+  }
   return _instance;
 }
