@@ -14,6 +14,22 @@ import { getDiag } from '../../diagnostics/index.js';
 
 const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
+function graphemeCount(text: string): number {
+  let count = 0;
+  for (const _ of GRAPHEME_SEGMENTER.segment(text)) count++;
+  return count;
+}
+
+/** Count graphemes whose start index < sourceOffset. */
+function graphemesBeforeOffset(text: string, sourceOffset: number): number {
+  let count = 0;
+  for (const seg of GRAPHEME_SEGMENTER.segment(text)) {
+    if (seg.index >= sourceOffset) break;
+    count++;
+  }
+  return count;
+}
+
 export interface MultilineInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -519,7 +535,7 @@ export function MultilineInput({
       {visibleLines.map((wline, i) => {
         const lineIdx = i + scrollOffset;
         const prefix = lineIdx === 0 ? '' : (continuationPrefix ?? '  ');
-        const displayText = mask ? mask.repeat(wline.text.length) : wline.text;
+        const displayText = mask ? mask.repeat(graphemeCount(wline.text)) : wline.text;
         const rendered = renderLine(
           displayText,
           wline.text,
@@ -581,10 +597,10 @@ export function renderLine(
   let cursorDisplayCol = -1;
   if (isCursorLine) {
     if (isMasked) {
-      // Each source code-unit → one mask char; convert to display columns
+      // Count graphemes before cursor, not code units
       const localOffset = cursorOffset - startOffset;
       const maskWidth = MeasuredText.displayWidth(mask);
-      cursorDisplayCol = localOffset * maskWidth;
+      cursorDisplayCol = graphemesBeforeOffset(originalText, localOffset) * maskWidth;
     } else {
       cursorDisplayCol = cursorPos.column;
     }
@@ -648,11 +664,11 @@ export function renderLine(
       flush(`seg-${lineIdx}-${gi}`);
       segments.push(<Text key={`cur-${lineIdx}`} inverse>{cursorChar}</Text>);
       currentMode = 'normal';
+      displayCol += MeasuredText.displayWidth(cursorChar);
     } else {
       currentText += grapheme;
+      displayCol += gWidth;
     }
-
-    displayCol += gWidth;
     gi++;
   }
 

@@ -669,6 +669,110 @@ describe('renderLine — display-column rendering', () => {
     expect(seg1.props.inverse).toBe(true);
   });
 
+  it('masked input with emoji source text uses grapheme count', () => {
+    // Source '😀x' has 2 graphemes but .length is 3 (surrogate pair + 'x')
+    // Masked display should be '**' (2 mask chars), not '***'
+    const result = renderLine(
+      '**',          // displayText: mask.repeat(graphemeCount('😀x')) = '**'
+      '😀x',        // originalText
+      0,
+      0,
+      { line: 0, column: 0 },  // cursor at start
+      0,
+      null,
+      '*',
+      true,
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    // First '*' is cursor (inverse), second '*' is normal
+    expect(children.length).toBe(2);
+    const seg0 = children[0] as React.ReactElement;
+    expect(seg0.props.inverse).toBe(true);
+    expect(seg0.props.children).toBe('*');
+    const seg1 = children[1] as React.ReactElement;
+    expect(seg1.props.children).toBe('*');
+    expect(seg1.props.inverse).toBeFalsy();
+  });
+
+  it('masked cursor on emoji source at grapheme boundary', () => {
+    // Source '😀x', cursor after '😀' (source offset 2) → grapheme index 1
+    // Masked display '**', cursor should be on second '*'
+    const result = renderLine(
+      '**',
+      '😀x',
+      0,
+      0,
+      { line: 0, column: 2 },  // cursorPos from real text
+      2,                         // cursorOffset (after surrogate pair)
+      null,
+      '*',
+      true,
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    expect(children.length).toBe(2);
+    const seg0 = children[0] as React.ReactElement;
+    expect(seg0.props.children).toBe('*');
+    expect(seg0.props.inverse).toBeFalsy();
+    const seg1 = children[1] as React.ReactElement;
+    expect(seg1.props.children).toBe('*');
+    expect(seg1.props.inverse).toBe(true);
+  });
+
+  it('cursorChar on a wide grapheme advances by cursorChar width', () => {
+    // Line '你好', cursor on '你' (display col 0), cursorChar='|' (width 1)
+    // After replacement: displayCol should be 1, not 2
+    // So '好' starts at displayCol 1, selection starting at col 1 should highlight it
+    const result = renderLine(
+      '你好',
+      '你好',
+      0,
+      0,
+      { line: 0, column: 0 },  // cursor at display col 0
+      0,                         // cursorOffset
+      { start: 0, end: 2 },     // select both chars (won't affect cursor grapheme)
+      null,
+      true,
+      '|',                       // cursorChar (width 1, replacing width-2 '你')
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    // Expect: '|' (cursor, inverse), '好' (selected, inverse)
+    // Both are inverse but for different reasons (cursor vs selected)
+    expect(children.length).toBe(2);
+    const cur = children[0] as React.ReactElement;
+    expect(cur.props.children).toBe('|');
+    expect(cur.props.inverse).toBe(true);
+    const sel = children[1] as React.ReactElement;
+    expect(sel.props.children).toBe('好');
+    expect(sel.props.inverse).toBe(true);
+  });
+
+  it('cursorChar on wide grapheme does not misalign trailing content', () => {
+    // Line 'a你b', cursor on '你' (display col 1), cursorChar='_' (width 1)
+    // After: 'a' normal (col 0), '_' cursor (col 1, width 1 → next col 2), 'b' normal (col 2)
+    // Without fix, displayCol would be 3 after '你' replacement, and 'b' would start at col 3
+    const result = renderLine(
+      'a你b',
+      'a你b',
+      0,
+      0,
+      { line: 0, column: 1 },  // cursor at display col 1 (after 'a')
+      1,                         // source offset of '你'
+      null,
+      null,
+      true,
+      '_',                       // cursorChar width 1
+    );
+    const children = React.Children.toArray((result as React.ReactElement).props.children);
+    // 'a' normal, '_' cursor, 'b' normal
+    expect(children.length).toBe(3);
+    expect((children[0] as React.ReactElement).props.children).toBe('a');
+    expect((children[0] as React.ReactElement).props.inverse).toBeFalsy();
+    expect((children[1] as React.ReactElement).props.children).toBe('_');
+    expect((children[1] as React.ReactElement).props.inverse).toBe(true);
+    expect((children[2] as React.ReactElement).props.children).toBe('b');
+    expect((children[2] as React.ReactElement).props.inverse).toBeFalsy();
+  });
+
   it('returns plain text when no cursor or selection on line', () => {
     const result = renderLine(
       'hello',
