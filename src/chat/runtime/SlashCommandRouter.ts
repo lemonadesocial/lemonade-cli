@@ -2,7 +2,7 @@ import { Message, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
 import { TurnCoordinator } from './TurnCoordinator.js';
-import { SlashCommandResult } from '../ui/SlashCommands.js';
+import { SlashCommandResult, getModelsForProvider } from '../ui/SlashCommands.js';
 import { VERSION } from '../version.js';
 import { getAgentName } from '../skills/loader.js';
 import { getAiModeDisplay } from '../aiMode.js';
@@ -97,7 +97,6 @@ export async function executeSlashCommand(
   }
 
   if (slashResult.action === 'model') {
-    const { getModelsForProvider } = await import('../ui/SlashCommands.js');
     const available = getModelsForProvider(displayOpts.providerName);
     if (slashResult.args) {
       const requested = slashResult.args.trim().toLowerCase();
