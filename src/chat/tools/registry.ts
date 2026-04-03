@@ -707,9 +707,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
             const { tempoExec } = await import('../tempo/index.js');
             try {
-              const transferOutput = tempoExec(
-                `wallet transfer ${amount} USDC ${recipient}${memo ? ` --memo "${memo}"` : ''}`,
-              );
+              const transferArgs = ['wallet', 'transfer', amount, 'USDC', recipient];
+              if (memo) transferArgs.push('--memo', memo);
+              const transferOutput = tempoExec(transferArgs);
 
               const txHashMatch = transferOutput.match(/0x[a-fA-F0-9]{64}/);
               const txHash = txHashMatch ? txHashMatch[0] : '';
@@ -4166,7 +4166,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     execute: async (args) => {
       const { tempoExec, isTempoInstalled } = await import('../tempo/index.js');
       if (!isTempoInstalled()) throw new Error('Tempo CLI not installed. Use /tempo install.');
-      const output = tempoExec(`wallet transfer ${args.amount} ${args.token || 'USDC'} ${args.to}`);
+      const output = tempoExec(['wallet', 'transfer', String(args.amount), String(args.token || 'USDC'), String(args.to)]);
       return { success: true, output };
     },
     formatResult: (result) => {
@@ -4217,8 +4217,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     execute: async (args) => {
       const { tempoExec, isTempoInstalled } = await import('../tempo/index.js');
       if (!isTempoInstalled()) throw new Error('Tempo CLI not installed. Use /tempo install.');
-      const cmd = args.search ? `wallet services --search "${args.search}"` : 'wallet services';
-      const output = tempoExec(cmd);
+      const serviceArgs = ['wallet', 'services'];
+      if (args.search) serviceArgs.push('--search', String(args.search));
+      const output = tempoExec(serviceArgs);
       return { output };
     },
   });

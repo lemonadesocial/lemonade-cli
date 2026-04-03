@@ -10,23 +10,43 @@ import { getCreditsSpaceId } from '../spaceSelection.js';
 import { graphqlRequest } from '../../api/graphql.js';
 import type { UIMessage } from '../ui/hooks/useChatEngine.js';
 
-export interface SlashCommandDeps {
-  addSystemMessage: (text: string) => void;
-  addUserMessage: (text: string) => void;
-  clearMessages: () => void;
-  exit: () => void;
+/** Runtime-only dependencies — no React/Ink types leak in. */
+export interface SlashCommandRuntimeDeps {
   engine: ChatEngine;
   registry: Record<string, ToolDef>;
   session: SessionState;
   chatMessages: Message[];
   turnCoordinator: TurnCoordinator;
+  displayOpts: { providerName: string; modelName: string };
+  spaceName: string;
+  cachedSpacesRef: { current: Array<{ _id: string; title: string; slug?: string }> | null };
+}
+
+/** UI callbacks injected by the host (React/Ink layer). */
+export interface SlashCommandUIDeps {
+  addSystemMessage: (text: string) => void;
+  addUserMessage: (text: string) => void;
+  clearMessages: () => void;
+  exit: () => void;
   startManualPlan: (tool: ToolDef) => void;
   setSpaceName: (name: string) => void;
   setApiKeyPrompt: (prompt: { connectionId: string; connectorType: string } | null) => void;
   uiMessages: UIMessage[];
-  displayOpts: { providerName: string; modelName: string };
-  spaceName: string;
-  cachedSpacesRef: { current: Array<{ _id: string; title: string; slug?: string }> | null };
+}
+
+export type SlashCommandDeps = SlashCommandRuntimeDeps & SlashCommandUIDeps;
+
+function getRegistryTool(
+  registry: Record<string, ToolDef>,
+  name: string,
+  addSystemMessage: (text: string) => void,
+): ToolDef | null {
+  const tool = registry[name];
+  if (!tool) {
+    addSystemMessage(`Tool "${name}" is not available. It may require a different AI mode or space configuration.`);
+    return null;
+  }
+  return tool;
 }
 
 export async function executeSlashCommand(
@@ -73,6 +93,39 @@ export async function executeSlashCommand(
 
   if (slashResult.action === 'exit') {
     exit();
+    return;
+  }
+
+  if (slashResult.action === 'model') {
+    const { getModelsForProvider } = await import('../ui/SlashCommands.js');
+    const available = getModelsForProvider(displayOpts.providerName);
+    if (slashResult.args) {
+      const requested = slashResult.args.trim().toLowerCase();
+      const match = available.find(m => m.toLowerCase() === requested || m.toLowerCase().includes(requested));
+      if (match) {
+        addSystemMessage(`Model switching requires a session restart. Current model: ${displayOpts.modelName}`);
+      } else {
+        addSystemMessage(`Unknown model: "${slashResult.args}". Available for ${displayOpts.providerName}:\n${available.map(m => `  ${m}`).join('\n')}`);
+      }
+    } else {
+      const lines = [`Current model: ${displayOpts.modelName}`, `Available for ${displayOpts.providerName}:`];
+      lines.push(...available.map(m => `  ${m}${m === displayOpts.modelName ? ' (active)' : ''}`));
+      addSystemMessage(lines.join('\n'));
+    }
+    return;
+  }
+
+  if (slashResult.action === 'provider') {
+    if (slashResult.args) {
+      addSystemMessage(`Provider switching requires a session restart. Current provider: ${displayOpts.providerName}`);
+    } else {
+      addSystemMessage(`Current provider: ${displayOpts.providerName}\nAvailable: anthropic, openai\nUsage: /provider <name> (requires restart)`);
+    }
+    return;
+  }
+
+  if (slashResult.action === 'space') {
+    addSystemMessage(`Current space: ${spaceName}\nUse /spaces to list or switch spaces.`);
     return;
   }
 
@@ -187,7 +240,8 @@ export async function executeSlashCommand(
   if (slashResult.action === 'events') {
     addSystemMessage('Fetching events...');
     try {
-      const tool = registry['event_list'];
+      const tool = getRegistryTool(registry, 'event_list', addSystemMessage);
+      if (!tool) return;
       const args: Record<string, unknown> = {};
       if (slashResult.args) {
         if (slashResult.args === '--draft' || slashResult.args === 'draft') {
@@ -216,11 +270,14 @@ export async function executeSlashCommand(
   if (slashResult.action === 'spaces') {
     try {
       let spaces: Array<{ _id: string; title: string; slug?: string }>;
-      if (slashResult.args && cachedSpacesRef.current) {
-        spaces = cachedSpacesRef.current;
+      // Use cache for subcommands (number/name switch); always refresh on bare /spaces
+      const useCache = slashResult.args && cachedSpacesRef.current;
+      if (useCache) {
+        spaces = cachedSpacesRef.current!;
       } else {
         addSystemMessage('Fetching spaces...');
-        const tool = registry['space_list'];
+        const tool = getRegistryTool(registry, 'space_list', addSystemMessage);
+        if (!tool) return;
         const result = await tool.execute({}) as { items?: Array<{ _id: string; title: string; slug?: string }> };
         if (!result?.items?.length) {
           addSystemMessage('No spaces found.');
@@ -234,7 +291,8 @@ export async function executeSlashCommand(
       if (slashResult.args && /^\d+$/.test(slashResult.args)) {
         const idx = parseInt(slashResult.args, 10) - 1;
         if (idx >= 0 && idx < spaces.length) {
-          const switchTool = registry['space_switch'];
+          const switchTool = getRegistryTool(registry, 'space_switch', addSystemMessage);
+          if (!switchTool) return;
           const switched = await switchTool.execute({ space_id: spaces[idx]._id }) as { _id: string; title: string };
           addSystemMessage(`Switched to ${switched.title}.`);
           setSpaceName(switched.title);
@@ -249,7 +307,8 @@ export async function executeSlashCommand(
         const query = slashResult.args.toLowerCase();
         const match = spaces.find(s => s.title.toLowerCase().includes(query));
         if (match) {
-          const switchTool = registry['space_switch'];
+          const switchTool = getRegistryTool(registry, 'space_switch', addSystemMessage);
+          if (!switchTool) return;
           const switched = await switchTool.execute({ space_id: match._id }) as { _id: string; title: string };
           addSystemMessage(`Switched to ${switched.title}.`);
           setSpaceName(switched.title);
@@ -323,7 +382,8 @@ export async function executeSlashCommand(
     if (exportType === 'guests') {
       addSystemMessage('Exporting guests...');
       try {
-        const tool = registry['event_export_guests'];
+        const tool = getRegistryTool(registry, 'event_export_guests', addSystemMessage);
+        if (!tool) return;
         const result = await tool.execute({ event_id: exportId }) as { count: number; tickets: Array<Record<string, unknown>> };
         if (!result?.tickets?.length) {
           addSystemMessage('No guest data found.');
@@ -355,7 +415,8 @@ export async function executeSlashCommand(
     if (exportType === 'apps' || exportType === 'applications') {
       addSystemMessage('Exporting applications...');
       try {
-        const tool = registry['event_application_export'];
+        const tool = getRegistryTool(registry, 'event_application_export', addSystemMessage);
+        if (!tool) return;
         const result = await tool.execute({ event_id: exportId }) as { applications: Array<Record<string, unknown>>; count: number };
         if (!result?.applications?.length) {
           addSystemMessage('No application data found.');
@@ -398,7 +459,8 @@ export async function executeSlashCommand(
     if (!subcommand || subcommand === 'list') {
       addSystemMessage('Fetching available connectors...');
       try {
-        const tool = registry['connectors_list'];
+        const tool = getRegistryTool(registry, 'connectors_list', addSystemMessage);
+        if (!tool) return;
         const result = await tool.execute({}) as Array<Record<string, unknown>>;
         const connectors = Array.isArray(result) ? result : [];
         if (connectors.length === 0) {
@@ -422,7 +484,8 @@ export async function executeSlashCommand(
       }
       addSystemMessage('Fetching connections...');
       try {
-        const tool = registry['space_connectors'];
+        const tool = getRegistryTool(registry, 'space_connectors', addSystemMessage);
+        if (!tool) return;
         const result = await tool.execute({ space_id: session.currentSpace._id }) as Array<Record<string, unknown>>;
         const connections = Array.isArray(result) ? result : [];
         if (connections.length === 0) {
@@ -445,7 +508,8 @@ export async function executeSlashCommand(
     if (subcommand === 'logs' && subArg) {
       addSystemMessage('Fetching logs...');
       try {
-        const tool = registry['connector_logs'];
+        const tool = getRegistryTool(registry, 'connector_logs', addSystemMessage);
+        if (!tool) return;
         const result = await tool.execute({ connection_id: subArg }) as { logs: Array<Record<string, unknown>>; count: number };
         if (!result.logs?.length) {
           addSystemMessage('No sync logs found.');
@@ -471,7 +535,8 @@ export async function executeSlashCommand(
       }
       addSystemMessage(`Connecting ${subArg}...`);
       try {
-        const connectTool = registry['connector_connect'];
+        const connectTool = getRegistryTool(registry, 'connector_connect', addSystemMessage);
+        if (!connectTool) return;
         const connectResult = await connectTool.execute({
           space_id: session.currentSpace._id,
           connector_type: subArg,
@@ -504,9 +569,17 @@ export async function executeSlashCommand(
           const pollForConnection = async (): Promise<boolean> => {
             while (Date.now() - startTime < TIMEOUT_MS) {
               await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+              if (!session.currentSpace) {
+                addSystemMessage('Space changed during authorization. Aborting poll.');
+                return false;
+              }
               try {
                 const connTool = registry['space_connectors'];
-                const connResult = await connTool.execute({ space_id: session.currentSpace!._id }) as Array<Record<string, unknown>>;
+                if (!connTool) {
+                  addSystemMessage('space_connectors tool not available.');
+                  return false;
+                }
+                const connResult = await connTool.execute({ space_id: session.currentSpace._id }) as Array<Record<string, unknown>>;
                 const connections = Array.isArray(connResult) ? connResult : [];
                 const match = connections.find(c => c.id === connectionId);
                 if (match && match.status !== 'pending') {
@@ -542,7 +615,8 @@ export async function executeSlashCommand(
       const actionId = runParts[1] || 'sync-events';
       addSystemMessage(`Running ${actionId} on ${connId}...`);
       try {
-        const tool = registry['connectors_sync'];
+        const tool = getRegistryTool(registry, 'connectors_sync', addSystemMessage);
+        if (!tool) return;
         const result = await tool.execute({ connection_id: connId, action: actionId }) as Record<string, unknown>;
         if (result.success) {
           const records = result.recordsProcessed !== undefined ? ` (${result.recordsProcessed} records)` : '';
@@ -559,7 +633,8 @@ export async function executeSlashCommand(
     if (subcommand === 'disconnect' && subArg) {
       addSystemMessage(`Disconnecting ${subArg}...`);
       try {
-        const tool = registry['connector_disconnect'];
+        const tool = getRegistryTool(registry, 'connector_disconnect', addSystemMessage);
+        if (!tool) return;
         const result = await tool.execute({ connection_id: subArg }) as { disconnected: boolean };
         addSystemMessage(result.disconnected ? 'Disconnected.' : 'Failed to disconnect.');
       } catch (err) {
@@ -583,7 +658,8 @@ export async function executeSlashCommand(
           return;
         }
         addSystemMessage('Checking Tempo wallet...');
-        const tool = registry['tempo_status'];
+        const tool = getRegistryTool(registry, 'tempo_status', addSystemMessage);
+        if (!tool) return;
         const result = await tool.execute({});
         const formatted = tool.formatResult?.(result) || JSON.stringify(result);
         addSystemMessage(formatted);
@@ -664,7 +740,7 @@ export async function executeSlashCommand(
     if (subcommand === 'logout') {
       try {
         const { tempoExec } = await import('../tempo/index.js');
-        tempoExec('wallet logout');
+        tempoExec(['wallet', 'logout']);
         addSystemMessage('Tempo wallet disconnected.');
       } catch (err) {
         addSystemMessage(`Logout failed: ${err instanceof Error ? err.message : 'Unknown'}`);
@@ -674,7 +750,8 @@ export async function executeSlashCommand(
 
     if (subcommand === 'balance') {
       try {
-        const tool = registry['tempo_status'];
+        const tool = getRegistryTool(registry, 'tempo_status', addSystemMessage);
+        if (!tool) return;
         const result = await tool.execute({});
         const r = result as { installed: boolean; loggedIn: boolean; address?: string; balances?: Record<string, string> };
         if (!r.installed) { addSystemMessage('Tempo CLI not installed. Use /tempo install.'); return; }
@@ -706,7 +783,7 @@ export async function executeSlashCommand(
     if (subcommand === 'fund') {
       try {
         const { tempoExec } = await import('../tempo/index.js');
-        const output = tempoExec('wallet fund');
+        const output = tempoExec(['wallet', 'fund']);
         addSystemMessage(`${output}\n\nCheck /tempo balance.`);
       } catch (err) {
         addSystemMessage(`Fund failed: ${err instanceof Error ? err.message : 'Unknown'}`);
@@ -715,7 +792,7 @@ export async function executeSlashCommand(
     }
 
     if (subcommand === 'request') {
-      const url = (slashResult.args || '').replace(/^request\s+/, '').trim();
+      const url = (slashResult.args || '').replace(/^request\s*/, '').trim();
       if (!url) {
         addSystemMessage('Usage: /tempo request <url>');
         return;
@@ -723,7 +800,7 @@ export async function executeSlashCommand(
       addSystemMessage(`Making paid request to ${url}...`);
       try {
         const { tempoExec } = await import('../tempo/index.js');
-        const output = tempoExec(`request -t ${url}`);
+        const output = tempoExec(['request', '-t', url]);
         addSystemMessage(output);
       } catch (err) {
         addSystemMessage(`Request failed: ${err instanceof Error ? err.message : 'Unknown'}`);
