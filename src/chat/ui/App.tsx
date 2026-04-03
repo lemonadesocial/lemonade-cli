@@ -240,6 +240,7 @@ export function App({
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
 
+  const submitTurnIdRef = useRef(0);
   const turnCoordinatorRef = useRef<TurnCoordinator | null>(null);
   if (!turnCoordinatorRef.current) {
     turnCoordinatorRef.current = new TurnCoordinator({
@@ -1054,6 +1055,7 @@ export function App({
 
     // UI-visible message committed after coordinator has accepted.
     addUserMessage(input);
+    const myTurnId = ++submitTurnIdRef.current;
     setShowThinking(true);
 
     try {
@@ -1064,7 +1066,10 @@ export function App({
     } catch {
       addSystemMessage('Error: unexpected failure during turn execution.');
     } finally {
-      setShowThinking(false);
+      // Only clear thinking if no newer turn has started since this one.
+      if (submitTurnIdRef.current === myTurnId) {
+        setShowThinking(false);
+      }
     }
   }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit, turnCoordinator]);
 

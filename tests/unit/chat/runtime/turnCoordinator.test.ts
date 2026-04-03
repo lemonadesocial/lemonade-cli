@@ -480,6 +480,104 @@ describe('TurnCoordinator', () => {
     });
   });
 
+  describe('showThinking race — cancel turn A, start turn B, turn A settles', () => {
+    it('turn B keeps active state when turn A completion settles after cancel→resubmit', async () => {
+      let resolveOldTurn!: () => void;
+      let resolveNewTurn!: () => void;
+
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveOldTurn = resolve; }),
+      );
+
+      const tc = new TurnCoordinator(makeDeps());
+
+      // 1. Start turn A
+      const turnA = tc.submitMainTurn('turn A');
+      if (!turnA.accepted) throw new Error('expected accepted');
+      expect(tc.state.isMainTurnActive).toBe(true);
+
+      // 2. Cancel turn A
+      tc.cancelMainTurn();
+      expect(tc.state.isMainTurnActive).toBe(false);
+
+      // 3. Immediately start turn B
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveNewTurn = resolve; }),
+      );
+      const turnB = tc.submitMainTurn('turn B');
+      expect(turnB.accepted).toBe(true);
+      if (!turnB.accepted) return;
+      expect(tc.state.isMainTurnActive).toBe(true);
+
+      // 4. Turn A settles — its finally must NOT clear isMainTurnActive
+      resolveOldTurn();
+      await turnA.completion;
+      await new Promise(r => setTimeout(r, 0));
+
+      // Verify turn B still holds the active lock
+      expect(tc.state.isMainTurnActive).toBe(true);
+
+      // 5. Turn B completes normally
+      resolveNewTurn();
+      await turnB.completion;
+      expect(tc.state.isMainTurnActive).toBe(false);
+    });
+
+    it('simulates App-level turn identity guard — stale completion does not clear thinking', async () => {
+      // This mirrors the submitTurnIdRef pattern in App.tsx
+      let submitTurnId = 0;
+      let showThinking = false;
+
+      let resolveOldTurn!: () => void;
+      let resolveNewTurn!: () => void;
+
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveOldTurn = resolve; }),
+      );
+
+      const tc = new TurnCoordinator(makeDeps());
+
+      // Submit turn A (mirrors handleSubmit flow)
+      const turnA = tc.submitMainTurn('turn A');
+      if (!turnA.accepted) throw new Error('expected accepted');
+      const turnAId = ++submitTurnId;
+      showThinking = true;
+
+      // Cancel turn A
+      tc.cancelMainTurn();
+      showThinking = false; // Escape handler clears immediately
+
+      // Submit turn B
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveNewTurn = resolve; }),
+      );
+      const turnB = tc.submitMainTurn('turn B');
+      if (!turnB.accepted) throw new Error('expected accepted');
+      const turnBId = ++submitTurnId;
+      showThinking = true;
+
+      // Turn A settles — stale finally with turn identity guard
+      resolveOldTurn();
+      await turnA.completion;
+      if (submitTurnId === turnAId) {
+        showThinking = false; // This must NOT execute
+      }
+
+      // Thinking should still be true — turn B owns it
+      expect(showThinking).toBe(true);
+      expect(submitTurnId).toBe(turnBId);
+
+      // Turn B finishes — its guard matches
+      resolveNewTurn();
+      await turnB.completion;
+      if (submitTurnId === turnBId) {
+        showThinking = false;
+      }
+
+      expect(showThinking).toBe(false);
+    });
+  });
+
   describe('cancel-then-resubmit settling gate', () => {
     it('new turn waits for cancelled turn to fully settle before starting', async () => {
       let resolveOldTurn!: () => void;
