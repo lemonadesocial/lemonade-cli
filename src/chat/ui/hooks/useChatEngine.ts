@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type MutableRefObject } from 'react';
 import { ChatEngine, ChatEngineEvents } from '../../engine/ChatEngine.js';
 
 export interface ToolStatus {
@@ -14,6 +14,8 @@ export interface UIMessage {
   content: string;
   tools?: ToolStatus[];
   turnId?: string;
+  /** Stable identity for rollback targeting. Present on user messages added via addUserMessage. */
+  msgId?: string;
 }
 
 export interface ConfirmRequest {
@@ -27,11 +29,110 @@ export interface UseChatEngineResult {
   isThinking: boolean;
   pendingConfirm: ConfirmRequest | null;
   tokenCount: number;
-  addUserMessage: (text: string) => void;
+  addUserMessage: (text: string, idRef?: MutableRefObject<string | null>) => void;
+  removeMessageById: (id: string) => void;
   addSystemMessage: (text: string) => void;
   clearMessages: () => void;
   confirmAction: (id: string, confirmed: boolean) => void;
   resetStreaming: () => void;
+}
+
+/**
+ * Compute turn-index adjustments needed after a message removal.
+ * Pure function — no side effects. Caller applies returned mutations to the Map.
+ */
+export function computeIndexAdjustments(
+  turnIndex: ReadonlyMap<string, number>,
+  removedIdx: number,
+): { updates: [string, number][]; deletes: string[] } {
+  const updates: [string, number][] = [];
+  const deletes: string[] = [];
+  for (const [tid, tIdx] of turnIndex) {
+    if (tIdx > removedIdx) {
+      updates.push([tid, tIdx - 1]);
+    } else if (tIdx === removedIdx) {
+      // In practice this branch is unlikely for removeMessageById (which only
+      // targets user messages, while turnMessageIndex tracks assistant turns),
+      // but it is needed for correctness if the invariant ever changes.
+      deletes.push(tid);
+    }
+  }
+  return { updates, deletes };
+}
+
+/** Apply the result of computeIndexAdjustments to a mutable Map in place. */
+export function applyIndexAdjustments(
+  turnIndex: Map<string, number>,
+  adj: { updates: [string, number][]; deletes: string[] },
+): void {
+  for (const [tid, newIdx] of adj.updates) turnIndex.set(tid, newIdx);
+  for (const tid of adj.deletes) turnIndex.delete(tid);
+}
+
+/**
+ * State updater for removeMessageById. Computes the next messages array given
+ * the current state. Exported so tests exercise the real production logic
+ * without needing a full React rendering environment.
+ *
+ * **Not pure.** On the happy path this function mutates `turnIndex` in-place
+ * (guarded by `alreadyMutatedIndex`) and may log to `console.error` on the
+ * corruption path (guarded by `alreadyLoggedCorruption`). Both guards are
+ * closure-scoped booleans managed by the calling `removeMessageById` closure,
+ * so they deduplicate within a single React StrictMode double-invocation of
+ * that closure — they do NOT provide global or cross-call deduplication.
+ *
+ * ## Corruption-path contract
+ *
+ * If the message at `id` exists but has a non-user role (state corruption),
+ * the updater:
+ *   1. Logs to console.error once (skipped when `alreadyLoggedCorruption` is true).
+ *   2. Returns [...prev, system-warning] — the warning is always present in the result.
+ *   3. Does NOT mutate turnIndex.
+ *
+ * Under React StrictMode double-invocation, both calls receive the same `prev`
+ * and both return identical `[...prev, warning]`. React keeps the second result,
+ * so exactly ONE warning appears. The `alreadyLoggedCorruption` flag ensures
+ * `console.error` also fires exactly once.
+ *
+ * ## Index-mutation idempotency
+ *
+ * `alreadyMutatedIndex` tracks whether a prior StrictMode invocation already
+ * mutated turnIndex. The caller (removeMessageById closure) manages this flag
+ * to prevent double-mutation within one StrictMode pass — it resets on each
+ * new removeMessageById call.
+ */
+export function removeMessageUpdater(
+  prev: UIMessage[],
+  id: string,
+  turnIndex: Map<string, number>,
+  alreadyMutatedIndex: boolean,
+  alreadyLoggedCorruption = false,
+): { messages: UIMessage[]; didMutateIndex: boolean; didLogCorruption: boolean } {
+  const idx = prev.findIndex((m) => m.msgId === id);
+  if (idx === -1) return { messages: prev, didMutateIndex: false, didLogCorruption: false };
+
+  if (prev[idx].role !== 'user') {
+    const detail = `removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — removal skipped (state corruption)`;
+    if (!alreadyLoggedCorruption) {
+      console.error(`[useChatEngine] ${detail}`);
+    }
+    return {
+      messages: [...prev, { role: 'system', content: `Warning: UI state inconsistency detected — ${detail}` }],
+      didMutateIndex: false,
+      didLogCorruption: true,
+    };
+  }
+
+  let mutated = false;
+  if (!alreadyMutatedIndex) {
+    mutated = true;
+    const adj = computeIndexAdjustments(turnIndex, idx);
+    applyIndexAdjustments(turnIndex, adj);
+  }
+
+  const next = [...prev];
+  next.splice(idx, 1);
+  return { messages: next, didMutateIndex: mutated, didLogCorruption: false };
 }
 
 export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
@@ -44,6 +145,8 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   // Track per-turn message indices and active turns
   const turnMessageIndex = useRef<Map<string, number>>(new Map());
   const activeTurns = useRef<Set<string>>(new Set());
+  // Monotonic counter for stable UI message IDs — synchronous, no React flush dependency
+  const nextMsgIdRef = useRef(1);
 
   useEffect(() => {
     const onThinkingStart = (data: { turnId?: string }) => {
@@ -60,6 +163,9 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
         if (tid === 'main') setIsStreaming(true);
       }
 
+      // Index registration happens inside the updater so that message-array
+      // mutation and turnMessageIndex mutation are atomic — no dependency on
+      // React executing the updater synchronously before post-setMessages code.
       setMessages((prev) => {
         const existingIdx = turnMessageIndex.current.get(tid);
         if (existingIdx !== undefined && existingIdx < prev.length && prev[existingIdx]?.role === 'assistant') {
@@ -77,6 +183,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
 
     const onToolStart = (data: { id: string; name: string; turnId?: string }) => {
       const tid = data.turnId || 'main';
+      // Index registration inside updater — atomic with array mutation (see onTextDelta comment).
       setMessages((prev) => {
         const updated = [...prev];
         let idx = turnMessageIndex.current.get(tid);
@@ -164,8 +271,32 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     };
   }, [engine]);
 
-  const addUserMessage = useCallback((text: string) => {
-    setMessages((prev) => [...prev, { role: 'user', content: text }]);
+  const addUserMessage = useCallback((text: string, idRef?: MutableRefObject<string | null>) => {
+    // Generate a stable ID synchronously so the caller has a rollback handle
+    // immediately — no dependency on React flushing the state updater.
+    const msgId = `umsg-${nextMsgIdRef.current++}`;
+    if (idRef) idRef.current = msgId;
+    setMessages((prev) => [...prev, { role: 'user', content: text, msgId }]);
+  }, []);
+
+  /**
+   * Remove a UI message by its stable msgId. UI-only: does NOT touch
+   * ConversationStore — caller must ensure store rollback succeeded first.
+   *
+   * Delegates to removeMessageUpdater (exported, tested directly).
+   * Index adjustment mutates turnMessageIndex.current in-place inside the
+   * updater so that concurrent writes from event handlers (e.g. onTextDelta
+   * registering a new BTW turn) are preserved — no snapshot-then-replace.
+   */
+  const removeMessageById = useCallback((id: string) => {
+    let refMutated = false;
+    let refLogged = false;
+    setMessages((prev) => {
+      const result = removeMessageUpdater(prev, id, turnMessageIndex.current, refMutated, refLogged);
+      if (result.didMutateIndex) refMutated = true;
+      if (result.didLogCorruption) refLogged = true;
+      return result.messages;
+    });
   }, []);
 
   const addSystemMessage = useCallback((text: string) => {
@@ -184,6 +315,10 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     setPendingConfirm(null);
   }, [engine]);
 
+  // Called on Escape before removeMessageById. Clearing turnMessageIndex here
+  // means the subsequent removal's index adjustment is a no-op (nothing to
+  // shift). In the catch-block error path resetStreaming is NOT called first,
+  // so removeMessageById's in-place adjustment is still load-bearing there.
   const resetStreaming = useCallback(() => {
     setIsStreaming(false);
     setIsThinking(false);
@@ -198,6 +333,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     pendingConfirm,
     tokenCount,
     addUserMessage,
+    removeMessageById,
     addSystemMessage,
     clearMessages,
     confirmAction,

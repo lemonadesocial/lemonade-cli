@@ -9,6 +9,10 @@ function safeErrorMessage(err: unknown): string {
   return 'Unknown error';
 }
 
+// NOTE: batch mode intentionally manages its own message array rather than
+// using ConversationStore. Batch mode is a stateless pipe (stdin lines →
+// handleTurn → stdout) with no clear/snapshot/turn-tracking needs. Migrating
+// to ConversationStore is deferred until batch mode gains interactive features.
 export async function batchMode(
   provider: AIProvider,
   formattedTools: unknown[],
