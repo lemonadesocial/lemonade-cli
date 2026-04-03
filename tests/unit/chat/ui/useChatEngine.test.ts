@@ -208,9 +208,10 @@ describe('removeMessageUpdater', () => {
 });
 
 describe('removeMessageUpdater — React StrictMode double-invocation', () => {
-  it('corruption path: both invocations produce identical results (deterministic warning)', () => {
+  it('corruption path: both invocations produce identical results, console.error fires once', () => {
     // Under StrictMode, React calls the updater twice with the same prev.
     // Both must return [...prev, warning] — React keeps the second, yielding exactly one warning.
+    // The alreadyLoggedCorruption guard ensures console.error fires exactly once.
     const msgs = makeMessages(
       { role: 'assistant', content: 'wrong role', msgId: 'u1' },
       { role: 'assistant', content: 'a1' },
@@ -218,36 +219,35 @@ describe('removeMessageUpdater — React StrictMode double-invocation', () => {
     const turnIndex = new Map<string, number>([['turn-a', 1]]);
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    // Simulate StrictMode: call twice with same prev
-    const r1 = removeMessageUpdater(msgs, 'u1', turnIndex, false);
-    const r2 = removeMessageUpdater(msgs, 'u1', turnIndex, false);
+    // Simulate the removeMessageById closure exactly:
+    let refMutated = false;
+    let refLogged = false;
+    const updater = (prev: UIMessage[]) => {
+      const result = removeMessageUpdater(prev, 'u1', turnIndex, refMutated, refLogged);
+      if (result.didMutateIndex) refMutated = true;
+      if (result.didLogCorruption) refLogged = true;
+      return result.messages;
+    };
 
-    // Both produce identical output — the warning is always present
-    expect(r1.messages).toEqual(r2.messages);
-    expect(r1.messages).toHaveLength(3);
-    expect(r2.messages).toHaveLength(3);
-    expect(r1.messages[2].role).toBe('system');
-    expect(r2.messages[2].role).toBe('system');
+    // StrictMode: call twice with same prev
+    const result1 = updater(msgs);
+    const result2 = updater(msgs);
 
-    // Neither mutated turnIndex
-    expect(r1.didMutateIndex).toBe(false);
-    expect(r2.didMutateIndex).toBe(false);
+    // Both produce identical output
+    expect(result1).toEqual(result2);
+    expect(result1).toHaveLength(3);
+    expect(result1[2].role).toBe('system');
+
+    // turnIndex untouched
     expect(turnIndex.get('turn-a')).toBe(1);
 
-    // console.error fires on each call (acceptable StrictMode dev noise)
-    expect(consoleSpy).toHaveBeenCalledTimes(2);
+    // console.error fires exactly once
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
 
     consoleSpy.mockRestore();
   });
 
   it('normal path: refMutated flag prevents double index mutation', () => {
-    // Simulates the exact removeMessageById closure pattern:
-    // let refMutated = false;
-    // setMessages((prev) => {
-    //   const result = removeMessageUpdater(prev, id, turnIndex, refMutated);
-    //   if (result.didMutateIndex) refMutated = true;
-    //   return result.messages;
-    // });
     const msgs = makeMessages(
       { role: 'user', content: 'q1', msgId: 'u1' },
       { role: 'assistant', content: 'a1' },
@@ -261,9 +261,11 @@ describe('removeMessageUpdater — React StrictMode double-invocation', () => {
 
     // Simulate the closure exactly as the hook does it
     let refMutated = false;
+    let refLogged = false;
     const updater = (prev: UIMessage[]) => {
-      const result = removeMessageUpdater(prev, 'u1', turnIndex, refMutated);
+      const result = removeMessageUpdater(prev, 'u1', turnIndex, refMutated, refLogged);
       if (result.didMutateIndex) refMutated = true;
+      if (result.didLogCorruption) refLogged = true;
       return result.messages;
     };
 
@@ -367,6 +369,42 @@ describe('removeMessageUpdater — rollback sequence alignment', () => {
     expect(turnIndex.get('btw-1')).toBe(2);
     expect(turnIndex.get('turn-main-2')).toBe(3);
     expect(turnIndex.get('btw-2')).toBe(4);
+  });
+
+  it('removeMessageById after resetStreaming + BTW re-registration adjusts only re-registered indices', () => {
+    // Scenario: user hits Escape → resetStreaming clears turnMessageIndex →
+    // a BTW turn re-registers before removeMessageById fires.
+    // The removal must adjust only the re-registered entry, not stale ones.
+    const msgs = makeMessages(
+      { role: 'user', content: 'q1', msgId: 'u1' },
+      { role: 'assistant', content: 'a1' },
+      { role: 'assistant', content: 'btw-response' },
+      { role: 'user', content: 'q2', msgId: 'u2' },
+      { role: 'assistant', content: 'a2' },
+    );
+
+    // Start with active turn indices
+    const turnIndex = new Map<string, number>([
+      ['main', 1],
+      ['btw-1', 2],
+      ['main-2', 4],
+    ]);
+
+    // Simulate resetStreaming: clears all entries
+    turnIndex.clear();
+
+    // Simulate BTW re-registration after reset (e.g. a late onTextDelta)
+    turnIndex.set('btw-late', 4);
+
+    // removeMessageById targets u1 at index 0
+    const result = removeMessageUpdater(msgs, 'u1', turnIndex, false);
+
+    expect(result.messages).toHaveLength(4);
+    expect(result.messages[0].content).toBe('a1');
+    expect(result.didMutateIndex).toBe(true);
+    // btw-late was at index 4, shifted to 3 after removing index 0
+    expect(turnIndex.get('btw-late')).toBe(3);
+    expect(turnIndex.size).toBe(1);
   });
 
   it('double rollback attempt (Escape + catch) is safe', () => {

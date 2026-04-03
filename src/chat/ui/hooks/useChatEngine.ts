@@ -70,21 +70,28 @@ export function applyIndexAdjustments(
 }
 
 /**
- * Pure updater for removeMessageById. Computes the next messages array given
+ * State updater for removeMessageById. Computes the next messages array given
  * the current state. Exported so tests exercise the real production logic
  * without needing a full React rendering environment.
+ *
+ * **Not pure.** On the happy path this function mutates `turnIndex` in-place
+ * (guarded by `alreadyMutatedIndex`) and may log to `console.error` on the
+ * corruption path (guarded by `alreadyLoggedCorruption`). Both guards exist
+ * so the caller's closure can enforce exactly-once semantics across React
+ * StrictMode double-invocation.
  *
  * ## Corruption-path contract
  *
  * If the message at `id` exists but has a non-user role (state corruption),
  * the updater:
- *   1. Logs to console.error (side effect — fires twice under StrictMode, acceptable).
+ *   1. Logs to console.error once (skipped when `alreadyLoggedCorruption` is true).
  *   2. Returns [...prev, system-warning] — the warning is always present in the result.
  *   3. Does NOT mutate turnIndex.
  *
  * Under React StrictMode double-invocation, both calls receive the same `prev`
  * and both return identical `[...prev, warning]`. React keeps the second result,
- * so exactly ONE warning appears. No guard ref is needed.
+ * so exactly ONE warning appears. The `alreadyLoggedCorruption` flag ensures
+ * `console.error` also fires exactly once.
  *
  * ## Index-mutation idempotency
  *
@@ -97,16 +104,20 @@ export function removeMessageUpdater(
   id: string,
   turnIndex: Map<string, number>,
   alreadyMutatedIndex: boolean,
-): { messages: UIMessage[]; didMutateIndex: boolean } {
+  alreadyLoggedCorruption = false,
+): { messages: UIMessage[]; didMutateIndex: boolean; didLogCorruption: boolean } {
   const idx = prev.findIndex((m) => m.msgId === id);
-  if (idx === -1) return { messages: prev, didMutateIndex: false };
+  if (idx === -1) return { messages: prev, didMutateIndex: false, didLogCorruption: false };
 
   if (prev[idx].role !== 'user') {
     const detail = `removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — removal skipped (state corruption)`;
-    console.error(`[useChatEngine] ${detail}`);
+    if (!alreadyLoggedCorruption) {
+      console.error(`[useChatEngine] ${detail}`);
+    }
     return {
       messages: [...prev, { role: 'system', content: `Warning: UI state inconsistency detected — ${detail}` }],
       didMutateIndex: false,
+      didLogCorruption: true,
     };
   }
 
@@ -119,7 +130,7 @@ export function removeMessageUpdater(
 
   const next = [...prev];
   next.splice(idx, 1);
-  return { messages: next, didMutateIndex: mutated };
+  return { messages: next, didMutateIndex: mutated, didLogCorruption: false };
 }
 
 export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
@@ -277,9 +288,11 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
    */
   const removeMessageById = useCallback((id: string) => {
     let refMutated = false;
+    let refLogged = false;
     setMessages((prev) => {
-      const result = removeMessageUpdater(prev, id, turnMessageIndex.current, refMutated);
+      const result = removeMessageUpdater(prev, id, turnMessageIndex.current, refMutated, refLogged);
       if (result.didMutateIndex) refMutated = true;
+      if (result.didLogCorruption) refLogged = true;
       return result.messages;
     });
   }, []);
