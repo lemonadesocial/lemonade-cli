@@ -5,22 +5,28 @@
 // AIProvider contract but with `supportsToolCalling: false`, which means:
 //
 //   - No local tool execution (handleTurn skips the tool loop)
-//   - Conversation history is maintained server-side via sessionId, not by
-//     the local runtime — the provider only sends the last user message
 //   - The assistant experience in credits mode is NOT capability-equivalent
 //     to BYOK mode (no tool use, no multi-turn tool loops)
 //
-// CAPABILITY GAP (migration debt, not product behavior):
+// HISTORY ALIGNMENT (Track 3, Slice 3):
+//   Local runtime history (params.messages from TurnCoordinator) is the
+//   authoritative conversation source. The provider formats ALL local messages
+//   into the `message` string sent to the backend, rather than relying on
+//   server-side session continuity. This means:
+//     - /clear genuinely clears conversation context (no stale server history)
+//     - /btw side-questions carry the correct snapshot context
+//     - Multi-turn continuity matches what the user sees in the terminal
+//   The backend `session` param is not sent — each request is self-contained.
+//
+// REMAINING CAPABILITY GAP (migration debt, not product behavior):
 //   - Tool calling: blocked on backend providing a tool-capable credits transport
-//   - Full history: backend `run` mutation accepts a single `message` string;
-//     local conversation history from TurnCoordinator is unused beyond session ID
 //   - Model selection: uses backend model discovery, not local model list
 //
 // This adapter must be replaced when the backend supports a tool-capable
 // credits transport (see PRD-CHAT-ARCHITECTURE-CONSOLIDATION.md §6, Option A).
 // Until then it is the only valid credits-mode provider.
 
-import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef } from './interface.js';
+import { AIProvider, Message, ProviderCapabilities, StreamEvent, StreamParams, ToolDef } from './interface.js';
 import { getAuthHeader } from '../../auth/store.js';
 
 function getLemonadeAiUrl(): string {
@@ -74,7 +80,6 @@ export class LemonadeAIProvider implements AIProvider {
   };
   model: string;
   private standId: string;
-  private sessionId: string | null = null;
 
   constructor(model: string, standId: string) {
     this.model = model;
@@ -82,11 +87,52 @@ export class LemonadeAIProvider implements AIProvider {
   }
 
   resetSession(): void {
-    this.sessionId = null;
+    // No-op: local runtime history is authoritative. Clearing is handled
+    // by TurnCoordinator.clearSession() truncating the chatMessages array.
+    // This method exists to satisfy the AIProvider contract.
   }
 
   formatTools(_tools: ToolDef[]): unknown[] {
     return [];
+  }
+
+  // Format full local conversation history into a single message string.
+  // Local runtime history is the authoritative source — the backend does
+  // not maintain session continuity for credits mode.
+  private formatMessages(messages: Message[]): string {
+    if (messages.length === 0) return '';
+
+    // Single message (first turn): send as-is, no wrapping needed.
+    if (messages.length === 1) {
+      return LemonadeAIProvider.extractText(messages[0]);
+    }
+
+    // Multi-turn: include prior conversation as context.
+    const history = messages.slice(0, -1);
+    const current = messages[messages.length - 1];
+    const parts: string[] = [];
+
+    for (const msg of history) {
+      const role = msg.role === 'user' ? 'User' : 'Assistant';
+      const text = LemonadeAIProvider.extractText(msg);
+      if (text) parts.push(`${role}: ${text}`);
+    }
+
+    parts.push('');
+    parts.push(LemonadeAIProvider.extractText(current));
+    return parts.join('\n');
+  }
+
+  static extractText(msg: Message): string {
+    if (typeof msg.content === 'string') return msg.content;
+    if (Array.isArray(msg.content)) {
+      return (msg.content as Array<Record<string, unknown>>)
+        .filter(b => b.type === 'text' && typeof b.text === 'string')
+        .map(b => b.text as string)
+        .filter(Boolean)
+        .join('\n');
+    }
+    return JSON.stringify(msg.content);
   }
 
   async *stream(params: StreamParams): AsyncIterable<StreamEvent> {
@@ -97,11 +143,8 @@ export class LemonadeAIProvider implements AIProvider {
       return;
     }
 
-    // Extract the last user message
-    const lastMsg = params.messages[params.messages.length - 1];
-    const messageText = typeof lastMsg.content === 'string'
-      ? lastMsg.content
-      : JSON.stringify(lastMsg.content);
+    // Format full local history into the message — local runtime is authoritative.
+    const messageText = this.formatMessages(params.messages);
 
     const url = getLemonadeAiUrl();
     const response = await fetch(`${url}/graphql`, {
@@ -120,7 +163,7 @@ export class LemonadeAIProvider implements AIProvider {
           config: null,
           message: messageText,
           data: null,
-          session: this.sessionId,
+          session: null,
           standId: this.standId,
         },
       }),
@@ -142,12 +185,6 @@ export class LemonadeAIProvider implements AIProvider {
       yield { type: 'text_delta', text: body.errors[0].message };
       yield { type: 'done', stopReason: 'end_turn' };
       return;
-    }
-
-    // Store session ID from response for multi-turn continuity
-    const metadata = body.data?.run?.metadata;
-    if (metadata && typeof metadata.session === 'string') {
-      this.sessionId = metadata.session;
     }
 
     const text = body.data?.run?.message || 'No response from Lemonade AI.';

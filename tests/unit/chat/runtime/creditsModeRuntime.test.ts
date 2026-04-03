@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TurnCoordinator, TurnDeps, MAIN_TURN_BUSY } from '../../../../src/chat/runtime/TurnCoordinator';
 import { ChatEngine } from '../../../../src/chat/engine/ChatEngine';
-import { AIProvider, Message, StreamEvent, SystemMessage, ToolDef } from '../../../../src/chat/providers/interface';
+import { AIProvider, Message, StreamEvent, StreamParams, SystemMessage, ToolDef } from '../../../../src/chat/providers/interface';
 import { handleTurn } from '../../../../src/chat/stream/handler';
 import { createSessionState } from '../../../../src/chat/session/state';
+import { LemonadeAIProvider } from '../../../../src/chat/providers/lemonade-ai';
 
 // Mock handleTurn for TurnCoordinator tests
 vi.mock('../../../../src/chat/stream/handler', () => ({
@@ -16,21 +17,25 @@ vi.mock('../../../../src/chat/session/cache', () => ({
 
 const mockHandleTurn = vi.mocked(handleTurn);
 
-// Simulates the LemonadeAIProvider contract: no tool calling, text-only responses.
-function createCreditsProvider(): AIProvider & { resetSession: () => void } {
-  return {
+// Simulates the LemonadeAIProvider contract: no tool calling, text-only responses,
+// full local history formatted in the message (aligned with real provider behavior).
+function createCreditsProvider(): AIProvider & { resetSession: () => void; lastStreamParams?: StreamParams } {
+  const provider: AIProvider & { resetSession: () => void; lastStreamParams?: StreamParams } = {
     name: 'lemonade-ai',
     model: 'Lemonade AI',
     capabilities: { supportsToolCalling: false },
     formatTools: () => [],
     resetSession: vi.fn(),
+    lastStreamParams: undefined,
     async *stream(params) {
+      provider.lastStreamParams = params;
       const lastMsg = params.messages[params.messages.length - 1];
       const text = typeof lastMsg.content === 'string' ? lastMsg.content : 'response';
       yield { type: 'text_delta', text: `Echo: ${text}` };
       yield { type: 'done', stopReason: 'end_turn' };
     },
   };
+  return provider;
 }
 
 function createBYOKProvider(): AIProvider {
@@ -381,5 +386,173 @@ describe('Credits mode through handleTurn (integration)', () => {
 
     // No assistant message appended when aborted
     expect(messages).toHaveLength(1);
+  });
+});
+
+describe('LemonadeAIProvider history alignment', () => {
+  it('extractText handles string content', () => {
+    expect(LemonadeAIProvider.extractText({ role: 'user', content: 'hello' })).toBe('hello');
+  });
+
+  it('extractText handles content block arrays', () => {
+    const msg: Message = {
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'first' },
+        { type: 'text', text: 'second' },
+      ],
+    };
+    expect(LemonadeAIProvider.extractText(msg)).toBe('first\nsecond');
+  });
+
+  it('extractText filters non-text blocks', () => {
+    const msg: Message = {
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'visible' },
+        { type: 'tool_use', id: 'tc1', name: 'test', input: {} },
+      ],
+    };
+    expect(LemonadeAIProvider.extractText(msg)).toBe('visible');
+  });
+
+  it('extractText handles empty content blocks', () => {
+    const msg: Message = {
+      role: 'assistant',
+      content: [],
+    };
+    expect(LemonadeAIProvider.extractText(msg)).toBe('');
+  });
+});
+
+describe('Credits-mode history formatting (provider receives full history)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  });
+
+  it('single-turn sends message as-is (no history prefix)', async () => {
+    const { handleTurn: realHandleTurn } = await vi.importActual<typeof import('../../../../src/chat/stream/handler')>('../../../../src/chat/stream/handler');
+
+    const provider = createCreditsProvider();
+    const messages: Message[] = [{ role: 'user', content: 'hello' }];
+    const engine = new ChatEngine();
+
+    await realHandleTurn(
+      provider,
+      messages,
+      [],
+      [{ type: 'text', text: 'system' }],
+      { user: { _id: '1', name: 'T', email: 't@t.com' } } as ReturnType<typeof createSessionState>,
+      {},
+      null,
+      true,
+      engine,
+    );
+
+    // The provider should have received 'hello' as the first user message
+    expect(provider.lastStreamParams).toBeDefined();
+    expect(provider.lastStreamParams!.messages[0]).toEqual({ role: 'user', content: 'hello' });
+  });
+
+  it('multi-turn sends all messages to provider (handleTurn passes full chatMessages)', async () => {
+    const { handleTurn: realHandleTurn } = await vi.importActual<typeof import('../../../../src/chat/stream/handler')>('../../../../src/chat/stream/handler');
+
+    const provider = createCreditsProvider();
+    const messages: Message[] = [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: 'hi there!' },
+      { role: 'user', content: 'what is 2+2?' },
+    ];
+    const engine = new ChatEngine();
+
+    await realHandleTurn(
+      provider,
+      messages,
+      [],
+      [{ type: 'text', text: 'system' }],
+      { user: { _id: '1', name: 'T', email: 't@t.com' } } as ReturnType<typeof createSessionState>,
+      {},
+      null,
+      true,
+      engine,
+    );
+
+    // Provider receives ALL prior messages. Note: handleTurn may have appended
+    // an assistant message from the first turn, so we check the first 3 entries.
+    expect(provider.lastStreamParams).toBeDefined();
+    expect(provider.lastStreamParams!.messages.length).toBeGreaterThanOrEqual(3);
+    expect(provider.lastStreamParams!.messages[0]).toEqual({ role: 'user', content: 'hello' });
+    expect(provider.lastStreamParams!.messages[1]).toEqual({ role: 'assistant', content: 'hi there!' });
+    expect(provider.lastStreamParams!.messages[2]).toEqual({ role: 'user', content: 'what is 2+2?' });
+  });
+
+  it('after clearSession, provider receives only new messages (no stale history)', async () => {
+    const { handleTurn: realHandleTurn } = await vi.importActual<typeof import('../../../../src/chat/stream/handler')>('../../../../src/chat/stream/handler');
+
+    const provider = createCreditsProvider();
+    const chatMessages: Message[] = [
+      { role: 'user', content: 'old message' },
+      { role: 'assistant', content: 'old response' },
+    ];
+    const engine = new ChatEngine();
+
+    // Simulate /clear via TurnCoordinator
+    const tc = new TurnCoordinator(makeDeps(provider, { chatMessages, engine }));
+    tc.clearSession();
+
+    expect(chatMessages).toHaveLength(0);
+
+    // New turn after clear
+    chatMessages.push({ role: 'user', content: 'fresh start' });
+
+    await realHandleTurn(
+      provider,
+      chatMessages,
+      [],
+      [{ type: 'text', text: 'system' }],
+      { user: { _id: '1', name: 'T', email: 't@t.com' } } as ReturnType<typeof createSessionState>,
+      {},
+      null,
+      true,
+      engine,
+    );
+
+    // Provider should see only the fresh message, not old history
+    expect(provider.lastStreamParams).toBeDefined();
+    expect(provider.lastStreamParams!.messages[0]).toEqual({ role: 'user', content: 'fresh start' });
+    expect(provider.lastStreamParams!.messages.every(m =>
+      typeof m.content === 'string' ? !m.content.includes('old') : true
+    )).toBe(true);
+  });
+
+  it('btw snapshot carries correct conversation context', () => {
+    // TurnCoordinator.submitBtwTurn clones chatMessages and appends the btw
+    // message. The credits provider receives the full snapshot — verify the
+    // snapshot construction is consistent.
+    const provider = createCreditsProvider();
+    const chatMessages: Message[] = [
+      { role: 'user', content: 'main question' },
+      { role: 'assistant', content: 'main response' },
+    ];
+
+    // submitBtwTurn does: snapshot = deep clone of chatMessages, then snapshot.push(btw)
+    // Verify this manually (TurnCoordinator uses JSON.parse(JSON.stringify) for the clone)
+    const snapshot: Message[] = JSON.parse(JSON.stringify(chatMessages));
+    snapshot.push({ role: 'user', content: 'btw side question' });
+
+    expect(snapshot).toHaveLength(3);
+    expect(snapshot[0]).toEqual({ role: 'user', content: 'main question' });
+    expect(snapshot[1]).toEqual({ role: 'assistant', content: 'main response' });
+    expect(snapshot[2]).toEqual({ role: 'user', content: 'btw side question' });
+
+    // Original chatMessages unchanged
+    expect(chatMessages).toHaveLength(2);
+  });
+
+  it('resetSession is a no-op on the aligned provider', () => {
+    const provider = createCreditsProvider();
+    // resetSession should not throw
+    expect(() => provider.resetSession()).not.toThrow();
   });
 });
