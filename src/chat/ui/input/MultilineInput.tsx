@@ -175,6 +175,10 @@ export function MultilineInput({
     );
     setEditorState(newState);
     ensureCursorVisible(newState);
+    getDiag().input.assertCursorBounds(newState.text, newState.cursor);
+    if (newState.hasSelection) {
+      getDiag().input.assertSelectionValid(newState.selectionAnchor, newState.cursor, newState.text.length);
+    }
     if (!opts?.skipOnChange && newState.text !== editorStateRef.current.text) {
       internalChangeRef.current = true;
       getDiag().input.onOnChange(newState.text);

@@ -183,13 +183,27 @@ describe('InputMonitor', () => {
     expect(reporter.assertion).toHaveBeenCalledWith(false, 'input', 'insert increased text by inserted length', expect.any(Object));
   });
 
-  it('asserts selection validity — passes', () => {
-    monitor.assertSelectionValid(-1, 5);
-    expect(reporter.assertion).toHaveBeenCalledWith(true, 'input', 'selection anchor valid', expect.any(Object));
+  it('asserts selection validity — passes for inactive anchor and valid cursor', () => {
+    monitor.assertSelectionValid(-1, 3, 5);
+    expect(reporter.assertion).toHaveBeenCalledWith(true, 'input', 'selection anchor in bounds', expect.any(Object));
+    expect(reporter.assertion).toHaveBeenCalledWith(true, 'input', 'selection cursor in bounds', expect.any(Object));
   });
 
-  it('asserts selection validity — fails', () => {
-    monitor.assertSelectionValid(10, 5);
-    expect(reporter.assertion).toHaveBeenCalledWith(false, 'input', 'selection anchor valid', expect.objectContaining({ anchor: 10, textLen: 5 }));
+  it('asserts selection validity — fails for out-of-bounds anchor', () => {
+    monitor.assertSelectionValid(10, 3, 5);
+    expect(reporter.assertion).toHaveBeenCalledWith(false, 'input', 'selection anchor in bounds', expect.objectContaining({ anchor: 10, textLen: 5 }));
+    expect(reporter.assertion).toHaveBeenCalledWith(true, 'input', 'selection cursor in bounds', expect.objectContaining({ cursor: 3, textLen: 5 }));
+  });
+
+  it('asserts selection validity — fails for out-of-bounds cursor', () => {
+    monitor.assertSelectionValid(2, 10, 5);
+    expect(reporter.assertion).toHaveBeenCalledWith(true, 'input', 'selection anchor in bounds', expect.objectContaining({ anchor: 2, textLen: 5 }));
+    expect(reporter.assertion).toHaveBeenCalledWith(false, 'input', 'selection cursor in bounds', expect.objectContaining({ cursor: 10, textLen: 5 }));
+  });
+
+  it('asserts selection validity — fails for negative cursor', () => {
+    monitor.assertSelectionValid(-1, -2, 5);
+    expect(reporter.assertion).toHaveBeenCalledWith(true, 'input', 'selection anchor in bounds', expect.objectContaining({ anchor: -1, textLen: 5 }));
+    expect(reporter.assertion).toHaveBeenCalledWith(false, 'input', 'selection cursor in bounds', expect.objectContaining({ cursor: -2, textLen: 5 }));
   });
 });

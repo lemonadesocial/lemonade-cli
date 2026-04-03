@@ -1,8 +1,8 @@
 import { DiagReporter } from './reporter.js';
-import { InputMonitor } from './inputMonitor.js';
+import { InputMonitor, type IInputMonitor } from './inputMonitor.js';
 
 // Stub monitors for when diagnostics are disabled (zero overhead)
-const NOOP_INPUT: InputMonitor = {
+const NOOP_INPUT: IInputMonitor = {
   onKeypress() {},
   onStateChange() {},
   onValueSync() {},
@@ -12,13 +12,13 @@ const NOOP_INPUT: InputMonitor = {
   assertBackspaceResult() {},
   assertInsertResult() {},
   assertSelectionValid() {},
-} as unknown as InputMonitor;
+};
 
 class CLIDiagnostics {
-  readonly input: InputMonitor;
+  readonly input: IInputMonitor;
   readonly reporter: DiagReporter;
 
-  private constructor(reporter: DiagReporter, input: InputMonitor) {
+  private constructor(reporter: DiagReporter, input: IInputMonitor) {
     this.reporter = reporter;
     this.input = input;
   }
@@ -48,4 +48,4 @@ export function getDiag(): CLIDiagnostics {
 }
 
 export { DiagReporter } from './reporter.js';
-export { InputMonitor } from './inputMonitor.js';
+export { InputMonitor, type IInputMonitor } from './inputMonitor.js';
