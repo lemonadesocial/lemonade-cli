@@ -5,186 +5,19 @@ import { ChatEngine } from '../engine/ChatEngine.js';
 import { AIProvider, Message, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
 import { TurnCoordinator } from '../runtime/TurnCoordinator.js';
-import { parseSlashCommand, SLASH_COMMANDS } from './SlashCommands.js';
+import { parseSlashCommand } from './SlashCommands.js';
 import { executeSlashCommand } from '../runtime/SlashCommandRouter.js';
-import { THINKING_WORDS } from './ThinkingIndicator.js';
-import { truncateResult } from './ToolCall.js';
-import { LEMON, SUGGESTED_PROMPTS } from './WelcomeBanner.js';
-import { VERSION } from '../version.js';
-import { MarkdownRenderer } from './MarkdownRenderer.js';
-import { useChatEngine, UIMessage, ToolStatus } from './hooks/useChatEngine.js';
+import { useChatEngine } from './hooks/useChatEngine.js';
 import { usePlanMode } from './hooks/usePlanMode.js';
+import { useCommandHistory } from './hooks/useCommandHistory.js';
+import { useAutocomplete, AC_MAX_VISIBLE } from './hooks/useAutocomplete.js';
 import { PlanWizard } from './PlanWizard.js';
-
-const SPINNER_FRAMES = ['\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'];
-
-const TIPS = [
-  'say "switch to my Berlin space"',
-  '/help shows all commands',
-  'chain actions: "create event, add ticket, publish"',
-  'press Escape to cancel a response',
-  'type "exit" or Ctrl+D to quit',
-  '"how are ticket sales?" works naturally',
-  '/clear starts a fresh session',
-  '/mode credits to use community credits',
-  'Shift+Enter adds a new line',
-  'Ctrl+L clears the screen',
-  'Ctrl+U clears your input',
-  '/btw asks a side question while AI is working',
-  '/plan event_create walks you through step by step',
-  '/version checks for CLI updates',
-  '"create event" triggers guided plan mode',
-  '"check my Stripe status" just works',
-  'type / to see all available commands',
-];
-
-function randomTip(): string {
-  return TIPS[Math.floor(Math.random() * TIPS.length)];
-}
-
-function randomThinkingWord(): string {
-  return THINKING_WORDS[Math.floor(Math.random() * THINKING_WORDS.length)];
-}
-
-// --- Sub-components ---
-
-function ThinkingSpinner(): React.JSX.Element {
-  const [frame, setFrame] = useState(0);
-  const [word, setWord] = useState(randomThinkingWord);
-
-  useEffect(() => {
-    const frameTimer = setInterval(() => {
-      setFrame((f) => (f + 1) % SPINNER_FRAMES.length);
-    }, 80);
-    const wordTimer = setInterval(() => {
-      setWord(randomThinkingWord());
-    }, 2500);
-    return () => {
-      clearInterval(frameTimer);
-      clearInterval(wordTimer);
-    };
-  }, []);
-
-  return (
-    <Text color="#C4B5FD">
-      {SPINNER_FRAMES[frame]} {word}...
-    </Text>
-  );
-}
-
-function ToolSpinner({ name }: { name: string }): React.JSX.Element {
-  const [frame, setFrame] = useState(0);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setFrame((f) => (f + 1) % SPINNER_FRAMES.length);
-    }, 80);
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <Text color="#C4B5FD">
-      {SPINNER_FRAMES[frame]} Running: {name}...
-    </Text>
-  );
-}
-
-function ToolResultLine({ tool }: { tool: ToolStatus }): React.JSX.Element {
-  if (tool.status === 'running') {
-    return <ToolSpinner name={tool.name} />;
-  }
-  if (tool.status === 'error') {
-    const preview = tool.error ? truncateResult(String(tool.error)) : '';
-    return (
-      <Box flexDirection="column">
-        <Text>
-          <Text color="#FF637E">{'\u2718'}</Text> Failed: {tool.name}
-        </Text>
-        {preview ? <Text dimColor>    {preview}</Text> : null}
-      </Box>
-    );
-  }
-  // done
-  const text = tool.result !== undefined && tool.result !== null
-    ? (typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result))
-    : '';
-  const preview = truncateResult(text);
-  return (
-    <Box flexDirection="column">
-      <Text>
-        <Text color="#10B981">{'\u2714'}</Text> Done: {tool.name}
-      </Text>
-      {preview.length > 0 && preview.length < 200 ? <Text dimColor>    {preview}</Text> : null}
-    </Box>
-  );
-}
-
-function MessageView({ msg }: { msg: UIMessage }): React.JSX.Element {
-  if (msg.role === 'user') {
-    return <Text dimColor>{'> '}{msg.content}</Text>;
-  }
-  if (msg.role === 'system') {
-    const isError = msg.content.startsWith('Error:');
-    if (isError) {
-      let hint = '';
-      if (msg.content.includes('auth') || msg.content.includes('401') || msg.content.includes('Unauthorized')) {
-        hint = '  Run lemonade auth login';
-      } else if (msg.content.includes('context length') || msg.content.includes('too many tokens')) {
-        hint = '  Use /clear to start fresh';
-      }
-      return (
-        <Box flexDirection="column">
-          <Text color="#FF637E">{msg.content}</Text>
-          {hint ? <Text dimColor>{hint}</Text> : null}
-        </Box>
-      );
-    }
-    return <Text color="#FDE047">{msg.content}</Text>;
-  }
-  // assistant
-  return (
-    <Box flexDirection="column">
-      {msg.turnId?.startsWith('btw-') ? <Text color="#67E8F9">{'btw \u2192 '}</Text> : null}
-      {msg.content ? <MarkdownRenderer text={msg.content} /> : null}
-      {msg.tools?.map((tool) => (
-        <Box key={tool.id} marginLeft={1}>
-          <ToolResultLine tool={tool} />
-        </Box>
-      ))}
-    </Box>
-  );
-}
-
-// --- Welcome Banner ---
-
-function WelcomeBannerView({ firstName, agentName, providerName, modelName }: {
-  firstName: string;
-  agentName: string;
-  providerName: string;
-  modelName: string;
-}): React.JSX.Element {
-  return (
-    <Box flexDirection="column" paddingLeft={1}>
-      {LEMON.map((line, i) => (
-        <Text key={i} color="#FDE047">{line}</Text>
-      ))}
-      <Text>
-        <Text bold>make-lemonade</Text>
-        <Text dimColor>{` v${VERSION} | ${providerName} | ${modelName}`}</Text>
-      </Text>
-      <Text>{''}</Text>
-      <Text>{` Hey ${firstName}! I'm ${agentName}, your event concierge. What would you like to do?`}</Text>
-      <Text>{''}</Text>
-      {SUGGESTED_PROMPTS.map((prompt, i) => (
-        <Text key={i} dimColor>{`   ${i + 1}. "${prompt}"`}</Text>
-      ))}
-      <Text>{''}</Text>
-      <Text dimColor>   Type /help for commands, Ctrl+D to quit</Text>
-      <Text>{''}</Text>
-      <Text dimColor>   Note: Tool results (including event and guest data) are sent to your AI provider.</Text>
-    </Box>
-  );
-}
+import {
+  ThinkingSpinner,
+  MessageView,
+  WelcomeBannerView,
+  randomTip,
+} from './MessageComponents.js';
 
 // --- Main App ---
 
@@ -231,11 +64,14 @@ export function App({
 
   const { planState, completePlan, cancelPlan, startManualPlan } = usePlanMode(engine);
   const cachedSpacesRef = useRef<Array<{ _id: string; title: string; slug?: string }> | null>(null);
+  const history = useCommandHistory();
 
   const [inputValue, setInputValue] = useState('');
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
+
+  const autocomplete = useAutocomplete(inputValue);
 
   const submitTurnIdRef = useRef(0);
   const turnCoordinatorRef = useRef<TurnCoordinator | null>(null);
@@ -259,24 +95,9 @@ export function App({
   }, []);
   const contentWidth = termColumns - 4;
 
-  // Command history
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [savedInput, setSavedInput] = useState('');
-
-  // API key state (replaces pendingApiKeyRef)
+  // API key state
   const [apiKeyPrompt, setApiKeyPrompt] = useState<{ connectionId: string; connectorType: string } | null>(null);
   const [apiKeyValue, setApiKeyValue] = useState('');
-
-  // Autocomplete state
-  const [acIndex, setAcIndex] = useState(0);
-  const [acScrollOffset, setAcScrollOffset] = useState(0);
-  const AC_MAX_VISIBLE = 6;
-
-  const showAutocomplete = inputValue.startsWith('/');
-  const filteredCommands = showAutocomplete
-    ? SLASH_COMMANDS.filter((cmd) => cmd.name.startsWith(inputValue))
-    : [];
 
   useEffect(() => {
     const onToolDone = (data: { id: string; name: string; result?: unknown }) => {
@@ -288,12 +109,6 @@ export function App({
     engine.on('tool_done', onToolDone);
     return () => { engine.off('tool_done', onToolDone); };
   }, [engine]);
-
-  // Reset autocomplete index when input changes
-  useEffect(() => {
-    setAcIndex(0);
-    setAcScrollOffset(0);
-  }, [inputValue]);
 
   // Hide thinking spinner once assistant starts streaming text
   useEffect(() => {
@@ -313,17 +128,15 @@ export function App({
     }
   }, [isStreaming, tokenCount]);
 
+  const { recordSubmit, handleHistoryUp: historyUp, handleHistoryDown: historyDown, resetBrowsing } = history;
+  const { showAutocomplete, filteredCommands, selectCurrent } = autocomplete;
+
   // Handle submit
   const handleSubmit = useCallback(async (value: string) => {
     const input = value.trim();
     if (!input) return;
     setInputValue('');
-    setCommandHistory(prev => {
-      if (prev[prev.length - 1] === input) return prev;
-      return [...prev, input];
-    });
-    setHistoryIndex(-1);
-    setSavedInput('');
+    recordSubmit(input);
 
     // Exit commands (always allowed)
     if (['exit', 'quit', 'bye'].includes(input.toLowerCase())) {
@@ -369,14 +182,15 @@ export function App({
     }
 
     // Regular messages: coordinator is the single authority for turn acceptance.
-    // submitMainTurn commits the user message to provider history before handleTurn reads it.
+    // ORDERING CONSTRAINT: submitMainTurn must be called before addUserMessage.
+    // The coordinator must accept the turn before the UI commits the message,
+    // otherwise a rejected turn would leave a dangling user message in the UI.
     const submit = turnCoordinator.submitMainTurn(input);
     if (!submit.accepted) {
       addSystemMessage(submit.error);
       return;
     }
 
-    // UI-visible message committed after coordinator has accepted.
     addUserMessage(input);
     const myTurnId = ++submitTurnIdRef.current;
     setShowThinking(true);
@@ -389,42 +203,27 @@ export function App({
     } catch {
       addSystemMessage('Error: unexpected failure during turn execution.');
     } finally {
-      // Only clear thinking if no newer turn has started since this one.
       if (submitTurnIdRef.current === myTurnId) {
         setShowThinking(false);
       }
     }
-  }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan]);
+  }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, recordSubmit]);
 
-  // History navigation callbacks
-  const handleHistoryUp = useCallback(() => {
-    if (commandHistory.length === 0) return;
-    if (historyIndex === -1) setSavedInput(inputValue);
-    const idx = historyIndex === -1 ? commandHistory.length - 1 : Math.max(0, historyIndex - 1);
-    setHistoryIndex(idx);
-    setInputValue(commandHistory[idx]);
-  }, [commandHistory, historyIndex, inputValue]);
-
-  const handleHistoryDown = useCallback(() => {
-    if (historyIndex === -1) return;
-    const idx = historyIndex + 1;
-    if (idx >= commandHistory.length) {
-      setHistoryIndex(-1);
-      setInputValue(savedInput);
-    } else {
-      setHistoryIndex(idx);
-      setInputValue(commandHistory[idx]);
-    }
-  }, [commandHistory, historyIndex, savedInput]);
-
-  // Reset history browsing on manual edit
+  // Input change with history reset
   const handleChange = useCallback((val: string) => {
     setInputValue(val);
-    if (historyIndex !== -1) {
-      setHistoryIndex(-1);
-      setSavedInput('');
-    }
-  }, [historyIndex]);
+    resetBrowsing();
+  }, [resetBrowsing]);
+
+  const handleHistoryUp = useCallback(() => {
+    const val = historyUp(inputValue);
+    if (val !== null) setInputValue(val);
+  }, [historyUp, inputValue]);
+
+  const handleHistoryDown = useCallback(() => {
+    const val = historyDown();
+    if (val !== null) setInputValue(val);
+  }, [historyDown]);
 
   const handleExit = useCallback(() => { exit(); }, [exit]);
 
@@ -439,7 +238,6 @@ export function App({
       setApiKeyValue('');
       addSystemMessage(`${connectorType} connected! Use /connectors connected to verify.`);
     } catch (err) {
-      // Keep apiKeyPrompt set so the masked input stays visible for retry
       setApiKeyValue('');
       addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}. Try again or press Escape to cancel.`);
     }
@@ -477,35 +275,18 @@ export function App({
     }
 
     // Autocomplete navigation
-    if (showAutocomplete && filteredCommands.length > 0) {
+    if (autocomplete.showAutocomplete && autocomplete.filteredCommands.length > 0) {
       if (key.upArrow) {
-        setAcIndex((prev) => {
-          const next = prev <= 0 ? filteredCommands.length - 1 : prev - 1;
-          // Adjust scroll offset
-          if (next < acScrollOffset) {
-            setAcScrollOffset(next);
-          } else if (next >= acScrollOffset + AC_MAX_VISIBLE) {
-            setAcScrollOffset(next - AC_MAX_VISIBLE + 1);
-          }
-          return next;
-        });
+        autocomplete.navigateUp();
         return;
       }
       if (key.downArrow) {
-        setAcIndex((prev) => {
-          const next = prev >= filteredCommands.length - 1 ? 0 : prev + 1;
-          // Adjust scroll offset
-          if (next >= acScrollOffset + AC_MAX_VISIBLE) {
-            setAcScrollOffset(next - AC_MAX_VISIBLE + 1);
-          } else if (next < acScrollOffset) {
-            setAcScrollOffset(next);
-          }
-          return next;
-        });
+        autocomplete.navigateDown();
         return;
       }
       if (key.tab) {
-        setInputValue(filteredCommands[acIndex].name);
+        const selected = autocomplete.selectCurrent();
+        if (selected) setInputValue(selected);
         return;
       }
     }
@@ -514,13 +295,14 @@ export function App({
   // Wrap submit to intercept autocomplete selection on Enter
   const onSubmit = useCallback((value: string) => {
     if (showAutocomplete && filteredCommands.length > 0) {
-      const selected = filteredCommands[acIndex].name;
-      setInputValue(selected);
-      handleSubmit(selected);
-      return;
+      const selected = selectCurrent();
+      if (selected) {
+        handleSubmit(selected);
+        return;
+      }
     }
     handleSubmit(value);
-  }, [showAutocomplete, filteredCommands, acIndex, handleSubmit]);
+  }, [showAutocomplete, filteredCommands, selectCurrent, handleSubmit]);
 
   // Confirm dialog input
   useInput((input) => {
@@ -621,21 +403,21 @@ export function App({
                   maxVisibleLines={8}
                   placeholder={isStreaming ? '' : 'How can I help... #makelemonade (Shift+Enter for new line)'}
                   continuationPrefix=""
-                  suppressNavigation={showAutocomplete && filteredCommands.length > 0}
+                  suppressNavigation={autocomplete.showAutocomplete && autocomplete.filteredCommands.length > 0}
                 />
               </Box>
             </Box>
           )}
 
           {/* Toolbar - flows after input */}
-          {showAutocomplete ? (
+          {autocomplete.showAutocomplete ? (
             <Box flexDirection="column" paddingLeft={1}>
-              {filteredCommands.length > 0 ? (
-                filteredCommands
-                  .slice(acScrollOffset, acScrollOffset + AC_MAX_VISIBLE)
+              {autocomplete.filteredCommands.length > 0 ? (
+                autocomplete.filteredCommands
+                  .slice(autocomplete.acScrollOffset, autocomplete.acScrollOffset + AC_MAX_VISIBLE)
                   .map((cmd, i) => {
-                    const realIndex = i + acScrollOffset;
-                    const isHighlighted = realIndex === acIndex;
+                    const realIndex = i + autocomplete.acScrollOffset;
+                    const isHighlighted = realIndex === autocomplete.acIndex;
                     return (
                       <Box key={cmd.name} justifyContent="space-between">
                         <Text inverse={isHighlighted}>
