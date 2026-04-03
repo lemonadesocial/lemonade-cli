@@ -43,6 +43,9 @@ export class TurnCoordinator {
   private btwCounter = 0;
   private mainTurnSettling: Promise<void> | null = null;
   private btwAborts = new Map<string, AbortController>();
+  // Index in chatMessages where the current turn's user message was inserted.
+  // Used by cancelMainTurn to roll back uncommitted user messages.
+  private mainTurnUserMsgIndex: number | null = null;
 
   constructor(deps: TurnDeps) {
     this.deps = deps;
@@ -77,6 +80,7 @@ export class TurnCoordinator {
     // Commit user message to provider history BEFORE any async work.
     // Providers read params.messages synchronously — the message must be
     // present before executeMainTurn reaches handleTurn.
+    this.mainTurnUserMsgIndex = this.deps.chatMessages.length;
     this.deps.chatMessages.push({ role: 'user', content: input });
 
     const completion = this.executeMainTurn(turnId, abort);
@@ -132,6 +136,7 @@ export class TurnCoordinator {
       if (this.mainTurnId === turnId) {
         this.mainTurnActive = false;
         this.mainAbort = null;
+        this.mainTurnUserMsgIndex = null;
       }
       // Clear the settling reference BEFORE resolving so awaiting code
       // never observes a stale resolved promise in mainTurnSettling.
@@ -183,6 +188,21 @@ export class TurnCoordinator {
       this.mainTurnId = ++this.mainTurnCounter;
       this.mainAbort = null;
       this.mainTurnActive = false;
+
+      // Roll back the user message if no assistant/tool content was committed
+      // after it. Safe check: the user message must still be the last entry
+      // in chatMessages, meaning handleTurn hasn't appended anything yet.
+      if (this.mainTurnUserMsgIndex !== null) {
+        const msgs = this.deps.chatMessages;
+        if (
+          msgs.length === this.mainTurnUserMsgIndex + 1 &&
+          msgs[this.mainTurnUserMsgIndex].role === 'user'
+        ) {
+          msgs.splice(this.mainTurnUserMsgIndex, 1);
+        }
+        this.mainTurnUserMsgIndex = null;
+      }
+
       return true;
     }
     return false;

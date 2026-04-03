@@ -650,14 +650,123 @@ describe('TurnCoordinator', () => {
       await oldSubmit.completion;
       await newSubmit.completion;
 
-      // The new turn saw the original message + both user messages committed by
-      // submitMainTurn. No stale assistant/tool messages from the cancelled turn.
+      // The cancelled turn's user message was rolled back by cancelMainTurn,
+      // so the new turn sees only the original message + its own user message.
       expect(snapshotBeforeNewTurn).toHaveLength(1);
       expect(snapshotBeforeNewTurn[0]).toEqual([
         { role: 'user', content: 'initial' },
-        { role: 'user', content: 'old input' },
         { role: 'user', content: 'new input' },
       ]);
+    });
+  });
+
+  describe('cancel rolls back user message from provider history', () => {
+    it('cancelled turn user message is removed when no assistant content was committed', async () => {
+      let resolveFirst!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveFirst = resolve; }),
+      );
+
+      const chatMessages: Message[] = [{ role: 'user', content: 'prior' }];
+      const tc = new TurnCoordinator(makeDeps({ chatMessages }));
+
+      const submit = tc.submitMainTurn('will be cancelled');
+      if (!submit.accepted) throw new Error('expected accepted');
+
+      // User message was committed synchronously
+      expect(chatMessages).toHaveLength(2);
+      expect(chatMessages[1]).toEqual({ role: 'user', content: 'will be cancelled' });
+
+      // Cancel before handleTurn appends any assistant/tool content
+      tc.cancelMainTurn();
+
+      // The cancelled user message must be rolled back
+      expect(chatMessages).toHaveLength(1);
+      expect(chatMessages[0]).toEqual({ role: 'user', content: 'prior' });
+
+      resolveFirst();
+      await submit.completion;
+    });
+
+    it('cancelled turn user message is kept when assistant content was already committed', async () => {
+      const chatMessages: Message[] = [];
+      mockHandleTurn.mockImplementationOnce((_p, msgs) => {
+        // Simulate handleTurn appending an assistant message before cancel fires
+        msgs.push({ role: 'assistant', content: 'partial response' });
+        return new Promise<void>((resolve) => {
+          // Hold open so cancel can fire after the push
+          setTimeout(resolve, 50);
+        });
+      });
+
+      const tc = new TurnCoordinator(makeDeps({ chatMessages }));
+      const submit = tc.submitMainTurn('question');
+      if (!submit.accepted) throw new Error('expected accepted');
+
+      // Wait for handleTurn to push the assistant message
+      await vi.waitFor(() => expect(chatMessages).toHaveLength(2));
+
+      // Cancel after assistant content exists
+      tc.cancelMainTurn();
+
+      // User message should NOT be rolled back — assistant content was committed
+      expect(chatMessages).toEqual([
+        { role: 'user', content: 'question' },
+        { role: 'assistant', content: 'partial response' },
+      ]);
+
+      await submit.completion;
+    });
+
+    it('cancel-then-resubmit: next turn does not see consecutive user messages', async () => {
+      let resolveFirst!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveFirst = resolve; }),
+      );
+
+      const chatMessages: Message[] = [{ role: 'user', content: 'initial' }];
+      const tc = new TurnCoordinator(makeDeps({ chatMessages }));
+
+      // Submit and cancel turn A
+      const turnA = tc.submitMainTurn('cancelled prompt');
+      if (!turnA.accepted) throw new Error('expected accepted');
+      tc.cancelMainTurn();
+
+      // Cancelled user message rolled back
+      expect(chatMessages).toEqual([{ role: 'user', content: 'initial' }]);
+
+      // Submit turn B — capture what handleTurn sees
+      let capturedMessages: Message[] | undefined;
+      mockHandleTurn.mockImplementationOnce((_p, msgs) => {
+        capturedMessages = [...msgs];
+        return Promise.resolve();
+      });
+
+      const turnB = tc.submitMainTurn('retry prompt');
+      if (!turnB.accepted) throw new Error('expected accepted');
+
+      // Let turn A settle
+      resolveFirst();
+      await turnA.completion;
+      await turnB.completion;
+
+      // Provider must see: initial + retry only — no cancelled prompt
+      expect(capturedMessages).toBeDefined();
+      expect(capturedMessages).toEqual([
+        { role: 'user', content: 'initial' },
+        { role: 'user', content: 'retry prompt' },
+      ]);
+
+      // No consecutive user messages from the same cancelled turn
+      const userRuns = capturedMessages!.reduce((runs, m, i) => {
+        if (m.role === 'user' && i > 0 && capturedMessages![i - 1].role === 'user') {
+          runs++;
+        }
+        return runs;
+      }, 0);
+      // Two user messages is fine (initial + retry) — but there must be
+      // no THIRD user message from the cancelled turn
+      expect(capturedMessages!.filter(m => m.role === 'user')).toHaveLength(2);
     });
   });
 
