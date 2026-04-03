@@ -58,4 +58,12 @@ describe('useAutocomplete — pure logic', () => {
     expect(computeNavigateUp(2, 5)).toBe(1);
     expect(computeNavigateUp(3, 5)).toBe(2);
   });
+
+  it('computeNavigateUp returns 0 for empty list', () => {
+    expect(computeNavigateUp(0, 0)).toBe(0);
+  });
+
+  it('computeNavigateDown returns 0 for empty list', () => {
+    expect(computeNavigateDown(0, 0)).toBe(0);
+  });
 });

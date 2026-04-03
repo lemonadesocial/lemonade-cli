@@ -14,10 +14,12 @@ export function filterCommands(inputValue: string) {
 
 /** Pure index navigation — used by the hook and directly testable. */
 export function computeNavigateUp(currentIndex: number, count: number): number {
+  if (count === 0) return 0;
   return currentIndex <= 0 ? count - 1 : currentIndex - 1;
 }
 
 export function computeNavigateDown(currentIndex: number, count: number): number {
+  if (count === 0) return 0;
   return currentIndex >= count - 1 ? 0 : currentIndex + 1;
 }
 

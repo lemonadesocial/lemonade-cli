@@ -297,13 +297,12 @@ export function App({
     if (showAutocomplete && filteredCommands.length > 0) {
       const selected = selectCurrent();
       if (selected) {
-        setInputValue(selected);
         handleSubmit(selected);
         return;
       }
     }
     handleSubmit(value);
-  }, [showAutocomplete, filteredCommands.length, selectCurrent, handleSubmit]);
+  }, [showAutocomplete, filteredCommands, selectCurrent, handleSubmit]);
 
   // Confirm dialog input
   useInput((input) => {
