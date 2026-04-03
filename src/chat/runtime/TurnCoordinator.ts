@@ -13,6 +13,12 @@ export interface TurnDeps {
   chatMessages: Message[];
 }
 
+export interface TurnSubmitResult {
+  accepted: boolean;
+  error?: string;
+  completion?: Promise<{ error?: string }>;
+}
+
 export interface TurnCoordinatorState {
   readonly isMainTurnActive: boolean;
   readonly activeBtwCount: number;
@@ -46,28 +52,35 @@ export class TurnCoordinator {
     };
   }
 
-  // Provider history: caller (App) owns pushing user message to chatMessages.
-  // TurnCoordinator owns the provider stream call only.
-  async submitMainTurn(): Promise<{ error?: string }> {
-    // Reject immediately if a turn is actively running (not cancelled).
+  // Synchronous accept/reject — acquires the entry lock before any async work.
+  // Caller commits user message only after checking `accepted`.
+  submitMainTurn(): TurnSubmitResult {
     if (this.mainTurnActive) {
-      return { error: MAIN_TURN_BUSY };
+      return { accepted: false, error: MAIN_TURN_BUSY };
     }
 
-    // If a previous cancelled turn hasn't fully settled, wait for it.
-    // Prevents two handleTurn calls mutating the same chatMessages array.
+    // Claim the turn synchronously — provides mutual exclusion during settling.
+    this.mainTurnActive = true;
+    const turnId = ++mainTurnCounter;
+    this.mainTurnId = turnId;
+    const abort = new AbortController();
+    this.mainAbort = abort;
+
+    const completion = this.executeMainTurn(turnId, abort);
+    return { accepted: true, completion };
+  }
+
+  private async executeMainTurn(
+    turnId: number,
+    abort: AbortController,
+  ): Promise<{ error?: string }> {
+    // Wait for previous cancelled turn to fully settle before starting.
     if (this.mainTurnSettling) {
       await this.mainTurnSettling;
     }
 
     const { provider, formattedTools, session, registry, chatMessages, engine } = this.deps;
-
     const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
-    const abort = new AbortController();
-    const turnId = ++mainTurnCounter;
-    this.mainAbort = abort;
-    this.mainTurnActive = true;
-    this.mainTurnId = turnId;
 
     let resolveSettling!: () => void;
     const settling = new Promise<void>(r => { resolveSettling = r; });
