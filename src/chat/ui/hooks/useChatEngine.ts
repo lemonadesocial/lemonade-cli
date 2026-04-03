@@ -51,19 +51,56 @@ export function computeIndexAdjustments(
     if (tIdx > removedIdx) {
       updates.push([tid, tIdx - 1]);
     } else if (tIdx === removedIdx) {
+      // In practice this branch is unlikely for removeMessageById (which only
+      // targets user messages, while turnMessageIndex tracks assistant turns),
+      // but it is needed for correctness if the invariant ever changes.
       deletes.push(tid);
     }
   }
   return { updates, deletes };
 }
 
-/** Apply the result of computeIndexAdjustments to a mutable Map. */
+/** Apply the result of computeIndexAdjustments to a mutable Map in place. */
 function applyIndexAdjustments(
   turnIndex: Map<string, number>,
   adj: { updates: [string, number][]; deletes: string[] },
 ): void {
   for (const [tid, newIdx] of adj.updates) turnIndex.set(tid, newIdx);
   for (const tid of adj.deletes) turnIndex.delete(tid);
+}
+
+/**
+ * Updater for removeMessageById — removes a message by msgId and adjusts
+ * turnMessageIndex atomically within the same call. Exported for testing.
+ *
+ * Returns the new messages array (or prev if no-op). Mutates turnIndex in place
+ * so that message removal and index bookkeeping cannot diverge due to deferred
+ * React batching.
+ */
+export function removeMessageByIdUpdater(
+  prev: UIMessage[],
+  id: string,
+  turnIndex: Map<string, number>,
+): UIMessage[] {
+  const idx = prev.findIndex((m) => m.msgId === id);
+  if (idx === -1) return prev;
+
+  // msgId is only assigned by addUserMessage (role: 'user'). A mismatch
+  // means the messages array was corrupted — log and bail rather than crash.
+  if (prev[idx].role !== 'user') {
+    console.error(
+      `[useChatEngine] removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — skipping removal (possible state corruption)`,
+    );
+    return prev;
+  }
+
+  // Compute and apply index adjustments atomically with the splice so there
+  // is no window where the message array and turnMessageIndex are inconsistent.
+  applyIndexAdjustments(turnIndex, computeIndexAdjustments(turnIndex, idx));
+
+  const next = [...prev];
+  next.splice(idx, 1);
+  return next;
 }
 
 export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
@@ -94,7 +131,9 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
         if (tid === 'main') setIsStreaming(true);
       }
 
-      let createdAtIndex = -1;
+      // Index registration happens inside the updater so that message-array
+      // mutation and turnMessageIndex mutation are atomic — no dependency on
+      // React executing the updater synchronously before post-setMessages code.
       setMessages((prev) => {
         const existingIdx = turnMessageIndex.current.get(tid);
         if (existingIdx !== undefined && existingIdx < prev.length && prev[existingIdx]?.role === 'assistant') {
@@ -105,17 +144,14 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
         }
         const newMsg: UIMessage = { role: 'assistant', content: data.text, turnId: tid === 'main' ? undefined : tid };
         const newArr = [...prev, newMsg];
-        createdAtIndex = newArr.length - 1;
+        turnMessageIndex.current.set(tid, newArr.length - 1);
         return newArr;
       });
-      if (createdAtIndex !== -1) {
-        turnMessageIndex.current.set(tid, createdAtIndex);
-      }
     };
 
     const onToolStart = (data: { id: string; name: string; turnId?: string }) => {
       const tid = data.turnId || 'main';
-      let createdAtIndex = -1;
+      // Index registration inside updater — atomic with array mutation (see onTextDelta comment).
       setMessages((prev) => {
         const updated = [...prev];
         let idx = turnMessageIndex.current.get(tid);
@@ -123,7 +159,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
           const newMsg: UIMessage = { role: 'assistant', content: '', tools: [], turnId: tid === 'main' ? undefined : tid };
           updated.push(newMsg);
           idx = updated.length - 1;
-          createdAtIndex = idx;
+          turnMessageIndex.current.set(tid, idx);
         }
         const msg = updated[idx];
         const tools = [...(msg.tools || [])];
@@ -131,9 +167,6 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
         updated[idx] = { ...msg, tools };
         return updated;
       });
-      if (createdAtIndex !== -1) {
-        turnMessageIndex.current.set(tid, createdAtIndex);
-      }
     };
 
     const onToolDone = (data: { id: string; name: string; result?: unknown; error?: string; turnId?: string }) => {
@@ -215,28 +248,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   }, []);
 
   const removeMessageById = useCallback((id: string) => {
-    let removedIdx = -1;
-    setMessages((prev) => {
-      const idx = prev.findIndex((m) => m.msgId === id);
-      if (idx === -1) return prev;
-      // msgId is only assigned by addUserMessage (role: 'user'). A mismatch
-      // here means the messages array was corrupted — fail loudly.
-      if (prev[idx].role !== 'user') {
-        throw new Error(
-          `[useChatEngine] removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — aborting (state corruption)`,
-        );
-      }
-      removedIdx = idx;
-      const next = [...prev];
-      next.splice(idx, 1);
-      return next;
-    });
-    if (removedIdx !== -1) {
-      applyIndexAdjustments(
-        turnMessageIndex.current,
-        computeIndexAdjustments(turnMessageIndex.current, removedIdx),
-      );
-    }
+    setMessages((prev) => removeMessageByIdUpdater(prev, id, turnMessageIndex.current));
   }, []);
 
   const addSystemMessage = useCallback((text: string) => {
