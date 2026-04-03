@@ -911,7 +911,7 @@ describe('TurnCoordinator', () => {
       // Wait for the error to propagate
       await vi.waitFor(() => expect(errors).toHaveLength(1));
 
-      expect(errors[0].message).toBe('network timeout');
+      expect(errors[0].message).toBe('[btw] network timeout');
       expect(errors[0].fatal).toBe(false);
       expect(errors[0].turnId).toBe(btwTurnId);
     });

@@ -173,7 +173,7 @@ export class TurnCoordinator {
       // Emit error for failures that don't produce engine events (e.g. network
       // errors thrown before streaming begins).
       const msg = err instanceof Error ? err.message : 'Unknown error';
-      engine.emit('error', { message: msg, fatal: false, turnId: btwTurnId });
+      engine.emit('error', { message: `[btw] ${msg}`, fatal: false, turnId: btwTurnId });
     }).finally(() => {
       this.btwAborts.delete(btwTurnId);
     });
