@@ -31,8 +31,11 @@ export class ConversationStore {
     return this._turnActive;
   }
 
-  /** Mark the start of a turn. Must be paired with endTurn(). */
+  /** Mark the start of a turn. Must be paired with endTurn(). Throws on reentrant call. */
   beginTurn(): void {
+    if (this._turnActive) {
+      throw new Error('beginTurn() called while a turn is already active — missing endTurn()?');
+    }
     this._turnActive = true;
   }
 
@@ -56,8 +59,11 @@ export class ConversationStore {
     return JSON.parse(JSON.stringify(this.messages));
   }
 
-  /** Append a user message to provider history. */
+  /** Append a user message to provider history. Throws if a turn is active. */
   addUserMessage(content: string): void {
+    if (this._turnActive) {
+      throw new Error('Cannot add a user message while a turn is in progress');
+    }
     this.messages.push({ role: 'user', content });
   }
 

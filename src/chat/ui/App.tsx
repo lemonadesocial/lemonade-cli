@@ -1106,11 +1106,12 @@ export function App({
       } else {
         addSystemMessage(`Error: ${msg}`);
       }
+    } finally {
+      turnInProgressRef.current = false;
+      conversationStore.endTurn();
+      streamAbortRef.current = null;
+      setShowThinking(false);
     }
-    turnInProgressRef.current = false;
-    conversationStore.endTurn();
-    streamAbortRef.current = null;
-    setShowThinking(false);
   }, [engine, provider, formattedTools, session, registry, conversationStore, addUserMessage, addSystemMessage, clearMessages, exit]);
 
   // History navigation callbacks

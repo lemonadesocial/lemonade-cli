@@ -89,6 +89,77 @@ describe('ConversationStore', () => {
     store.endTurn();
     expect(store.turnActive).toBe(false);
   });
+
+  it('beginTurn throws on reentrant call', () => {
+    const store = new ConversationStore();
+    store.beginTurn();
+    expect(() => store.beginTurn()).toThrow('beginTurn() called while a turn is already active');
+    store.endTurn();
+    // After ending, beginTurn works again
+    expect(() => store.beginTurn()).not.toThrow();
+    store.endTurn();
+  });
+
+  it('addUserMessage throws during active turn', () => {
+    const store = new ConversationStore();
+    store.addUserMessage('before turn');
+    expect(store.length).toBe(1);
+
+    store.beginTurn();
+    expect(() => store.addUserMessage('mid-turn')).toThrow('Cannot add a user message while a turn is in progress');
+    expect(store.length).toBe(1); // unchanged
+
+    store.endTurn();
+    store.addUserMessage('after turn');
+    expect(store.length).toBe(2);
+  });
+
+  it('abort path releases turn lock correctly', async () => {
+    const store = new ConversationStore();
+    store.addUserMessage('hello');
+
+    const abort = new AbortController();
+    const engine = new ChatEngine();
+
+    // Provider that yields one delta then we abort
+    const provider: AIProvider = {
+      name: 'mock',
+      model: 'mock-model',
+      formatTools: (tools) => tools,
+      async *stream() {
+        yield { type: 'text_delta' as const, text: 'partial' };
+        // Simulate slow stream — abort fires before done event
+        abort.abort();
+        yield { type: 'done' as const, stopReason: 'end_turn' as const, usage: { input_tokens: 1, output_tokens: 1 } };
+      },
+    };
+
+    store.beginTurn();
+    try {
+      await handleTurn(
+        provider,
+        store.getMutableRef(),
+        [],
+        [{ type: 'text', text: 'sys' }],
+        createSessionState({ _id: 'u1', name: 'Test', email: 'test@test.com' }),
+        {},
+        null,
+        true,
+        engine,
+        abort.signal,
+      );
+    } finally {
+      store.endTurn();
+    }
+
+    // Store must be unlocked after finally cleanup
+    expect(store.turnActive).toBe(false);
+    // Can begin a new turn without error
+    expect(() => store.beginTurn()).not.toThrow();
+    store.endTurn();
+    // Can clear after abort
+    expect(() => store.clear()).not.toThrow();
+  });
 });
 
 describe('ConversationStore + handleTurn integration', () => {
