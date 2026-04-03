@@ -13,6 +13,7 @@ vi.mock('../../../../../src/chat/input-runtime/TerminalProtocolController.js', (
   return {
     getTerminalProtocol: () => mockController,
     initTerminalProtocol: () => mockController,
+    resetTerminalProtocol: vi.fn(),
     TerminalProtocolController: vi.fn(() => mockController),
   };
 });
