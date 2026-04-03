@@ -1239,6 +1239,15 @@ export function App({
         // Roll back the pending user message if no assistant reply was committed.
         // Uses ID-based removal so splicing a message never invalidates BTW
         // turn indices that reference later positions.
+        //
+        // INVARIANT: The pending user message is always the last message in the
+        // array when Escape fires — no assistant chunk has been committed yet.
+        // This is why calling resetStreaming() before removeMessageById() is
+        // safe: resetStreaming clears in-flight assistant tokens that have not
+        // been committed to the messages array, so it cannot re-order or
+        // invalidate the pending user message's position.
+        // If this invariant changes (e.g. assistant chunks commit eagerly),
+        // the ordering of resetStreaming vs removeMessageById must be revisited.
         const pendingIdx = pendingUserMsgIdxRef.current;
         if (pendingIdx !== null) {
           if (conversationStore.rollbackTurnUserMessage(pendingIdx)) {
