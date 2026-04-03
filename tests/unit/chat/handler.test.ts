@@ -11,7 +11,7 @@ function createMockProvider(
   return {
     name: 'mock',
     model: 'mock-model',
-    capabilities: { supportsToolCalling: true, supportsAbortSignal: false },
+    capabilities: { supportsToolCalling: true },
     formatTools: (tools) => tools,
     async *stream() {
       const events = responses[callIndex] || [];
@@ -121,7 +121,7 @@ describe('handleTurn', () => {
           { type: 'done', stopReason: 'tool_use' },
         ],
       ],
-      { capabilities: { supportsToolCalling: false, supportsAbortSignal: false } },
+      { capabilities: { supportsToolCalling: false } },
     );
 
     const messages: Message[] = [{ role: 'user', content: 'do something' }];
@@ -156,7 +156,7 @@ describe('handleTurn', () => {
           { type: 'done', stopReason: 'end_turn' },
         ],
       ],
-      { capabilities: { supportsToolCalling: false, supportsAbortSignal: false } },
+      { capabilities: { supportsToolCalling: false } },
     );
 
     const messages: Message[] = [{ role: 'user', content: 'hi' }];
@@ -183,7 +183,7 @@ describe('handleTurn', () => {
     const provider: AIProvider = {
       name: 'signal-test',
       model: 'test',
-      capabilities: { supportsToolCalling: true, supportsAbortSignal: true },
+      capabilities: { supportsToolCalling: true },
       formatTools: (tools) => tools,
       async *stream(params) {
         receivedSignal = params.signal;
@@ -207,6 +207,45 @@ describe('handleTurn', () => {
     );
 
     expect(receivedSignal).toBe(abort.signal);
+  });
+
+  it('stops processing events after signal is aborted mid-stream', async () => {
+    const abort = new AbortController();
+    let yieldCount = 0;
+
+    const provider: AIProvider = {
+      name: 'abort-test',
+      model: 'test',
+      capabilities: { supportsToolCalling: true },
+      formatTools: (tools) => tools,
+      async *stream() {
+        yield { type: 'text_delta' as const, text: 'first' };
+        yieldCount++;
+        abort.abort();
+        yield { type: 'text_delta' as const, text: 'second' };
+        yieldCount++;
+        yield { type: 'done' as const, stopReason: 'end_turn' as const };
+      },
+    };
+
+    const messages: Message[] = [{ role: 'user', content: 'hi' }];
+    await handleTurn(
+      provider,
+      messages,
+      [],
+      systemPrompt,
+      session,
+      {},
+      null,
+      false,
+      undefined,
+      abort.signal,
+    );
+
+    // Generator was abandoned mid-stream: post-'second' increment never ran
+    expect(yieldCount).toBe(1);
+    // Handler returned before pushing an assistant message
+    expect(messages).toHaveLength(1);
   });
 
   it('handles token usage warning', async () => {

@@ -1,5 +1,4 @@
-import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef, SystemMessage, Message } from './interface.js';
-import { buildJsonSchema } from '../tools/schema.js';
+import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef } from './interface.js';
 import { getAuthHeader } from '../../auth/store.js';
 
 function getLemonadeAiUrl(): string {
@@ -10,7 +9,6 @@ export class LemonadeAIProvider implements AIProvider {
   name = 'lemonade-ai';
   capabilities: ProviderCapabilities = {
     supportsToolCalling: false,
-    supportsAbortSignal: true,
   };
   model: string;
   private standId: string;
@@ -21,12 +19,8 @@ export class LemonadeAIProvider implements AIProvider {
     this.standId = standId;
   }
 
-  formatTools(tools: ToolDef[]): unknown[] {
-    return tools.map((t) => ({
-      name: t.name,
-      description: t.description,
-      input_schema: buildJsonSchema(t.params),
-    }));
+  formatTools(_tools: ToolDef[]): unknown[] {
+    return [];
   }
 
   async *stream(params: StreamParams): AsyncIterable<StreamEvent> {
@@ -64,7 +58,8 @@ export class LemonadeAIProvider implements AIProvider {
           standId: this.standId,
         },
       }),
-      signal: params.signal
+      // AbortSignal.any requires Node ≥20.3; older runtimes silently skip external abort forwarding
+      signal: params.signal && typeof AbortSignal.any === 'function'
         ? AbortSignal.any([params.signal, AbortSignal.timeout(60_000)])
         : AbortSignal.timeout(60_000),
     });
