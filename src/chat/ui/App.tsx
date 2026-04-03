@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { MultilineInput } from './input/index.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
-import { AIProvider, Message, ToolDef, SystemMessage } from '../providers/interface.js';
+import { AIProvider, ToolDef, SystemMessage } from '../providers/interface.js';
+import { ConversationStore } from '../runtime/ConversationStore.js';
 import { SessionState } from '../session/state.js';
 import { buildSystemMessages } from '../session/cache.js';
 import { handleTurn } from '../stream/handler.js';
@@ -198,7 +199,7 @@ export interface AppProps {
   formattedTools: unknown[];
   session: SessionState;
   registry: Record<string, ToolDef>;
-  messages: Message[];
+  conversationStore: ConversationStore;
   firstName: string;
   agentName: string;
   displayOpts: {
@@ -214,7 +215,7 @@ export function App({
   formattedTools,
   session,
   registry,
-  messages: chatMessages,
+  conversationStore,
   firstName,
   agentName,
   displayOpts,
@@ -353,7 +354,7 @@ export function App({
         addUserMessage(`btw: ${btwInput}`);
 
         // Clone message history for isolation
-        const snapshot: Message[] = JSON.parse(JSON.stringify(chatMessages));
+        const snapshot = conversationStore.getSnapshot();
         snapshot.push({ role: 'user', content: btwInput });
 
         // Clone session for isolation
@@ -384,7 +385,7 @@ export function App({
 
       // All other slash commands require no active turn (except already handled above)
       if (slashResult.action === 'clear') {
-        chatMessages.length = 0;
+        conversationStore.clear();
         clearMessages();
         addSystemMessage('Session cleared.');
         return;
@@ -1073,7 +1074,7 @@ export function App({
     // Regular message: send to AI
     addUserMessage(input);
     setShowThinking(true);
-    chatMessages.push({ role: 'user', content: input });
+    conversationStore.addUserMessage(input);
 
     const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
     const abort = new AbortController();
@@ -1083,7 +1084,7 @@ export function App({
     try {
       await handleTurn(
         provider,
-        chatMessages,
+        conversationStore.getMessages(),
         formattedTools,
         systemPrompt,
         session,
@@ -1104,7 +1105,7 @@ export function App({
     turnInProgressRef.current = false;
     streamAbortRef.current = null;
     setShowThinking(false);
-  }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit]);
+  }, [engine, provider, formattedTools, session, registry, conversationStore, addUserMessage, addSystemMessage, clearMessages, exit]);
 
   // History navigation callbacks
   const handleHistoryUp = useCallback(() => {
@@ -1159,7 +1160,7 @@ export function App({
   useInput((input, key) => {
     // Ctrl+L: clear screen (same as /clear)
     if (key.ctrl && input === 'l') {
-      chatMessages.length = 0;
+      conversationStore.clear();
       clearMessages();
       addSystemMessage('Session cleared.');
       return;
