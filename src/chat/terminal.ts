@@ -9,9 +9,9 @@ import { render } from 'ink';
 import { ChatEngine } from './engine/ChatEngine.js';
 import { AIProvider, ToolDef } from './providers/interface.js';
 import { SessionState } from './session/state.js';
+import { Message } from './providers/interface.js';
 import { initDiagnostics } from './diagnostics/index.js';
 import { initTerminalProtocol } from './input-runtime/TerminalProtocolController.js';
-import { ConversationStore } from './runtime/ConversationStore.js';
 
 export async function runTerminalUI(
   provider: AIProvider,
@@ -31,7 +31,7 @@ export async function runTerminalUI(
   initDiagnostics(process.env['LEMONADE_DEBUG']);
 
   const engine = new ChatEngine();
-  const conversationStore = new ConversationStore();
+  const messages: Message[] = [];
 
   // Enter alternate screen buffer for fullscreen mode
   process.stdout.write('\x1b[?1049h');
@@ -63,7 +63,7 @@ export async function runTerminalUI(
       formattedTools,
       session,
       registry,
-      conversationStore,
+      messages,
       firstName: bannerOpts.firstName,
       agentName: bannerOpts.agentName,
       displayOpts,
