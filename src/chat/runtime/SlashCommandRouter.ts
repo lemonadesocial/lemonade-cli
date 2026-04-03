@@ -62,7 +62,6 @@ export async function executeSlashCommand(
     engine,
     registry,
     session,
-    chatMessages,
     turnCoordinator,
     startManualPlan,
     setSpaceName,
