@@ -36,8 +36,6 @@ export interface SystemMessage {
 export interface ProviderCapabilities {
   /** Whether this provider supports local tool-calling (tool_call events + tool_use stop reason). */
   supportsToolCalling: boolean;
-  /** Whether this provider honours the abort signal passed to stream(). */
-  supportsAbortSignal: boolean;
 }
 
 export interface StreamParams {
@@ -45,7 +43,7 @@ export interface StreamParams {
   messages: Message[];
   tools: unknown[];
   maxTokens: number;
-  /** Abort signal — providers that declare supportsAbortSignal should use this to cancel in-flight requests. */
+  /** Abort signal — providers should use this to cancel in-flight requests when supported. */
   signal?: AbortSignal;
 }
 

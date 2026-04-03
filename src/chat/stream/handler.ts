@@ -49,7 +49,7 @@ export async function handleTurn(
 ): Promise<void> {
 
   let finalUsage: { input_tokens: number; output_tokens: number } | undefined;
-  const canUseTool = provider.capabilities?.supportsToolCalling !== false;
+  const canUseTool = provider.capabilities.supportsToolCalling === true;
   const maxIterations = canUseTool ? MAX_TOOL_ITERATIONS : 1;
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
@@ -66,7 +66,7 @@ export async function handleTurn(
       const events = provider.stream({
         systemPrompt,
         messages,
-        tools: formattedTools,
+        tools: canUseTool ? formattedTools : [],
         maxTokens: 4096,
         signal,
       });
@@ -95,7 +95,7 @@ export async function handleTurn(
             break;
 
           case 'done':
-            stopReason = event.stopReason;
+            stopReason = canUseTool ? event.stopReason : 'end_turn';
             lastUsage = event.usage;
             break;
         }
