@@ -25,14 +25,14 @@ describe('ConversationStore', () => {
   it('starts empty', () => {
     const store = new ConversationStore();
     expect(store.length).toBe(0);
-    expect(store.getMessages()).toEqual([]);
+    expect(store.getMutableRef()).toEqual([]);
   });
 
   it('addUserMessage appends to the backing array', () => {
     const store = new ConversationStore();
     store.addUserMessage('hello');
     expect(store.length).toBe(1);
-    expect(store.getMessages()[0]).toEqual({ role: 'user', content: 'hello' });
+    expect(store.getMutableRef()[0]).toEqual({ role: 'user', content: 'hello' });
   });
 
   it('clear empties the backing array', () => {
@@ -42,7 +42,7 @@ describe('ConversationStore', () => {
     expect(store.length).toBe(2);
     store.clear();
     expect(store.length).toBe(0);
-    expect(store.getMessages()).toEqual([]);
+    expect(store.getMutableRef()).toEqual([]);
   });
 
   it('getSnapshot returns a deep clone that does not alias the backing array', () => {
@@ -56,11 +56,38 @@ describe('ConversationStore', () => {
     expect(snapshot.length).toBe(2);
   });
 
-  it('getMessages returns the same array reference (for handleTurn in-place mutation)', () => {
+  it('getMutableRef returns the same array reference (for handleTurn in-place mutation)', () => {
     const store = new ConversationStore();
-    const ref1 = store.getMessages();
-    const ref2 = store.getMessages();
+    const ref1 = store.getMutableRef();
+    const ref2 = store.getMutableRef();
     expect(ref1).toBe(ref2);
+  });
+
+  it('clear throws when a turn is active', () => {
+    const store = new ConversationStore();
+    store.addUserMessage('msg');
+    store.beginTurn();
+    expect(() => store.clear()).toThrow('Cannot clear conversation while a turn is in progress');
+    // Messages remain intact
+    expect(store.length).toBe(1);
+  });
+
+  it('clear succeeds after endTurn', () => {
+    const store = new ConversationStore();
+    store.addUserMessage('msg');
+    store.beginTurn();
+    store.endTurn();
+    store.clear();
+    expect(store.length).toBe(0);
+  });
+
+  it('turnActive reflects begin/end lifecycle', () => {
+    const store = new ConversationStore();
+    expect(store.turnActive).toBe(false);
+    store.beginTurn();
+    expect(store.turnActive).toBe(true);
+    store.endTurn();
+    expect(store.turnActive).toBe(false);
   });
 });
 
@@ -87,7 +114,7 @@ describe('ConversationStore + handleTurn integration', () => {
 
     await handleTurn(
       provider,
-      store.getMessages(),
+      store.getMutableRef(),
       [],
       systemPrompt,
       session,
@@ -98,7 +125,7 @@ describe('ConversationStore + handleTurn integration', () => {
     );
 
     // Provider history: user + assistant
-    const msgs = store.getMessages();
+    const msgs = store.getMutableRef();
     expect(msgs.length).toBe(2);
     expect(msgs[0]).toEqual({ role: 'user', content: 'hi' });
     expect(msgs[1].role).toBe('assistant');
@@ -120,15 +147,15 @@ describe('ConversationStore + handleTurn integration', () => {
     const store = new ConversationStore();
     store.addUserMessage('first');
     store.addUserMessage('second');
-    expect(store.getMessages().length).toBe(2);
+    expect(store.getMutableRef().length).toBe(2);
 
     store.clear();
-    expect(store.getMessages().length).toBe(0);
+    expect(store.getMutableRef().length).toBe(0);
 
     // New messages start from scratch
     store.addUserMessage('fresh');
-    expect(store.getMessages().length).toBe(1);
-    expect(store.getMessages()[0].content).toBe('fresh');
+    expect(store.getMutableRef().length).toBe(1);
+    expect(store.getMutableRef()[0].content).toBe('fresh');
   });
 
   it('btw snapshot does not pollute main store', async () => {
@@ -165,7 +192,25 @@ describe('ConversationStore + handleTurn integration', () => {
     expect(snapshot.length).toBe(3);
 
     // Main store must remain untouched
-    expect(store.getMessages().length).toBe(1);
-    expect(store.getMessages()[0].content).toBe('main question');
+    expect(store.getMutableRef().length).toBe(1);
+    expect(store.getMutableRef()[0].content).toBe('main question');
+  });
+
+  it('clear during simulated active turn throws and preserves history', async () => {
+    const store = new ConversationStore();
+    store.addUserMessage('important context');
+    store.beginTurn();
+
+    // Attempting to clear mid-turn must throw
+    expect(() => store.clear()).toThrow('Cannot clear conversation while a turn is in progress');
+
+    // History must be intact
+    expect(store.length).toBe(1);
+    expect(store.getMutableRef()[0].content).toBe('important context');
+
+    // After ending the turn, clear works
+    store.endTurn();
+    store.clear();
+    expect(store.length).toBe(0);
   });
 });

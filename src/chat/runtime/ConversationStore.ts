@@ -5,15 +5,49 @@ import { Message } from '../providers/interface.js';
  *
  * All code that reads or mutates the provider message array must go through
  * this store.  handleTurn receives the backing array by reference (via
- * getMessages()) and mutates it in-place during a turn — that is intentional
+ * getMutableRef()) and mutates it in-place during a turn — that is intentional
  * and consistent with single-owner semantics because the store still owns
  * the array identity.
+ *
+ * ## API contract
+ *
+ * - getMutableRef(): returns the live backing array. Only one caller should
+ *   hold this at a time (handleTurn for the active turn). Mutations through
+ *   this reference are visible to the store. Named explicitly to signal that
+ *   callers receive a mutable alias, not a safe copy.
+ *
+ * - getSnapshot(): deep-clones the array for isolated reads (e.g. /btw side
+ *   turns). Safe to mutate without affecting the store.
+ *
+ * - clear(): resets provider history. Throws if a turn is in progress to
+ *   prevent corrupting in-flight provider state.
  */
 export class ConversationStore {
   private messages: Message[] = [];
+  private _turnActive = false;
 
-  /** Return the backing array.  handleTurn mutates this in-place. */
-  getMessages(): Message[] {
+  /** Whether a turn is currently in progress. */
+  get turnActive(): boolean {
+    return this._turnActive;
+  }
+
+  /** Mark the start of a turn. Must be paired with endTurn(). */
+  beginTurn(): void {
+    this._turnActive = true;
+  }
+
+  /** Mark the end of a turn. */
+  endTurn(): void {
+    this._turnActive = false;
+  }
+
+  /**
+   * Return the live backing array.
+   *
+   * handleTurn mutates this in-place — callers receive a mutable alias,
+   * not a defensive copy. Use getSnapshot() when isolation is needed.
+   */
+  getMutableRef(): Message[] {
     return this.messages;
   }
 
@@ -27,8 +61,14 @@ export class ConversationStore {
     this.messages.push({ role: 'user', content });
   }
 
-  /** Clear all provider history (e.g. /clear, Ctrl+L). */
+  /**
+   * Clear all provider history (e.g. /clear, Ctrl+L).
+   * Throws if a turn is in progress to prevent corrupting in-flight state.
+   */
   clear(): void {
+    if (this._turnActive) {
+      throw new Error('Cannot clear conversation while a turn is in progress');
+    }
     this.messages.length = 0;
   }
 

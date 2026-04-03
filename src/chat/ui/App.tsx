@@ -385,6 +385,10 @@ export function App({
 
       // All other slash commands require no active turn (except already handled above)
       if (slashResult.action === 'clear') {
+        if (turnInProgressRef.current) {
+          addSystemMessage('Cannot clear while a response is in progress. Press Escape to cancel first.');
+          return;
+        }
         conversationStore.clear();
         clearMessages();
         addSystemMessage('Session cleared.');
@@ -1080,11 +1084,12 @@ export function App({
     const abort = new AbortController();
     streamAbortRef.current = abort;
     turnInProgressRef.current = true;
+    conversationStore.beginTurn();
 
     try {
       await handleTurn(
         provider,
-        conversationStore.getMessages(),
+        conversationStore.getMutableRef(),
         formattedTools,
         systemPrompt,
         session,
@@ -1103,6 +1108,7 @@ export function App({
       }
     }
     turnInProgressRef.current = false;
+    conversationStore.endTurn();
     streamAbortRef.current = null;
     setShowThinking(false);
   }, [engine, provider, formattedTools, session, registry, conversationStore, addUserMessage, addSystemMessage, clearMessages, exit]);
@@ -1160,6 +1166,10 @@ export function App({
   useInput((input, key) => {
     // Ctrl+L: clear screen (same as /clear)
     if (key.ctrl && input === 'l') {
+      if (turnInProgressRef.current) {
+        addSystemMessage('Cannot clear while a response is in progress. Press Escape to cancel first.');
+        return;
+      }
       conversationStore.clear();
       clearMessages();
       addSystemMessage('Session cleared.');
@@ -1180,6 +1190,7 @@ export function App({
         setShowThinking(false);
         resetStreaming();
         turnInProgressRef.current = false;
+        conversationStore.endTurn();
         addSystemMessage('(cancelled)');
       } else if (btwAbortsRef.current.size > 0) {
         for (const [, controller] of btwAbortsRef.current) {
