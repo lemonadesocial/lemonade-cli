@@ -46,15 +46,26 @@ describe('TurnCoordinator', () => {
   });
 
   describe('submitMainTurn', () => {
-    it('pushes user message to chatMessages and calls handleTurn', async () => {
+    it('does not push user message — caller owns provider-history commit', async () => {
       const chatMessages: Message[] = [];
       const deps = makeDeps({ chatMessages });
       const tc = new TurnCoordinator(deps);
 
       await tc.submitMainTurn('hello');
 
-      expect(chatMessages).toEqual([{ role: 'user', content: 'hello' }]);
+      // TurnCoordinator must NOT push the user message
+      // (App.tsx pushes to chatMessages before calling submitMainTurn)
+      expect(chatMessages).toEqual([]);
       expect(mockHandleTurn).toHaveBeenCalledOnce();
+    });
+
+    it('calls handleTurn with current deps', async () => {
+      const chatMessages: Message[] = [{ role: 'user', content: 'hello' }];
+      const deps = makeDeps({ chatMessages });
+      const tc = new TurnCoordinator(deps);
+
+      await tc.submitMainTurn('hello');
+
       expect(mockHandleTurn).toHaveBeenCalledWith(
         deps.provider,
         chatMessages,
@@ -299,6 +310,131 @@ describe('TurnCoordinator', () => {
       expect(tc.state.activeBtwCount).toBe(0);
 
       await mainPromise;
+    });
+  });
+
+  describe('updateDeps — stale dependency fix', () => {
+    it('uses updated provider after updateDeps', async () => {
+      const deps1 = makeDeps();
+      const tc = new TurnCoordinator(deps1);
+
+      const newProvider = { name: 'openai', model: 'gpt-4', formatTools: vi.fn(), stream: vi.fn() };
+      const deps2 = { ...deps1, provider: newProvider };
+      tc.updateDeps(deps2);
+
+      await tc.submitMainTurn('hello');
+
+      expect(mockHandleTurn).toHaveBeenCalledWith(
+        newProvider,
+        expect.any(Array),
+        expect.any(Array),
+        expect.any(Array),
+        expect.anything(),
+        expect.anything(),
+        null,
+        true,
+        expect.anything(),
+        expect.any(AbortSignal),
+      );
+    });
+
+    it('uses updated session after updateDeps', async () => {
+      const deps1 = makeDeps();
+      const tc = new TurnCoordinator(deps1);
+
+      const newSession = { user: { _id: '2', name: 'Other', email: 'o@o.com' } };
+      tc.updateDeps({ ...deps1, session: newSession });
+
+      await tc.submitMainTurn('hello');
+
+      const passedSession = mockHandleTurn.mock.calls[0][4];
+      expect(passedSession).toBe(newSession);
+    });
+  });
+
+  describe('per-turn identity — cancel race fix', () => {
+    it('stale finally does not stomp a new turn after cancel', async () => {
+      let resolveOldTurn: () => void;
+      let resolveNewTurn: () => void;
+
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveOldTurn = resolve; }),
+      );
+
+      const tc = new TurnCoordinator(makeDeps());
+
+      // Start first turn
+      const oldTurnPromise = tc.submitMainTurn('old');
+      expect(tc.state.isMainTurnActive).toBe(true);
+
+      // Cancel first turn — this advances the turn ID
+      tc.cancelMainTurn();
+      expect(tc.state.isMainTurnActive).toBe(false);
+
+      // Start a second turn before the old finally runs (hold it open)
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveNewTurn = resolve; }),
+      );
+      const newTurnPromise = tc.submitMainTurn('new');
+      expect(tc.state.isMainTurnActive).toBe(true);
+
+      // Now let old turn's finally execute (resolves the aborted promise)
+      resolveOldTurn!();
+      await oldTurnPromise;
+
+      // The old finally must NOT have stomped the new turn's active state
+      expect(tc.state.isMainTurnActive).toBe(true);
+
+      // Let the new turn finish
+      resolveNewTurn!();
+      await newTurnPromise;
+      expect(tc.state.isMainTurnActive).toBe(false);
+    });
+  });
+
+  describe('no double-push — message ownership', () => {
+    it('submitMainTurn does not modify chatMessages array', async () => {
+      const chatMessages: Message[] = [{ role: 'user', content: 'pre-pushed' }];
+      const deps = makeDeps({ chatMessages });
+      const tc = new TurnCoordinator(deps);
+
+      await tc.submitMainTurn('hello');
+
+      // Only the original message should be there — coordinator must not push
+      expect(chatMessages).toEqual([{ role: 'user', content: 'pre-pushed' }]);
+    });
+  });
+
+  describe('BTW error reporting', () => {
+    it('emits engine error event when handleTurn throws before streaming', async () => {
+      const engine = new ChatEngine();
+      const errors: Array<{ message: string; fatal: boolean; turnId?: string }> = [];
+      engine.on('error', (data) => errors.push(data));
+
+      mockHandleTurn.mockRejectedValueOnce(new Error('network timeout'));
+
+      const deps = makeDeps({ engine });
+      const tc = new TurnCoordinator(deps);
+
+      const btwTurnId = tc.submitBtwTurn('side question');
+
+      // Wait for the error to propagate
+      await vi.waitFor(() => expect(errors).toHaveLength(1));
+
+      expect(errors[0].message).toContain('BTW error: network timeout');
+      expect(errors[0].fatal).toBe(false);
+      expect(errors[0].turnId).toBe(btwTurnId);
+    });
+
+    it('cleans up btw abort entry after error', async () => {
+      const engine = new ChatEngine();
+      engine.on('error', () => {}); // prevent unhandled error throw
+      mockHandleTurn.mockRejectedValueOnce(new Error('fail'));
+      const tc = new TurnCoordinator(makeDeps({ engine }));
+
+      tc.submitBtwTurn('q');
+
+      await vi.waitFor(() => expect(tc.state.activeBtwCount).toBe(0));
     });
   });
 });

@@ -246,6 +246,10 @@ export function App({
       engine, provider, formattedTools, session, registry, chatMessages,
     });
   }
+  // Keep deps current after re-render / provider change
+  turnCoordinatorRef.current.updateDeps({
+    engine, provider, formattedTools, session, registry, chatMessages,
+  });
   const turnCoordinator = turnCoordinatorRef.current;
 
   // Reactive terminal width
@@ -1046,7 +1050,11 @@ export function App({
       return;
     }
 
+    // UI-visible commit: addUserMessage pushes to the UI message list.
+    // Provider-history commit: chatMessages.push sends to the provider history.
+    // TurnCoordinator owns neither — it only orchestrates the stream call.
     addUserMessage(input);
+    chatMessages.push({ role: 'user', content: input });
     setShowThinking(true);
 
     const result = await turnCoordinator.submitMainTurn(input);
