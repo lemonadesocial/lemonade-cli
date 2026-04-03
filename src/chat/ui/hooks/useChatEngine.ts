@@ -61,7 +61,7 @@ export function computeIndexAdjustments(
 }
 
 /** Apply the result of computeIndexAdjustments to a mutable Map in place. */
-function applyIndexAdjustments(
+export function applyIndexAdjustments(
   turnIndex: Map<string, number>,
   adj: { updates: [string, number][]; deletes: string[] },
 ): void {
@@ -69,38 +69,50 @@ function applyIndexAdjustments(
   for (const tid of adj.deletes) turnIndex.delete(tid);
 }
 
+export interface RemoveMessageResult {
+  messages: UIMessage[];
+  /** New turn-index map to assign to the ref, or null if no change (no-op / error). */
+  newTurnIndex: Map<string, number> | null;
+  /** Non-null when removal was skipped due to state corruption (role mismatch). */
+  corruption: string | null;
+}
+
 /**
- * Updater for removeMessageById — removes a message by msgId and adjusts
- * turnMessageIndex atomically within the same call. Exported for testing.
+ * Pure updater for removeMessageById — computes the next messages array and the
+ * next turnMessageIndex map from a snapshot. Idempotent: calling twice with the
+ * same `prev` and `turnIndexSnapshot` yields identical results with no side
+ * effects, which is required for React StrictMode double-invocation safety.
  *
- * Returns the new messages array (or prev if no-op). Mutates turnIndex in place
- * so that message removal and index bookkeeping cannot diverge due to deferred
- * React batching.
+ * **UI-only:** This helper removes a message from the React UI state. It does
+ * NOT coordinate with ConversationStore. Callers MUST ensure store rollback
+ * (via `conversationStore.rollbackTurnUserMessage`) has already succeeded before
+ * calling this — otherwise UI and store will diverge.
  */
 export function removeMessageByIdUpdater(
   prev: UIMessage[],
   id: string,
-  turnIndex: Map<string, number>,
-): UIMessage[] {
+  turnIndexSnapshot: ReadonlyMap<string, number>,
+): RemoveMessageResult {
   const idx = prev.findIndex((m) => m.msgId === id);
-  if (idx === -1) return prev;
+  if (idx === -1) return { messages: prev, newTurnIndex: null, corruption: null };
 
   // msgId is only assigned by addUserMessage (role: 'user'). A mismatch
-  // means the messages array was corrupted — log and bail rather than crash.
+  // means the messages array was corrupted — surface the error so the caller
+  // can decide how to handle it (e.g. add a system message). We do NOT crash
+  // the CLI, but we refuse to silently diverge.
   if (prev[idx].role !== 'user') {
-    console.error(
-      `[useChatEngine] removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — skipping removal (possible state corruption)`,
-    );
-    return prev;
+    const detail = `removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — removal skipped (state corruption)`;
+    return { messages: prev, newTurnIndex: null, corruption: detail };
   }
 
-  // Compute and apply index adjustments atomically with the splice so there
-  // is no window where the message array and turnMessageIndex are inconsistent.
-  applyIndexAdjustments(turnIndex, computeIndexAdjustments(turnIndex, idx));
+  // Compute the next turn-index map from a snapshot — pure, no mutation.
+  const adj = computeIndexAdjustments(turnIndexSnapshot, idx);
+  const newTurnIndex = new Map(turnIndexSnapshot);
+  applyIndexAdjustments(newTurnIndex, adj);
 
   const next = [...prev];
   next.splice(idx, 1);
-  return next;
+  return { messages: next, newTurnIndex, corruption: null };
 }
 
 export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
@@ -247,8 +259,37 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     setMessages((prev) => [...prev, { role: 'user', content: text, msgId }]);
   }, []);
 
+  /**
+   * Remove a UI message by its stable msgId. UI-only: does NOT touch
+   * ConversationStore — caller must ensure store rollback succeeded first.
+   */
   const removeMessageById = useCallback((id: string) => {
-    setMessages((prev) => removeMessageByIdUpdater(prev, id, turnMessageIndex.current));
+    // Snapshot the current turn-index so the updater is pure / idempotent
+    // even if React invokes it more than once (StrictMode).
+    const snapshot = new Map(turnMessageIndex.current);
+    let computed: RemoveMessageResult | null = null;
+
+    setMessages((prev) => {
+      const result = removeMessageByIdUpdater(prev, id, snapshot);
+      computed = result;
+      return result.messages;
+    });
+
+    // Apply the new turn-index map exactly once, outside the updater.
+    if (computed !== null) {
+      const { newTurnIndex, corruption } = computed as RemoveMessageResult;
+      if (newTurnIndex !== null) {
+        turnMessageIndex.current = newTurnIndex;
+      }
+      if (corruption !== null) {
+        console.error(`[useChatEngine] ${corruption}`);
+        // Surface to the user so corruption is diagnosable, not silent.
+        setMessages((prev) => [
+          ...prev,
+          { role: 'system', content: `Warning: UI state inconsistency detected — ${corruption}` },
+        ]);
+      }
+    }
   }, []);
 
   const addSystemMessage = useCallback((text: string) => {
