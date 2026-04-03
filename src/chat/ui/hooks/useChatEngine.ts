@@ -69,6 +69,59 @@ export function applyIndexAdjustments(
   for (const tid of adj.deletes) turnIndex.delete(tid);
 }
 
+/**
+ * Pure updater for removeMessageById. Computes the next messages array given
+ * the current state. Exported so tests exercise the real production logic
+ * without needing a full React rendering environment.
+ *
+ * ## Corruption-path contract
+ *
+ * If the message at `id` exists but has a non-user role (state corruption),
+ * the updater:
+ *   1. Logs to console.error (side effect — fires twice under StrictMode, acceptable).
+ *   2. Returns [...prev, system-warning] — the warning is always present in the result.
+ *   3. Does NOT mutate turnIndex.
+ *
+ * Under React StrictMode double-invocation, both calls receive the same `prev`
+ * and both return identical `[...prev, warning]`. React keeps the second result,
+ * so exactly ONE warning appears. No guard ref is needed.
+ *
+ * ## Index-mutation idempotency
+ *
+ * `alreadyMutatedIndex` tracks whether a prior StrictMode invocation already
+ * mutated turnIndex. The caller (removeMessageById closure) manages this flag
+ * to ensure exactly-once mutation.
+ */
+export function removeMessageUpdater(
+  prev: UIMessage[],
+  id: string,
+  turnIndex: Map<string, number>,
+  alreadyMutatedIndex: boolean,
+): { messages: UIMessage[]; didMutateIndex: boolean } {
+  const idx = prev.findIndex((m) => m.msgId === id);
+  if (idx === -1) return { messages: prev, didMutateIndex: false };
+
+  if (prev[idx].role !== 'user') {
+    const detail = `removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — removal skipped (state corruption)`;
+    console.error(`[useChatEngine] ${detail}`);
+    return {
+      messages: [...prev, { role: 'system', content: `Warning: UI state inconsistency detected — ${detail}` }],
+      didMutateIndex: false,
+    };
+  }
+
+  let mutated = false;
+  if (!alreadyMutatedIndex) {
+    mutated = true;
+    const adj = computeIndexAdjustments(turnIndex, idx);
+    applyIndexAdjustments(turnIndex, adj);
+  }
+
+  const next = [...prev];
+  next.splice(idx, 1);
+  return { messages: next, didMutateIndex: mutated };
+}
+
 export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -81,9 +134,6 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   const activeTurns = useRef<Set<string>>(new Set());
   // Monotonic counter for stable UI message IDs — synchronous, no React flush dependency
   const nextMsgIdRef = useRef(1);
-  // Tracks msgIds for which a corruption warning has already been appended,
-  // preventing duplicate system messages under React StrictMode double-invocation.
-  const corruptionWarned = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const onThinkingStart = (data: { turnId?: string }) => {
@@ -220,41 +270,17 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
    * Remove a UI message by its stable msgId. UI-only: does NOT touch
    * ConversationStore — caller must ensure store rollback succeeded first.
    *
+   * Delegates to removeMessageUpdater (exported, tested directly).
    * Index adjustment mutates turnMessageIndex.current in-place inside the
    * updater so that concurrent writes from event handlers (e.g. onTextDelta
    * registering a new BTW turn) are preserved — no snapshot-then-replace.
    */
   const removeMessageById = useCallback((id: string) => {
-    // Guard ensures the ref mutation runs exactly once even if React
-    // double-invokes the updater (StrictMode). The second invocation sees the
-    // same `prev` but the live ref has already been adjusted.
     let refMutated = false;
-
     setMessages((prev) => {
-      const idx = prev.findIndex((m) => m.msgId === id);
-      if (idx === -1) return prev;
-
-      if (prev[idx].role !== 'user') {
-        // Idempotent: skip if already warned for this ID (React StrictMode double-invocation).
-        if (corruptionWarned.current.has(id)) return prev;
-        corruptionWarned.current.add(id);
-        const detail = `removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — removal skipped (state corruption)`;
-        console.error(`[useChatEngine] ${detail}`);
-        return [...prev, { role: 'system', content: `Warning: UI state inconsistency detected — ${detail}` }];
-      }
-
-      // Adjust the live ref in-place — preserves any entries added by
-      // concurrent event handlers between the setMessages call and updater
-      // execution. Snapshot entries for safe iteration while mutating.
-      if (!refMutated) {
-        refMutated = true;
-        const adj = computeIndexAdjustments(turnMessageIndex.current, idx);
-        applyIndexAdjustments(turnMessageIndex.current, adj);
-      }
-
-      const next = [...prev];
-      next.splice(idx, 1);
-      return next;
+      const result = removeMessageUpdater(prev, id, turnMessageIndex.current, refMutated);
+      if (result.didMutateIndex) refMutated = true;
+      return result.messages;
     });
   }, []);
 
