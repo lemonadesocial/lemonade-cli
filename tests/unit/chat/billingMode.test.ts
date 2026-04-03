@@ -89,7 +89,7 @@ describe('Billing Safety: Mode Isolation', () => {
     expect(content).not.toContain('new OpenAI');
   });
 
-  it('LemonadeAIProvider implements AIProvider interface', async () => {
+  it('LemonadeAIProvider implements AIProvider interface with correct capabilities', async () => {
     const { LemonadeAIProvider } = await import('../../../src/chat/providers/lemonade-ai');
     const provider = new LemonadeAIProvider('test-model', 'space123');
 
@@ -97,6 +97,9 @@ describe('Billing Safety: Mode Isolation', () => {
     expect(provider.model).toBe('test-model');
     expect(typeof provider.formatTools).toBe('function');
     expect(typeof provider.stream).toBe('function');
+    expect(provider.capabilities).toBeDefined();
+    expect(provider.capabilities.supportsToolCalling).toBe(false);
+    expect(provider.formatTools([])).toEqual([]);
   });
 });
 

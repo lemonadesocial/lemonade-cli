@@ -10,6 +10,7 @@ function createMockProvider(responses: StreamEvent[][]): AIProvider {
   return {
     name: 'mock',
     model: 'mock-model',
+    capabilities: { supportsToolCalling: false },
     formatTools: (tools) => tools,
     async *stream() {
       const events = responses[callIndex] || [];
@@ -280,6 +281,7 @@ describe('ConversationStore', () => {
     const provider: AIProvider = {
       name: 'mock',
       model: 'mock-model',
+      capabilities: { supportsToolCalling: false },
       formatTools: (tools) => tools,
       async *stream() {
         yield { type: 'text_delta' as const, text: 'partial' };
@@ -518,6 +520,7 @@ describe('ConversationStore + handleTurn integration', () => {
     const providerA: AIProvider = {
       name: 'mock',
       model: 'mock-model',
+      capabilities: { supportsToolCalling: false },
       formatTools: (tools) => tools,
       async *stream() {
         yield { type: 'text_delta' as const, text: 'A partial' };

@@ -1,13 +1,55 @@
-import { AIProvider, StreamEvent, ToolDef, SystemMessage, Message } from './interface.js';
-import { buildJsonSchema } from '../tools/schema.js';
+import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef } from './interface.js';
 import { getAuthHeader } from '../../auth/store.js';
 
 function getLemonadeAiUrl(): string {
   return process.env.LEMONADE_AI_URL || 'https://ai.lemonade.social';
 }
 
+/**
+ * Combine caller abort signal with a 60-second timeout.
+ * Uses AbortSignal.any when available (Node ≥20.3), otherwise falls back
+ * to manual listener forwarding so caller abort is never silently dropped.
+ */
+function combinedSignal(callerSignal?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(60_000);
+  if (!callerSignal) return timeout;
+
+  if (typeof AbortSignal.any === 'function') {
+    return AbortSignal.any([callerSignal, timeout]);
+  }
+
+  // Fallback: wire both signals into a single AbortController
+  const ac = new AbortController();
+
+  if (callerSignal.aborted) {
+    ac.abort(callerSignal.reason);
+    return ac.signal;
+  }
+
+  const onAbort = () => {
+    ac.abort(callerSignal.reason);
+    cleanup();
+  };
+  const onTimeout = () => {
+    ac.abort(timeout.reason);
+    cleanup();
+  };
+  const cleanup = () => {
+    callerSignal.removeEventListener('abort', onAbort);
+    timeout.removeEventListener('abort', onTimeout);
+  };
+
+  callerSignal.addEventListener('abort', onAbort, { once: true });
+  timeout.addEventListener('abort', onTimeout, { once: true });
+
+  return ac.signal;
+}
+
 export class LemonadeAIProvider implements AIProvider {
   name = 'lemonade-ai';
+  capabilities: ProviderCapabilities = {
+    supportsToolCalling: false,
+  };
   model: string;
   private standId: string;
   private sessionId: string | null = null;
@@ -17,20 +59,11 @@ export class LemonadeAIProvider implements AIProvider {
     this.standId = standId;
   }
 
-  formatTools(tools: ToolDef[]): unknown[] {
-    return tools.map((t) => ({
-      name: t.name,
-      description: t.description,
-      input_schema: buildJsonSchema(t.params),
-    }));
+  formatTools(_tools: ToolDef[]): unknown[] {
+    return [];
   }
 
-  async *stream(params: {
-    systemPrompt: SystemMessage[];
-    messages: Message[];
-    tools: unknown[];
-    maxTokens: number;
-  }): AsyncIterable<StreamEvent> {
+  async *stream(params: StreamParams): AsyncIterable<StreamEvent> {
     const auth = getAuthHeader();
     if (!auth) {
       yield { type: 'text_delta', text: 'Not authenticated. Run "lemonade auth login" first.' };
@@ -65,7 +98,7 @@ export class LemonadeAIProvider implements AIProvider {
           standId: this.standId,
         },
       }),
-      signal: AbortSignal.timeout(60_000),
+      signal: combinedSignal(params.signal),
     });
 
     if (!response.ok) {
