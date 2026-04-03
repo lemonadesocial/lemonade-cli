@@ -18,6 +18,8 @@ export interface TurnCoordinatorState {
   readonly activeBtwCount: number;
 }
 
+export const MAIN_TURN_BUSY = 'Please wait for the current response to finish, or press Escape to cancel. Use /btw for side questions.';
+
 let btwCounter = 0;
 let mainTurnCounter = 0;
 
@@ -26,6 +28,7 @@ export class TurnCoordinator {
   private mainAbort: AbortController | null = null;
   private mainTurnActive = false;
   private mainTurnId = 0;
+  private mainTurnSettling: Promise<void> | null = null;
   private btwAborts = new Map<string, AbortController>();
 
   constructor(deps: TurnDeps) {
@@ -45,9 +48,16 @@ export class TurnCoordinator {
 
   // Provider history: caller (App) owns pushing user message to chatMessages.
   // TurnCoordinator owns the provider stream call only.
-  async submitMainTurn(input: string): Promise<{ error?: string }> {
+  async submitMainTurn(): Promise<{ error?: string }> {
+    // Reject immediately if a turn is actively running (not cancelled).
     if (this.mainTurnActive) {
-      return { error: 'Please wait for the current response to finish, or press Escape to cancel. Use /btw for side questions.' };
+      return { error: MAIN_TURN_BUSY };
+    }
+
+    // If a previous cancelled turn hasn't fully settled, wait for it.
+    // Prevents two handleTurn calls mutating the same chatMessages array.
+    if (this.mainTurnSettling) {
+      await this.mainTurnSettling;
     }
 
     const { provider, formattedTools, session, registry, chatMessages, engine } = this.deps;
@@ -58,6 +68,10 @@ export class TurnCoordinator {
     this.mainAbort = abort;
     this.mainTurnActive = true;
     this.mainTurnId = turnId;
+
+    let resolveSettling!: () => void;
+    const settling = new Promise<void>(r => { resolveSettling = r; });
+    this.mainTurnSettling = settling;
 
     try {
       await handleTurn(
@@ -84,6 +98,10 @@ export class TurnCoordinator {
       if (this.mainTurnId === turnId) {
         this.mainTurnActive = false;
         this.mainAbort = null;
+      }
+      resolveSettling();
+      if (this.mainTurnSettling === settling) {
+        this.mainTurnSettling = null;
       }
     }
 

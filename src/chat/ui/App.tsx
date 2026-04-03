@@ -4,7 +4,7 @@ import { MultilineInput } from './input/index.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
 import { AIProvider, Message, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
-import { TurnCoordinator } from '../runtime/TurnCoordinator.js';
+import { TurnCoordinator, MAIN_TURN_BUSY } from '../runtime/TurnCoordinator.js';
 import { parseSlashCommand, SLASH_COMMANDS } from './SlashCommands.js';
 import { getAgentName } from '../skills/loader.js';
 import { graphqlRequest } from '../../api/graphql.js';
@@ -1046,7 +1046,7 @@ export function App({
 
     // Regular messages: delegate to TurnCoordinator
     if (turnCoordinator.state.isMainTurnActive) {
-      addSystemMessage('Please wait for the current response to finish, or press Escape to cancel. Use /btw for side questions.');
+      addSystemMessage(MAIN_TURN_BUSY);
       return;
     }
 
@@ -1057,7 +1057,7 @@ export function App({
     chatMessages.push({ role: 'user', content: input });
     setShowThinking(true);
 
-    const result = await turnCoordinator.submitMainTurn(input);
+    const result = await turnCoordinator.submitMainTurn();
     if (result.error) {
       addSystemMessage(result.error);
     }
