@@ -30,10 +30,8 @@ export async function createCreditsProvider(spaceId: string): Promise<AIProvider
       console.error(chalk.red('  Your community is on the free plan with no AI credits.'));
       console.error(chalk.dim('  Upgrade your plan or use your own API key (run with ai_mode: own_key).'));
       process.exit(2);
-    }
-
-    if (credits!.credits <= 0) {
-      console.log(chalk.yellow(`  Your community has 0 credits remaining. Credits renew on ${credits!.subscription_renewal_date || 'next billing cycle'}.`));
+    } else if (credits.credits <= 0) {
+      console.log(chalk.yellow(`  Your community has 0 credits remaining. Credits renew on ${credits.subscription_renewal_date || 'next billing cycle'}.`));
       console.log(chalk.dim('  You can buy more credits with "credits buy" or switch to your own API key.'));
     }
   }

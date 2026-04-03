@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Readable } from 'stream';
 import { AIProvider, Message, SystemMessage } from '../../../src/chat/providers/interface';
 import { batchMode } from '../../../src/chat/batch';
