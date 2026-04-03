@@ -85,6 +85,36 @@ export class ConversationStore {
   }
 
   /**
+   * Commit a user message during an active turn.
+   * Returns the index of the committed message, which serves as a rollback
+   * handle — pass it to rollbackTurnUserMessage() to undo the commit.
+   */
+  commitTurnUserMessage(content: string): number {
+    if (this._activeTurnToken === null) {
+      throw new Error('commitTurnUserMessage() requires an active turn');
+    }
+    const idx = this.messages.length;
+    this.messages.push({ role: 'user', content });
+    return idx;
+  }
+
+  /**
+   * Roll back a user message committed during the current turn.
+   *
+   * Only succeeds if the message at `idx` is still a user-role message AND is
+   * still the last entry (i.e. no assistant reply has been appended yet).
+   * Returns true if the message was removed, false if rollback was skipped
+   * (safe no-op when the provider already responded).
+   */
+  rollbackTurnUserMessage(idx: number): boolean {
+    if (idx < 0 || idx >= this.messages.length) return false;
+    if (this.messages[idx].role !== 'user') return false;
+    if (idx !== this.messages.length - 1) return false;
+    this.messages.splice(idx, 1);
+    return true;
+  }
+
+  /**
    * Clear all provider history (e.g. /clear, Ctrl+L).
    * Throws if a turn is in progress to prevent corrupting in-flight state.
    */

@@ -228,6 +228,7 @@ export function App({
     pendingConfirm,
     tokenCount,
     addUserMessage,
+    removeLastUserMessage,
     addSystemMessage,
     clearMessages,
     confirmAction,
@@ -243,6 +244,7 @@ export function App({
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
   const streamAbortRef = useRef<AbortController | null>(null);
   const turnTokenRef = useRef<number | null>(null);
+  const pendingUserMsgIdxRef = useRef<number | null>(null);
   const btwAbortsRef = useRef<Map<string, AbortController>>(new Map());
 
   // Reactive terminal width
@@ -1079,8 +1081,12 @@ export function App({
     addUserMessage(input);
     setShowThinking(true);
 
+    // Create AbortController early so Escape can cancel even during setup.
+    const abort = new AbortController();
+    streamAbortRef.current = abort;
+
     let token: number | undefined;
-    let userMessageCommitted = false;
+    let userMsgIdx: number | null = null;
     try {
       // Acquire turn lock BEFORE committing the user message to the store.
       // This ensures a failure in beginTurn() or early setup cannot orphan a
@@ -1088,12 +1094,10 @@ export function App({
       token = conversationStore.beginTurn();
       turnTokenRef.current = token;
 
-      conversationStore.getMutableRef().push({ role: 'user', content: input });
-      userMessageCommitted = true;
+      userMsgIdx = conversationStore.commitTurnUserMessage(input);
+      pendingUserMsgIdxRef.current = userMsgIdx;
 
       const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
-      const abort = new AbortController();
-      streamAbortRef.current = abort;
 
       await handleTurn(
         provider,
@@ -1108,15 +1112,14 @@ export function App({
         abort.signal,
       );
     } catch (err) {
-      // Rollback: if the user message was committed but handleTurn never ran
-      // (or threw synchronously before the provider touched history), remove
-      // it so the store does not contain an unanswered user message.
-      if (userMessageCommitted && token !== undefined) {
-        const msgs = conversationStore.getMutableRef();
-        const last = msgs[msgs.length - 1];
-        if (last && last.role === 'user' && last.content === input) {
-          msgs.pop();
+      // Rollback: if the user message was committed but no assistant reply
+      // was appended, remove it from both the store and the UI so neither
+      // surface contains an orphaned user message.
+      if (userMsgIdx !== null) {
+        if (conversationStore.rollbackTurnUserMessage(userMsgIdx)) {
+          removeLastUserMessage();
         }
+        pendingUserMsgIdxRef.current = null;
       }
       const msg = err instanceof Error ? err.message : 'Unknown error';
       if (msg.includes('context length') || msg.includes('too many tokens')) {
@@ -1131,16 +1134,16 @@ export function App({
       //      releases the lock immediately for responsiveness.
       // The token comparison (turnTokenRef.current === token) ensures that
       // only the matching site releases — if Escape already cleared the ref,
-      // this finally is a no-op, and vice versa. A stale token from an
-      // earlier turn can never accidentally release a later turn.
+      // this finally is a no-op, and vice versa.
       if (token !== undefined && turnTokenRef.current === token) {
         conversationStore.endTurn(token);
         turnTokenRef.current = null;
       }
       streamAbortRef.current = null;
+      pendingUserMsgIdxRef.current = null;
       setShowThinking(false);
     }
-  }, [engine, provider, formattedTools, session, registry, conversationStore, addUserMessage, addSystemMessage, clearMessages, exit]);
+  }, [engine, provider, formattedTools, session, registry, conversationStore, addUserMessage, removeLastUserMessage, addSystemMessage, clearMessages, exit]);
 
   // History navigation callbacks
   const handleHistoryUp = useCallback(() => {
@@ -1218,6 +1221,14 @@ export function App({
         streamAbortRef.current = null;
         setShowThinking(false);
         resetStreaming();
+        // Roll back the pending user message if no assistant reply was committed.
+        const pendingIdx = pendingUserMsgIdxRef.current;
+        if (pendingIdx !== null) {
+          if (conversationStore.rollbackTurnUserMessage(pendingIdx)) {
+            removeLastUserMessage();
+          }
+          pendingUserMsgIdxRef.current = null;
+        }
         // Release the turn lock eagerly on Escape. The handleSubmit finally
         // block also attempts endTurn — the token comparison ensures only one
         // site actually releases. See the matching comment in handleSubmit.

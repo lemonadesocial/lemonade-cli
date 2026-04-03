@@ -125,25 +125,23 @@ describe('ConversationStore', () => {
     expect(store.turnActive).toBe(false);
   });
 
-  it('user message committed after beginTurn can be rolled back on failure', () => {
+  it('commitTurnUserMessage requires an active turn', () => {
     const store = new ConversationStore();
+    expect(() => store.commitTurnUserMessage('no turn')).toThrow('requires an active turn');
+  });
 
-    // Simulate the App.tsx pattern: beginTurn → push user message → failure
+  it('commitTurnUserMessage returns index and rollbackTurnUserMessage undoes it', () => {
+    const store = new ConversationStore();
     const token = store.beginTurn();
-    const msgs = store.getMutableRef();
-    msgs.push({ role: 'user', content: 'will fail' });
+    const idx = store.commitTurnUserMessage('will fail');
     expect(store.length).toBe(1);
+    expect(idx).toBe(0);
 
-    // Simulate early failure (e.g. buildSystemMessages throws)
-    // Rollback: pop the user message if it's still the last entry
-    const last = msgs[msgs.length - 1];
-    if (last && last.role === 'user' && last.content === 'will fail') {
-      msgs.pop();
-    }
-    store.endTurn(token);
-
-    // Store should be clean — no orphaned user message
+    // Rollback succeeds — message is last and is a user message
+    expect(store.rollbackTurnUserMessage(idx)).toBe(true);
     expect(store.length).toBe(0);
+
+    store.endTurn(token);
     expect(store.turnActive).toBe(false);
 
     // Subsequent turns work normally
@@ -153,22 +151,80 @@ describe('ConversationStore', () => {
     store.endTurn(t2);
   });
 
-  it('rollback does not remove assistant message if provider already responded', () => {
+  it('rollbackTurnUserMessage is a no-op when assistant reply exists', () => {
     const store = new ConversationStore();
     const token = store.beginTurn();
-    const msgs = store.getMutableRef();
-    msgs.push({ role: 'user', content: 'input' });
+    const idx = store.commitTurnUserMessage('input');
     // Simulate provider appending an assistant message
-    msgs.push({ role: 'assistant', content: 'partial response' });
+    store.getMutableRef().push({ role: 'assistant', content: 'partial response' });
 
-    // Late error — last message is assistant, not user → no rollback
-    const last = msgs[msgs.length - 1];
-    const shouldRollback = last && last.role === 'user' && last.content === 'input';
-    expect(shouldRollback).toBe(false);
+    // Rollback fails — user message is no longer the last entry
+    expect(store.rollbackTurnUserMessage(idx)).toBe(false);
+    expect(store.length).toBe(2);
 
     store.endTurn(token);
-    // Both messages remain
+  });
+
+  it('rollbackTurnUserMessage is safe with out-of-range index', () => {
+    const store = new ConversationStore();
+    expect(store.rollbackTurnUserMessage(-1)).toBe(false);
+    expect(store.rollbackTurnUserMessage(99)).toBe(false);
+  });
+
+  it('rollbackTurnUserMessage is idempotent — second call is a no-op', () => {
+    const store = new ConversationStore();
+    const token = store.beginTurn();
+    const idx = store.commitTurnUserMessage('msg');
+    expect(store.rollbackTurnUserMessage(idx)).toBe(true);
+    // Second call: index is now out of range
+    expect(store.rollbackTurnUserMessage(idx)).toBe(false);
+    expect(store.length).toBe(0);
+    store.endTurn(token);
+  });
+
+  it('escape-path rollback removes orphaned user message when no assistant replied', () => {
+    const store = new ConversationStore();
+    store.addUserMessage('prior context');
+    const token = store.beginTurn();
+    const idx = store.commitTurnUserMessage('cancelled input');
     expect(store.length).toBe(2);
+
+    // Simulate escape: rollback then endTurn
+    expect(store.rollbackTurnUserMessage(idx)).toBe(true);
+    store.endTurn(token);
+
+    // Only the prior message remains
+    expect(store.length).toBe(1);
+    expect(store.getMutableRef()[0].content).toBe('prior context');
+  });
+
+  it('escape-path rollback skips when assistant already partially responded', () => {
+    const store = new ConversationStore();
+    const token = store.beginTurn();
+    const idx = store.commitTurnUserMessage('input');
+    store.getMutableRef().push({ role: 'assistant', content: 'partial' });
+
+    // Simulate escape after partial response
+    expect(store.rollbackTurnUserMessage(idx)).toBe(false);
+    store.endTurn(token);
+
+    // Both messages preserved
+    expect(store.length).toBe(2);
+  });
+
+  it('commitTurnUserMessage preserves index across prior messages', () => {
+    const store = new ConversationStore();
+    store.addUserMessage('first');
+    store.addUserMessage('second');
+    const token = store.beginTurn();
+    const idx = store.commitTurnUserMessage('third');
+    expect(idx).toBe(2);
+
+    // Rollback only removes the committed message
+    expect(store.rollbackTurnUserMessage(idx)).toBe(true);
+    expect(store.length).toBe(2);
+    expect(store.getMutableRef()[1].content).toBe('second');
+    store.endTurn(token);
   });
 
   it('addUserMessage throws during active turn', () => {

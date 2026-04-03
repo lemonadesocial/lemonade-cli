@@ -28,6 +28,7 @@ export interface UseChatEngineResult {
   pendingConfirm: ConfirmRequest | null;
   tokenCount: number;
   addUserMessage: (text: string) => void;
+  removeLastUserMessage: () => void;
   addSystemMessage: (text: string) => void;
   clearMessages: () => void;
   confirmAction: (id: string, confirmed: boolean) => void;
@@ -168,6 +169,19 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     setMessages((prev) => [...prev, { role: 'user', content: text }]);
   }, []);
 
+  const removeLastUserMessage = useCallback(() => {
+    setMessages((prev) => {
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].role === 'user') {
+          const next = [...prev];
+          next.splice(i, 1);
+          return next;
+        }
+      }
+      return prev;
+    });
+  }, []);
+
   const addSystemMessage = useCallback((text: string) => {
     setMessages((prev) => [...prev, { role: 'system', content: text }]);
   }, []);
@@ -198,6 +212,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     pendingConfirm,
     tokenCount,
     addUserMessage,
+    removeLastUserMessage,
     addSystemMessage,
     clearMessages,
     confirmAction,
