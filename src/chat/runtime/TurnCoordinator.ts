@@ -13,6 +13,11 @@ export interface TurnDeps {
   chatMessages: Message[];
 }
 
+/**
+ * Result of submitMainTurn.
+ * Contract: `completion` always resolves — it never rejects.
+ * Errors are encoded in the resolved `{ error }` field.
+ */
 export type TurnSubmitResult =
   | { accepted: true; completion: Promise<{ error?: string }> }
   | { accepted: false; error: string };
@@ -87,14 +92,16 @@ export class TurnCoordinator {
       await this.mainTurnSettling;
     }
 
-    const { provider, formattedTools, session, registry, chatMessages, engine } = this.deps;
-    const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
-
     let resolveSettling!: () => void;
     const settling = new Promise<void>(r => { resolveSettling = r; });
     this.mainTurnSettling = settling;
 
     try {
+      // Dep capture and system-message build are inside try so that any
+      // throw here is caught and cannot leave mainTurnActive stuck.
+      const { provider, formattedTools, session, registry, chatMessages, engine } = this.deps;
+      const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
+
       await handleTurn(
         provider,
         chatMessages,

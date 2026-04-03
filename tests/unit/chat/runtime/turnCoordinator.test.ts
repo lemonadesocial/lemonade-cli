@@ -14,8 +14,10 @@ vi.mock('../../../../src/chat/session/cache', () => ({
 }));
 
 import { handleTurn } from '../../../../src/chat/stream/handler';
+import { buildSystemMessages } from '../../../../src/chat/session/cache';
 
 const mockHandleTurn = vi.mocked(handleTurn);
+const mockBuildSystemMessages = vi.mocked(buildSystemMessages);
 
 function makeDeps(overrides?: Partial<TurnDeps>): TurnDeps {
   return {
@@ -711,6 +713,104 @@ describe('TurnCoordinator', () => {
       // Both should start from counter 1 independently
       expect(btw1).toMatch(/^btw-\d+-1$/);
       expect(btw2).toMatch(/^btw-\d+-1$/);
+    });
+  });
+
+  describe('pre-stream setup throw does not deadlock', () => {
+    it('buildSystemMessages throwing returns error and releases lock', async () => {
+      mockBuildSystemMessages.mockImplementationOnce(() => {
+        throw new Error('cache corrupt');
+      });
+
+      const tc = new TurnCoordinator(makeDeps());
+      const submit = tc.submitMainTurn('test');
+      expect(submit.accepted).toBe(true);
+      if (!submit.accepted) return;
+
+      const result = await submit.completion;
+      expect(result.error).toBe('Error: cache corrupt');
+      // Lock must be released — next turn must be accepted
+      expect(tc.state.isMainTurnActive).toBe(false);
+
+      mockBuildSystemMessages.mockImplementation(() => [{ type: 'text', text: 'system prompt' }]);
+      const retry = tc.submitMainTurn('retry');
+      expect(retry.accepted).toBe(true);
+      if (!retry.accepted) return;
+      await retry.completion;
+      expect(tc.state.isMainTurnActive).toBe(false);
+    });
+
+    it('dep capture throwing during settling window still cleans up', async () => {
+      let resolveOldTurn!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveOldTurn = resolve; }),
+      );
+
+      const tc = new TurnCoordinator(makeDeps());
+
+      // Start and cancel to create settling window
+      const oldSubmit = tc.submitMainTurn('old');
+      if (!oldSubmit.accepted) throw new Error('expected accepted');
+      tc.cancelMainTurn();
+
+      // Make buildSystemMessages throw for the next turn
+      mockBuildSystemMessages.mockImplementationOnce(() => {
+        throw new Error('session expired');
+      });
+
+      const newSubmit = tc.submitMainTurn('new');
+      if (!newSubmit.accepted) throw new Error('expected accepted');
+
+      // Let old turn settle
+      resolveOldTurn();
+      await oldSubmit.completion;
+
+      const result = await newSubmit.completion;
+      expect(result.error).toBe('Error: session expired');
+      expect(tc.state.isMainTurnActive).toBe(false);
+
+      // Coordinator is reusable
+      mockBuildSystemMessages.mockImplementation(() => [{ type: 'text', text: 'system prompt' }]);
+      const retry = tc.submitMainTurn('works now');
+      expect(retry.accepted).toBe(true);
+    });
+  });
+
+  describe('completion never-reject contract', () => {
+    it('completion resolves (not rejects) even when handleTurn throws', async () => {
+      mockHandleTurn.mockRejectedValueOnce(new Error('provider crash'));
+
+      const tc = new TurnCoordinator(makeDeps());
+      const submit = tc.submitMainTurn('test');
+      if (!submit.accepted) return;
+
+      // Must not reject — await should succeed and return an error object
+      const result = await submit.completion;
+      expect(result).toHaveProperty('error');
+      expect(result.error).toContain('provider crash');
+    });
+
+    it('completion resolves (not rejects) when buildSystemMessages throws', async () => {
+      mockBuildSystemMessages.mockImplementationOnce(() => {
+        throw new Error('build failed');
+      });
+
+      const tc = new TurnCoordinator(makeDeps());
+      const submit = tc.submitMainTurn('test');
+      if (!submit.accepted) return;
+
+      const result = await submit.completion;
+      expect(result).toHaveProperty('error');
+      expect(result.error).toContain('build failed');
+    });
+
+    it('completion resolves to empty object on success', async () => {
+      const tc = new TurnCoordinator(makeDeps());
+      const submit = tc.submitMainTurn('test');
+      if (!submit.accepted) return;
+
+      const result = await submit.completion;
+      expect(result.error).toBeUndefined();
     });
   });
 });

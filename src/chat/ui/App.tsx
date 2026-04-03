@@ -1056,11 +1056,16 @@ export function App({
     addUserMessage(input);
     setShowThinking(true);
 
-    const result = await submit.completion;
-    if (result.error) {
-      addSystemMessage(result.error);
+    try {
+      const result = await submit.completion;
+      if (result.error) {
+        addSystemMessage(result.error);
+      }
+    } catch {
+      addSystemMessage('Error: unexpected failure during turn execution.');
+    } finally {
+      setShowThinking(false);
     }
-    setShowThinking(false);
   }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit, turnCoordinator]);
 
   // History navigation callbacks
