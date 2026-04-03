@@ -136,20 +136,20 @@ describe('Billing Safety: /mode slash command', () => {
 });
 
 describe('Billing Safety: Mode 2 credit balance check integration', () => {
-  it('getStandCredits is called during Mode 2 initialization flow', async () => {
-    // Verify the index.ts Mode 2 branch calls getStandCredits
+  it('getStandCredits is called during credits provider initialization flow', async () => {
+    // Verify createCreditsProvider calls getStandCredits before creating the provider
     const fs = await import('fs');
     const path = await import('path');
     const indexPath = path.join(process.cwd(), 'src/chat/index.ts');
     const content = fs.readFileSync(indexPath, 'utf-8');
 
-    // Mode 2 branch must call getStandCredits before creating the provider
-    const mode2Start = content.indexOf('Mode 2: Lemonade AI Credits');
-    const providerCreation = content.indexOf('new LemonadeAIProvider', mode2Start);
-    const creditCheck = content.indexOf('getStandCredits', mode2Start);
+    // createCreditsProvider must call getStandCredits before new LemonadeAIProvider
+    const fnStart = content.indexOf('async function createCreditsProvider');
+    const providerCreation = content.indexOf('new LemonadeAIProvider', fnStart);
+    const creditCheck = content.indexOf('getStandCredits', fnStart);
 
-    expect(mode2Start).toBeGreaterThan(-1);
-    expect(creditCheck).toBeGreaterThan(mode2Start);
+    expect(fnStart).toBeGreaterThan(-1);
+    expect(creditCheck).toBeGreaterThan(fnStart);
     expect(creditCheck).toBeLessThan(providerCreation);
   });
 

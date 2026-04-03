@@ -1,3 +1,25 @@
+// TEMPORARY MIGRATION ADAPTER — Lemonade Credits Mode
+//
+// This provider routes through the remote Lemonade AI backend (GraphQL `run`
+// mutation) rather than calling a tool-capable LLM directly. It satisfies the
+// AIProvider contract but with `supportsToolCalling: false`, which means:
+//
+//   - No local tool execution (handleTurn skips the tool loop)
+//   - Conversation history is maintained server-side via sessionId, not by
+//     the local runtime — the provider only sends the last user message
+//   - The assistant experience in credits mode is NOT capability-equivalent
+//     to BYOK mode (no tool use, no multi-turn tool loops)
+//
+// CAPABILITY GAP (migration debt, not product behavior):
+//   - Tool calling: blocked on backend providing a tool-capable credits transport
+//   - Full history: backend `run` mutation accepts a single `message` string;
+//     local conversation history from TurnCoordinator is unused beyond session ID
+//   - Model selection: uses backend model discovery, not local model list
+//
+// This adapter must be replaced when the backend supports a tool-capable
+// credits transport (see PRD-CHAT-ARCHITECTURE-CONSOLIDATION.md §6, Option A).
+// Until then it is the only valid credits-mode provider.
+
 import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef } from './interface.js';
 import { getAuthHeader } from '../../auth/store.js';
 
