@@ -11,6 +11,7 @@ import { KillRing } from './KillRing.js';
 import { UndoStack } from './UndoStack.js';
 import { MeasuredText, type Position } from './MeasuredText.js';
 import { getDiag } from '../../diagnostics/index.js';
+import { getTerminalProtocol } from '../../input-runtime/TerminalProtocolController.js';
 
 const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
@@ -133,24 +134,16 @@ export function MultilineInput({
     }
   }, [effectiveColumns]);
 
-  // Bracketed paste: enable/disable on focus
+  // Bracketed paste: subscribe to protocol controller's paste-state events.
+  // The controller owns enable/disable of the terminal escape sequences.
   useEffect(() => {
     if (!focus) return;
 
-    process.stdout.write('\x1b[?2004h');
+    const unsubscribe = getTerminalProtocol().onPasteStateChange((pasting) => {
+      isPastingRef.current = pasting;
+    });
 
-    const handleRawStdin = (data: Buffer): void => {
-      const str = data.toString();
-      if (str.includes('\x1b[200~')) isPastingRef.current = true;
-      if (str.includes('\x1b[201~')) isPastingRef.current = false;
-    };
-
-    process.stdin.prependListener('data', handleRawStdin);
-
-    return () => {
-      process.stdin.removeListener('data', handleRawStdin);
-      process.stdout.write('\x1b[?2004l');
-    };
+    return unsubscribe;
   }, [focus]);
 
   const ensureCursorVisible = useCallback((state: EditorState) => {

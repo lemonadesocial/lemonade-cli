@@ -10,6 +10,7 @@ import { ChatEngine } from './engine/ChatEngine.js';
 import { AIProvider, Message, ToolDef } from './providers/interface.js';
 import { SessionState } from './session/state.js';
 import { initDiagnostics } from './diagnostics/index.js';
+import { initTerminalProtocol } from './input-runtime/TerminalProtocolController.js';
 
 export async function runTerminalUI(
   provider: AIProvider,
@@ -38,10 +39,14 @@ export async function runTerminalUI(
   // Enable Kitty keyboard protocol for modifier detection (Shift+Enter, etc.)
   process.stdout.write('\x1b[>1u');
 
+  // Enable bracketed paste via the single protocol controller
+  const protocolController = initTerminalProtocol();
+  protocolController.enable();
+
   // Process exit cleanup for crash safety — ensures terminal is restored
   const terminalCleanup = () => {
+    protocolController.disable();
     process.stdout.write('\x1b[<u');        // Disable CSI u
-    process.stdout.write('\x1b[?2004l');    // Disable bracketed paste
     process.stdout.write('\x1b[?25h');      // Show cursor
     process.stdout.write('\x1b[?1049l');    // Leave alt screen
   };
@@ -71,11 +76,8 @@ export async function runTerminalUI(
   try {
     await instance.waitUntilExit();
   } finally {
-    // Disable Kitty keyboard protocol
-    process.stdout.write('\x1b[<u');
-    // Restore main screen buffer
-    process.stdout.write('\x1b[?25h'); // Show cursor
-    process.stdout.write('\x1b[?1049l'); // Leave alternate screen
+    process.removeListener('exit', terminalCleanup);
+    terminalCleanup();
     console.log('\n  See you!\n');
   }
 }
