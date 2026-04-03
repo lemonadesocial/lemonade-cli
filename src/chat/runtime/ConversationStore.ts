@@ -24,24 +24,34 @@ import { Message } from '../providers/interface.js';
  */
 export class ConversationStore {
   private messages: Message[] = [];
-  private _turnActive = false;
+  private _activeTurnToken: number | null = null;
+  private _nextToken = 1;
 
   /** Whether a turn is currently in progress. */
   get turnActive(): boolean {
-    return this._turnActive;
+    return this._activeTurnToken !== null;
   }
 
-  /** Mark the start of a turn. Must be paired with endTurn(). Throws on reentrant call. */
-  beginTurn(): void {
-    if (this._turnActive) {
+  /**
+   * Mark the start of a turn. Returns a token that must be passed to endTurn().
+   * Throws on reentrant call.
+   */
+  beginTurn(): number {
+    if (this._activeTurnToken !== null) {
       throw new Error('beginTurn() called while a turn is already active — missing endTurn()?');
     }
-    this._turnActive = true;
+    const token = this._nextToken++;
+    this._activeTurnToken = token;
+    return token;
   }
 
-  /** Mark the end of a turn. */
-  endTurn(): void {
-    this._turnActive = false;
+  /**
+   * Mark the end of a turn. Only releases if the given token matches the
+   * active turn — a stale finally from an older turn is a silent no-op.
+   */
+  endTurn(token: number): void {
+    if (this._activeTurnToken !== token) return;
+    this._activeTurnToken = null;
   }
 
   /**
@@ -61,7 +71,7 @@ export class ConversationStore {
 
   /** Append a user message to provider history. Throws if a turn is active. */
   addUserMessage(content: string): void {
-    if (this._turnActive) {
+    if (this._activeTurnToken !== null) {
       throw new Error('Cannot add a user message while a turn is in progress');
     }
     this.messages.push({ role: 'user', content });
@@ -72,7 +82,7 @@ export class ConversationStore {
    * Throws if a turn is in progress to prevent corrupting in-flight state.
    */
   clear(): void {
-    if (this._turnActive) {
+    if (this._activeTurnToken !== null) {
       throw new Error('Cannot clear conversation while a turn is in progress');
     }
     this.messages.length = 0;

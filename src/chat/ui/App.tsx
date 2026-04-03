@@ -242,7 +242,7 @@ export function App({
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
   const streamAbortRef = useRef<AbortController | null>(null);
-  const turnInProgressRef = useRef(false);
+  const turnTokenRef = useRef<number | null>(null);
   const btwAbortsRef = useRef<Map<string, AbortController>>(new Map());
 
   // Reactive terminal width
@@ -385,7 +385,7 @@ export function App({
 
       // All other slash commands require no active turn (except already handled above)
       if (slashResult.action === 'clear') {
-        if (turnInProgressRef.current) {
+        if (turnTokenRef.current !== null) {
           addSystemMessage('Cannot clear while a response is in progress. Press Escape to cancel first.');
           return;
         }
@@ -1070,7 +1070,7 @@ export function App({
     }
 
     // Regular messages: block during active turn
-    if (turnInProgressRef.current) {
+    if (turnTokenRef.current !== null) {
       addSystemMessage('Please wait for the current response to finish, or press Escape to cancel. Use /btw for side questions.');
       return;
     }
@@ -1083,10 +1083,12 @@ export function App({
     const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
     const abort = new AbortController();
     streamAbortRef.current = abort;
-    turnInProgressRef.current = true;
-    conversationStore.beginTurn();
 
+    let token: number | undefined;
     try {
+      token = conversationStore.beginTurn();
+      turnTokenRef.current = token;
+
       await handleTurn(
         provider,
         conversationStore.getMutableRef(),
@@ -1107,8 +1109,10 @@ export function App({
         addSystemMessage(`Error: ${msg}`);
       }
     } finally {
-      turnInProgressRef.current = false;
-      conversationStore.endTurn();
+      if (token !== undefined && turnTokenRef.current === token) {
+        conversationStore.endTurn(token);
+        turnTokenRef.current = null;
+      }
       streamAbortRef.current = null;
       setShowThinking(false);
     }
@@ -1167,7 +1171,7 @@ export function App({
   useInput((input, key) => {
     // Ctrl+L: clear screen (same as /clear)
     if (key.ctrl && input === 'l') {
-      if (turnInProgressRef.current) {
+      if (turnTokenRef.current !== null) {
         addSystemMessage('Cannot clear while a response is in progress. Press Escape to cancel first.');
         return;
       }
@@ -1190,8 +1194,11 @@ export function App({
         streamAbortRef.current = null;
         setShowThinking(false);
         resetStreaming();
-        turnInProgressRef.current = false;
-        conversationStore.endTurn();
+        const activeToken = turnTokenRef.current;
+        if (activeToken !== null) {
+          conversationStore.endTurn(activeToken);
+          turnTokenRef.current = null;
+        }
         addSystemMessage('(cancelled)');
       } else if (btwAbortsRef.current.size > 0) {
         for (const [, controller] of btwAbortsRef.current) {

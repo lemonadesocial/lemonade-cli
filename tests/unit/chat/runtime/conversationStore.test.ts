@@ -63,20 +63,30 @@ describe('ConversationStore', () => {
     expect(ref1).toBe(ref2);
   });
 
+  it('beginTurn returns a unique token', () => {
+    const store = new ConversationStore();
+    const t1 = store.beginTurn();
+    store.endTurn(t1);
+    const t2 = store.beginTurn();
+    store.endTurn(t2);
+    expect(t1).not.toBe(t2);
+  });
+
   it('clear throws when a turn is active', () => {
     const store = new ConversationStore();
     store.addUserMessage('msg');
-    store.beginTurn();
+    const token = store.beginTurn();
     expect(() => store.clear()).toThrow('Cannot clear conversation while a turn is in progress');
     // Messages remain intact
     expect(store.length).toBe(1);
+    store.endTurn(token);
   });
 
   it('clear succeeds after endTurn', () => {
     const store = new ConversationStore();
     store.addUserMessage('msg');
-    store.beginTurn();
-    store.endTurn();
+    const token = store.beginTurn();
+    store.endTurn(token);
     store.clear();
     expect(store.length).toBe(0);
   });
@@ -84,20 +94,35 @@ describe('ConversationStore', () => {
   it('turnActive reflects begin/end lifecycle', () => {
     const store = new ConversationStore();
     expect(store.turnActive).toBe(false);
-    store.beginTurn();
+    const token = store.beginTurn();
     expect(store.turnActive).toBe(true);
-    store.endTurn();
+    store.endTurn(token);
     expect(store.turnActive).toBe(false);
   });
 
   it('beginTurn throws on reentrant call', () => {
     const store = new ConversationStore();
-    store.beginTurn();
+    const token = store.beginTurn();
     expect(() => store.beginTurn()).toThrow('beginTurn() called while a turn is already active');
-    store.endTurn();
+    store.endTurn(token);
     // After ending, beginTurn works again
-    expect(() => store.beginTurn()).not.toThrow();
-    store.endTurn();
+    const token2 = store.beginTurn();
+    expect(token2).toBeGreaterThan(token);
+    store.endTurn(token2);
+  });
+
+  it('endTurn with stale token is a no-op', () => {
+    const store = new ConversationStore();
+    const t1 = store.beginTurn();
+    store.endTurn(t1);
+
+    const t2 = store.beginTurn();
+    // Stale finally from turn A must NOT unlock turn B
+    store.endTurn(t1);
+    expect(store.turnActive).toBe(true);
+    // Correct token still works
+    store.endTurn(t2);
+    expect(store.turnActive).toBe(false);
   });
 
   it('addUserMessage throws during active turn', () => {
@@ -105,11 +130,11 @@ describe('ConversationStore', () => {
     store.addUserMessage('before turn');
     expect(store.length).toBe(1);
 
-    store.beginTurn();
+    const token = store.beginTurn();
     expect(() => store.addUserMessage('mid-turn')).toThrow('Cannot add a user message while a turn is in progress');
     expect(store.length).toBe(1); // unchanged
 
-    store.endTurn();
+    store.endTurn(token);
     store.addUserMessage('after turn');
     expect(store.length).toBe(2);
   });
@@ -134,7 +159,7 @@ describe('ConversationStore', () => {
       },
     };
 
-    store.beginTurn();
+    const token = store.beginTurn();
     try {
       await handleTurn(
         provider,
@@ -149,14 +174,15 @@ describe('ConversationStore', () => {
         abort.signal,
       );
     } finally {
-      store.endTurn();
+      store.endTurn(token);
     }
 
     // Store must be unlocked after finally cleanup
     expect(store.turnActive).toBe(false);
     // Can begin a new turn without error
-    expect(() => store.beginTurn()).not.toThrow();
-    store.endTurn();
+    const t2 = store.beginTurn();
+    expect(t2).toBeGreaterThan(token);
+    store.endTurn(t2);
     // Can clear after abort
     expect(() => store.clear()).not.toThrow();
   });
@@ -270,7 +296,7 @@ describe('ConversationStore + handleTurn integration', () => {
   it('clear during simulated active turn throws and preserves history', async () => {
     const store = new ConversationStore();
     store.addUserMessage('important context');
-    store.beginTurn();
+    const token = store.beginTurn();
 
     // Attempting to clear mid-turn must throw
     expect(() => store.clear()).toThrow('Cannot clear conversation while a turn is in progress');
@@ -280,8 +306,87 @@ describe('ConversationStore + handleTurn integration', () => {
     expect(store.getMutableRef()[0].content).toBe('important context');
 
     // After ending the turn, clear works
-    store.endTurn();
+    store.endTurn(token);
     store.clear();
     expect(store.length).toBe(0);
+  });
+
+  it('stale finally from aborted turn A cannot unlock turn B (race)', async () => {
+    const store = new ConversationStore();
+    store.addUserMessage('hello');
+
+    const abortA = new AbortController();
+    const engineA = new ChatEngine();
+
+    // Turn A: provider that stalls so we can abort mid-stream
+    let turnASettled = false;
+    const providerA: AIProvider = {
+      name: 'mock',
+      model: 'mock-model',
+      formatTools: (tools) => tools,
+      async *stream() {
+        yield { type: 'text_delta' as const, text: 'A partial' };
+        abortA.abort();
+        yield { type: 'done' as const, stopReason: 'end_turn' as const, usage: { input_tokens: 1, output_tokens: 1 } };
+      },
+    };
+
+    // Start turn A
+    const tokenA = store.beginTurn();
+
+    await handleTurn(
+      providerA,
+      store.getMutableRef(),
+      [],
+      [{ type: 'text', text: 'sys' }],
+      session,
+      {},
+      null,
+      true,
+      engineA,
+      abortA.signal,
+    );
+    turnASettled = true;
+
+    // Simulate escape handler ending turn A with correct token
+    store.endTurn(tokenA);
+    expect(store.turnActive).toBe(false);
+
+    // Start turn B immediately
+    const tokenB = store.beginTurn();
+    expect(store.turnActive).toBe(true);
+
+    // Stale finally from turn A tries to end the turn — must be a no-op
+    store.endTurn(tokenA);
+    expect(store.turnActive).toBe(true); // turn B still active
+
+    // Turn B completes normally
+    const engineB = new ChatEngine();
+    const providerB = createMockProvider([
+      [
+        { type: 'text_delta', text: 'B response' },
+        { type: 'done', stopReason: 'end_turn', usage: { input_tokens: 2, output_tokens: 2 } },
+      ],
+    ]);
+
+    await handleTurn(
+      providerB,
+      store.getMutableRef(),
+      [],
+      [{ type: 'text', text: 'sys' }],
+      session,
+      {},
+      null,
+      true,
+      engineB,
+    );
+
+    // End turn B with correct token
+    store.endTurn(tokenB);
+    expect(store.turnActive).toBe(false);
+    expect(turnASettled).toBe(true);
+
+    // Store is fully unlocked — can clear
+    expect(() => store.clear()).not.toThrow();
   });
 });
