@@ -165,10 +165,19 @@ describe('ConversationStore', () => {
     store.endTurn(token);
   });
 
+  it('rollbackTurnUserMessage returns false when no turn is active', () => {
+    const store = new ConversationStore();
+    store.addUserMessage('msg');
+    expect(store.rollbackTurnUserMessage(0)).toBe(false);
+    expect(store.length).toBe(1);
+  });
+
   it('rollbackTurnUserMessage is safe with out-of-range index', () => {
     const store = new ConversationStore();
+    const token = store.beginTurn();
     expect(store.rollbackTurnUserMessage(-1)).toBe(false);
     expect(store.rollbackTurnUserMessage(99)).toBe(false);
+    store.endTurn(token);
   });
 
   it('rollbackTurnUserMessage is idempotent — second call is a no-op', () => {

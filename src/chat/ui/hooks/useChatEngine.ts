@@ -76,9 +76,10 @@ export function applyIndexAdjustments(
  *
  * **Not pure.** On the happy path this function mutates `turnIndex` in-place
  * (guarded by `alreadyMutatedIndex`) and may log to `console.error` on the
- * corruption path (guarded by `alreadyLoggedCorruption`). Both guards exist
- * so the caller's closure can enforce exactly-once semantics across React
- * StrictMode double-invocation.
+ * corruption path (guarded by `alreadyLoggedCorruption`). Both guards are
+ * closure-scoped booleans managed by the calling `removeMessageById` closure,
+ * so they deduplicate within a single React StrictMode double-invocation of
+ * that closure — they do NOT provide global or cross-call deduplication.
  *
  * ## Corruption-path contract
  *
@@ -97,7 +98,8 @@ export function applyIndexAdjustments(
  *
  * `alreadyMutatedIndex` tracks whether a prior StrictMode invocation already
  * mutated turnIndex. The caller (removeMessageById closure) manages this flag
- * to ensure exactly-once mutation.
+ * to prevent double-mutation within one StrictMode pass — it resets on each
+ * new removeMessageById call.
  */
 export function removeMessageUpdater(
   prev: UIMessage[],

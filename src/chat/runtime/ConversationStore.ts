@@ -107,6 +107,7 @@ export class ConversationStore {
    * (safe no-op when the provider already responded).
    */
   rollbackTurnUserMessage(idx: number): boolean {
+    if (this._activeTurnToken === null) return false;
     if (idx < 0 || idx >= this.messages.length) return false;
     if (this.messages[idx].role !== 'user') return false;
     if (idx !== this.messages.length - 1) return false;

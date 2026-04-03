@@ -407,6 +407,62 @@ describe('removeMessageUpdater — rollback sequence alignment', () => {
     expect(turnIndex.size).toBe(1);
   });
 
+  it('catch-path removal adjusts live BTW indices without prior resetStreaming', () => {
+    // In the catch path (App.tsx), resetStreaming is NOT called before
+    // removeMessageById. turnMessageIndex still has live BTW entries whose
+    // indices must be shifted when the user message is spliced out.
+    //
+    // Scenario: user sends a message (appended last), a BTW turn is streaming
+    // at an earlier position, and handleTurn throws. The catch block removes
+    // the user message — BTW entries at positions < removedIdx stay untouched,
+    // entries at positions > removedIdx (if any) get shifted down.
+    const msgs = makeMessages(
+      { role: 'assistant', content: 'main-response' },
+      { role: 'assistant', content: 'btw-response' },
+      { role: 'user', content: 'will-fail', msgId: 'u-fail' },
+    );
+    const turnIndex = new Map<string, number>([
+      ['main', 0],
+      ['btw-1', 1],
+    ]);
+
+    const result = removeMessageUpdater(msgs, 'u-fail', turnIndex, false);
+
+    // User message removed, two assistant messages remain
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages[0].content).toBe('main-response');
+    expect(result.messages[1].content).toBe('btw-response');
+    // Indices below removedIdx (2) are unchanged
+    expect(turnIndex.get('main')).toBe(0);
+    expect(turnIndex.get('btw-1')).toBe(1);
+    expect(result.didMutateIndex).toBe(true);
+  });
+
+  it('catch-path removal shifts BTW index registered after user message', () => {
+    // Edge case: a BTW turn's onTextDelta fires AFTER the user message was
+    // appended to the UI but BEFORE the catch block runs. The BTW entry's
+    // index is after the user message, so it must be shifted down by 1.
+    const msgs = makeMessages(
+      { role: 'user', content: 'prior', msgId: 'u1' },
+      { role: 'assistant', content: 'prior-response' },
+      { role: 'user', content: 'will-fail', msgId: 'u-fail' },
+      { role: 'assistant', content: 'btw-late' },
+    );
+    const turnIndex = new Map<string, number>([
+      ['prior-turn', 1],
+      ['btw-late', 3],
+    ]);
+
+    const result = removeMessageUpdater(msgs, 'u-fail', turnIndex, false);
+
+    expect(result.messages).toHaveLength(3);
+    expect(result.messages[2].content).toBe('btw-late');
+    // prior-turn at index 1 < removedIdx 2 → unchanged
+    expect(turnIndex.get('prior-turn')).toBe(1);
+    // btw-late at index 3 > removedIdx 2 → shifted to 2
+    expect(turnIndex.get('btw-late')).toBe(2);
+  });
+
   it('double rollback attempt (Escape + catch) is safe', () => {
     const msgs = makeMessages(
       { role: 'user', content: 'prior', msgId: 'u1' },
