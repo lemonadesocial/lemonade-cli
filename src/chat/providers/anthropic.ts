@@ -1,12 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef, SystemMessage, Message } from './interface.js';
+import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef } from './interface.js';
 import { buildJsonSchema } from '../tools/schema.js';
 
 export class AnthropicProvider implements AIProvider {
   name = 'anthropic';
   capabilities: ProviderCapabilities = {
     supportsToolCalling: true,
-    supportsAbortSignal: true,
   };
   private client: Anthropic;
   model: string;

@@ -1,12 +1,11 @@
 import OpenAI from 'openai';
-import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef, SystemMessage, Message } from './interface.js';
+import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef } from './interface.js';
 import { buildJsonSchema } from '../tools/schema.js';
 
 export class OpenAIProvider implements AIProvider {
   name = 'openai';
   capabilities: ProviderCapabilities = {
     supportsToolCalling: true,
-    supportsAbortSignal: true,
   };
   private client: OpenAI;
   model: string;

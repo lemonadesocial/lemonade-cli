@@ -5,6 +5,46 @@ function getLemonadeAiUrl(): string {
   return process.env.LEMONADE_AI_URL || 'https://ai.lemonade.social';
 }
 
+/**
+ * Combine caller abort signal with a 60-second timeout.
+ * Uses AbortSignal.any when available (Node ≥20.3), otherwise falls back
+ * to manual listener forwarding so caller abort is never silently dropped.
+ */
+function combinedSignal(callerSignal?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(60_000);
+  if (!callerSignal) return timeout;
+
+  if (typeof AbortSignal.any === 'function') {
+    return AbortSignal.any([callerSignal, timeout]);
+  }
+
+  // Fallback: wire both signals into a single AbortController
+  const ac = new AbortController();
+
+  if (callerSignal.aborted) {
+    ac.abort(callerSignal.reason);
+    return ac.signal;
+  }
+
+  const onAbort = () => {
+    ac.abort(callerSignal.reason);
+    cleanup();
+  };
+  const onTimeout = () => {
+    ac.abort(timeout.reason);
+    cleanup();
+  };
+  const cleanup = () => {
+    callerSignal.removeEventListener('abort', onAbort);
+    timeout.removeEventListener('abort', onTimeout);
+  };
+
+  callerSignal.addEventListener('abort', onAbort, { once: true });
+  timeout.addEventListener('abort', onTimeout, { once: true });
+
+  return ac.signal;
+}
+
 export class LemonadeAIProvider implements AIProvider {
   name = 'lemonade-ai';
   capabilities: ProviderCapabilities = {
@@ -58,10 +98,7 @@ export class LemonadeAIProvider implements AIProvider {
           standId: this.standId,
         },
       }),
-      // AbortSignal.any requires Node ≥20.3; older runtimes silently skip external abort forwarding
-      signal: params.signal && typeof AbortSignal.any === 'function'
-        ? AbortSignal.any([params.signal, AbortSignal.timeout(60_000)])
-        : AbortSignal.timeout(60_000),
+      signal: combinedSignal(params.signal),
     });
 
     if (!response.ok) {
