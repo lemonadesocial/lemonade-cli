@@ -76,11 +76,8 @@ export async function runTerminalUI(
   try {
     await instance.waitUntilExit();
   } finally {
-    // Disable Kitty keyboard protocol
-    process.stdout.write('\x1b[<u');
-    // Restore main screen buffer
-    process.stdout.write('\x1b[?25h'); // Show cursor
-    process.stdout.write('\x1b[?1049l'); // Leave alternate screen
+    process.removeListener('exit', terminalCleanup);
+    terminalCleanup();
     console.log('\n  See you!\n');
   }
 }

@@ -4,7 +4,7 @@
 // Previously owned by MultilineInput's useEffect. Moving it here
 // ensures one clear owner at the terminal/runtime boundary.
 
-export type PasteStateListener = (isPasting: boolean) => void;
+type PasteStateListener = (isPasting: boolean) => void;
 
 export class TerminalProtocolController {
   private listeners = new Set<PasteStateListener>();
@@ -68,4 +68,12 @@ export function getTerminalProtocol(): TerminalProtocolController {
     );
   }
   return _instance;
+}
+
+/** Reset the singleton — for tests and runtime teardown. */
+export function resetTerminalProtocol(): void {
+  if (_instance) {
+    _instance.disable();
+    _instance = null;
+  }
 }
