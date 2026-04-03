@@ -16,9 +16,7 @@ import { getTerminalProtocol } from '../../input-runtime/TerminalProtocolControl
 const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 function graphemeCount(text: string): number {
-  let count = 0;
-  for (const _ of GRAPHEME_SEGMENTER.segment(text)) count++;
-  return count;
+  return [...GRAPHEME_SEGMENTER.segment(text)].length;
 }
 
 /** Count graphemes whose start index < sourceOffset. */
