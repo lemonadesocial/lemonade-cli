@@ -305,6 +305,8 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
 
   const clearMessages = useCallback(() => {
     setMessages([]);
+    setIsStreaming(false);
+    setIsThinking(false);
     setTokenCount(0);
     turnMessageIndex.current.clear();
     activeTurns.current.clear();

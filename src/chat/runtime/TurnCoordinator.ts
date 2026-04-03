@@ -29,11 +29,11 @@ export interface TurnCoordinatorState {
 
 export const MAIN_TURN_BUSY = 'Please wait for the current response to finish, or press Escape to cancel. Use /btw for side questions.';
 
-// TurnCoordinator owns turn admission (accept/reject) and cancellation lifecycle.
-// It does NOT own chat history: handleTurn (stream/handler.ts) mutates the shared
-// chatMessages array directly (pushing assistant/tool messages). Any future changes
-// to cancel semantics or history rollback must account for this split — cancelling
-// a turn does not undo messages that handleTurn already appended.
+// TurnCoordinator owns turn admission (accept/reject), cancellation lifecycle,
+// and session clearing (including provider history). handleTurn (stream/handler.ts)
+// appends assistant/tool messages to the shared chatMessages array during a turn.
+// cancelMainTurn rolls back the user message only when handleTurn hasn't appended
+// anything yet; clearSession truncates the entire history unconditionally.
 export class TurnCoordinator {
   private deps: TurnDeps;
   private mainAbort: AbortController | null = null;
@@ -215,6 +215,27 @@ export class TurnCoordinator {
     }
     this.btwAborts.clear();
     return true;
+  }
+
+  // Clears the local session: aborts any active turns and empties the shared
+  // chatMessages array. This does NOT reset provider-internal state (e.g.
+  // server-side conversation context or cached embeddings) — providers that
+  // maintain their own session must be re-initialized separately if needed.
+  // Both /clear and Ctrl+L must use this method so clearing is coordinated
+  // with turn lifecycle — never mutate chatMessages directly from UI code.
+  //
+  // Unlike cancelMainTurn, this does NOT roll back individual user messages
+  // because the entire history is truncated immediately after.
+  clearSession(): void {
+    if (this.mainAbort) {
+      this.mainAbort.abort();
+      this.mainTurnId = ++this.mainTurnCounter;
+      this.mainAbort = null;
+      this.mainTurnActive = false;
+      this.mainTurnUserMsgIndex = null;
+    }
+    this.cancelAllBtw();
+    this.deps.chatMessages.length = 0;
   }
 
 }

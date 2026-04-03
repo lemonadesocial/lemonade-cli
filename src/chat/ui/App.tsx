@@ -128,6 +128,14 @@ export function App({
     }
   }, [isStreaming, tokenCount]);
 
+  // Wraps clearMessages to also reset App-local showThinking state.
+  // Both /clear (via SlashCommandRouter) and Ctrl+L use this so clearing
+  // is never observably divergent between the two paths.
+  const clearMessagesAndReset = useCallback(() => {
+    setShowThinking(false);
+    clearMessages();
+  }, [clearMessages]);
+
   const { recordSubmit, handleHistoryUp: historyUp, handleHistoryDown: historyDown, resetBrowsing } = history;
   const { showAutocomplete, filteredCommands, selectCurrent } = autocomplete;
 
@@ -163,7 +171,7 @@ export function App({
       await executeSlashCommand(slashResult, {
         addSystemMessage,
         addUserMessage,
-        clearMessages,
+        clearMessages: clearMessagesAndReset,
         exit,
         engine,
         registry,
@@ -207,7 +215,7 @@ export function App({
         setShowThinking(false);
       }
     }
-  }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, recordSubmit]);
+  }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessagesAndReset, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, recordSubmit]);
 
   // Input change with history reset
   const handleChange = useCallback((val: string) => {
@@ -245,10 +253,10 @@ export function App({
 
   // Keyboard handling — only keys NOT handled by MultilineInput
   useInput((input, key) => {
-    // Ctrl+L: clear screen (same as /clear)
+    // Ctrl+L: clear screen — same path as /clear.
     if (key.ctrl && input === 'l') {
-      chatMessages.length = 0;
-      clearMessages();
+      turnCoordinator.clearSession();
+      clearMessagesAndReset();
       addSystemMessage('Session cleared.');
       return;
     }

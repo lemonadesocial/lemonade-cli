@@ -14,6 +14,7 @@ function makeDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
     chatMessages: [],
     turnCoordinator: {
       submitBtwTurn: vi.fn(),
+      clearSession: vi.fn(),
     } as unknown as SlashCommandDeps['turnCoordinator'],
     startManualPlan: vi.fn(),
     setSpaceName: vi.fn(),
@@ -28,13 +29,13 @@ function makeDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
 
 describe('SlashCommandRouter', () => {
   describe('/clear', () => {
-    it('clears chatMessages and UI messages', async () => {
+    it('delegates to turnCoordinator.clearSession()', async () => {
       const chatMessages = [{ role: 'user' as const, content: 'hello' }];
       const deps = makeDeps({ chatMessages });
 
       await executeSlashCommand(parseSlashCommand('/clear'), deps);
 
-      expect(chatMessages.length).toBe(0);
+      expect(deps.turnCoordinator.clearSession).toHaveBeenCalled();
       expect(deps.clearMessages).toHaveBeenCalled();
       expect(deps.addSystemMessage).toHaveBeenCalledWith('Session cleared.');
     });

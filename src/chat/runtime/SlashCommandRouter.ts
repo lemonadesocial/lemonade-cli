@@ -85,7 +85,7 @@ export async function executeSlashCommand(
   }
 
   if (slashResult.action === 'clear') {
-    chatMessages.length = 0;
+    turnCoordinator.clearSession();
     clearMessages();
     addSystemMessage('Session cleared.');
     return;

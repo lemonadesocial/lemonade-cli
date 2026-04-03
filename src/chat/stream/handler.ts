@@ -52,6 +52,12 @@ export async function handleTurn(
   const canUseTool = provider.capabilities.supportsToolCalling === true;
   const maxIterations = canUseTool ? MAX_TOOL_ITERATIONS : 1;
 
+  const emitAbortDone = () => {
+    if (engine) {
+      engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
+    }
+  };
+
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     if (iteration > 0 && engine) {
       engine.emit('thinking_start', { turnId });
@@ -101,12 +107,17 @@ export async function handleTurn(
         }
       }
       if (signal?.aborted) {
-        if (engine) {
-          engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
-        }
+        emitAbortDone();
         return;
       }
     } catch (err) {
+      // If the signal was aborted (e.g. by cancel or clear), the stream
+      // error is expected — emit turn_done without an error event to
+      // prevent ghost error messages in a freshly cleared conversation.
+      if (signal?.aborted) {
+        emitAbortDone();
+        return;
+      }
       if (engine) {
         engine.emit('error', { message: `Streaming error: ${safeErrorMessage(err)}`, fatal: false, turnId });
         engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });

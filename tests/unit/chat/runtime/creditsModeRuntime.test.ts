@@ -192,6 +192,52 @@ describe('Credits mode through TurnCoordinator', () => {
     expect(btwId).toMatch(/^btw-/);
     expect(tc.state.activeBtwCount).toBe(1);
   });
+
+  it('clearSession works identically for credits and BYOK', async () => {
+    const creditsProvider = createCreditsProvider();
+    const byokProvider = createBYOKProvider();
+
+    const creditsMsgs: Message[] = [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: 'hi from credits' },
+    ];
+    const byokMsgs: Message[] = [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: 'hi from byok' },
+    ];
+
+    const creditsTc = new TurnCoordinator(makeDeps(creditsProvider, { chatMessages: creditsMsgs }));
+    const byokTc = new TurnCoordinator(makeDeps(byokProvider, { chatMessages: byokMsgs }));
+
+    const creditsResult = creditsTc.clearSession();
+    const byokResult = byokTc.clearSession();
+
+    expect(creditsResult).toEqual(byokResult);
+    expect(creditsMsgs).toHaveLength(0);
+    expect(byokMsgs).toHaveLength(0);
+  });
+
+  it('clearSession cancels active credits turn and empties history', async () => {
+    let resolveFirst!: () => void;
+    mockHandleTurn.mockImplementationOnce(() =>
+      new Promise<void>((resolve) => { resolveFirst = resolve; }),
+    );
+
+    const provider = createCreditsProvider();
+    const chatMessages: Message[] = [];
+    const tc = new TurnCoordinator(makeDeps(provider, { chatMessages }));
+
+    const submit = tc.submitMainTurn('credits question');
+    expect(submit.accepted).toBe(true);
+    expect(chatMessages).toHaveLength(1);
+
+    tc.clearSession();
+    expect(chatMessages).toHaveLength(0);
+    expect(tc.state.isMainTurnActive).toBe(false);
+
+    resolveFirst();
+    if (submit.accepted) await submit.completion;
+  });
 });
 
 describe('Credits mode through handleTurn (integration)', () => {

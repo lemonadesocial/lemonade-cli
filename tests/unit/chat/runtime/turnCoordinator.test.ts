@@ -1053,6 +1053,120 @@ describe('TurnCoordinator', () => {
     });
   });
 
+  describe('clearSession', () => {
+    it('empties chatMessages when idle', () => {
+      const chatMessages: Message[] = [
+        { role: 'user', content: 'hello' },
+        { role: 'assistant', content: 'hi' },
+      ];
+      const tc = new TurnCoordinator(makeDeps({ chatMessages }));
+
+      tc.clearSession();
+      expect(chatMessages).toHaveLength(0);
+    });
+
+    it('cancels active main turn and empties chatMessages', async () => {
+      let resolveFirst!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveFirst = resolve; }),
+      );
+
+      const chatMessages: Message[] = [];
+      const tc = new TurnCoordinator(makeDeps({ chatMessages }));
+
+      const submit = tc.submitMainTurn('test');
+      if (!submit.accepted) throw new Error('expected accepted');
+      expect(chatMessages).toHaveLength(1);
+
+      tc.clearSession();
+      expect(tc.state.isMainTurnActive).toBe(false);
+      expect(chatMessages).toHaveLength(0);
+
+      resolveFirst();
+      await submit.completion;
+    });
+
+    it('cancels active btw turns and empties chatMessages', async () => {
+      mockHandleTurn.mockImplementation(() =>
+        new Promise<void>(() => {}), // never resolves
+      );
+
+      const chatMessages: Message[] = [{ role: 'user', content: 'prior' }];
+      const tc = new TurnCoordinator(makeDeps({ chatMessages }));
+
+      tc.submitBtwTurn('side1');
+      tc.submitBtwTurn('side2');
+
+      await vi.waitFor(() => expect(tc.state.activeBtwCount).toBe(2));
+
+      tc.clearSession();
+      expect(tc.state.activeBtwCount).toBe(0);
+      expect(chatMessages).toHaveLength(0);
+    });
+
+    it('allows new turn after clearSession', async () => {
+      const chatMessages: Message[] = [{ role: 'user', content: 'old' }];
+      const tc = new TurnCoordinator(makeDeps({ chatMessages }));
+
+      tc.clearSession();
+      expect(chatMessages).toHaveLength(0);
+
+      const submit = tc.submitMainTurn('fresh start');
+      expect(submit.accepted).toBe(true);
+      if (!submit.accepted) return;
+      await submit.completion;
+
+      expect(chatMessages).toHaveLength(1);
+      expect(chatMessages[0]).toEqual({ role: 'user', content: 'fresh start' });
+    });
+  });
+
+  describe('clearSession skips redundant rollback', () => {
+    it('does not roll back user message individually — truncates entire history', async () => {
+      let resolveFirst!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveFirst = resolve; }),
+      );
+
+      const chatMessages: Message[] = [{ role: 'user', content: 'prior' }];
+      const tc = new TurnCoordinator(makeDeps({ chatMessages }));
+
+      const submit = tc.submitMainTurn('will be cleared');
+      if (!submit.accepted) throw new Error('expected accepted');
+      expect(chatMessages).toHaveLength(2);
+
+      // clearSession truncates everything — no selective rollback needed
+      tc.clearSession();
+      expect(chatMessages).toHaveLength(0);
+
+      resolveFirst();
+      await submit.completion;
+    });
+
+    it('aborts the signal when clearing during active turn', async () => {
+      let capturedSignal: AbortSignal | undefined;
+      mockHandleTurn.mockImplementationOnce(async (_p, _m, _t, _s, _sess, _reg, _rl, _tty, _eng, signal) => {
+        capturedSignal = signal as AbortSignal;
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) { resolve(); return; }
+          signal?.addEventListener('abort', () => resolve());
+        });
+      });
+
+      const tc = new TurnCoordinator(makeDeps());
+      const submit = tc.submitMainTurn('test');
+      if (!submit.accepted) throw new Error('expected accepted');
+
+      await vi.waitFor(() => expect(capturedSignal).toBeDefined());
+
+      tc.clearSession();
+      expect(capturedSignal!.aborted).toBe(true);
+      expect(tc.state.isMainTurnActive).toBe(false);
+
+      await submit.completion;
+    });
+  });
+
   describe('completion never-reject contract', () => {
     it('completion resolves (not rejects) even when handleTurn throws', async () => {
       mockHandleTurn.mockRejectedValueOnce(new Error('provider crash'));
