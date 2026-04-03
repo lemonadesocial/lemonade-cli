@@ -217,12 +217,11 @@ export class TurnCoordinator {
     return true;
   }
 
-  // Clears the local session: aborts any active turns and empties the shared
-  // chatMessages array. This does NOT reset provider-internal state (e.g.
-  // server-side conversation context or cached embeddings) — providers that
-  // maintain their own session must be re-initialized separately if needed.
-  // Both /clear and Ctrl+L must use this method so clearing is coordinated
-  // with turn lifecycle — never mutate chatMessages directly from UI code.
+  // Clears the entire session: aborts active turns, empties shared
+  // chatMessages, and resets provider-internal state (e.g. server-side
+  // session ID for credits-mode). Both /clear and Ctrl+L must use this
+  // method so clearing is coordinated with turn lifecycle — never mutate
+  // chatMessages directly from UI code.
   //
   // Unlike cancelMainTurn, this does NOT roll back individual user messages
   // because the entire history is truncated immediately after.
@@ -235,7 +234,13 @@ export class TurnCoordinator {
       this.mainTurnUserMsgIndex = null;
     }
     this.cancelAllBtw();
+    // Discard any stale settling promise so the next turn does not
+    // wait on a resolved gate from a previous cancelled turn.
+    this.mainTurnSettling = null;
     this.deps.chatMessages.length = 0;
+    // Reset provider-side session state (server-side session ID, etc.).
+    // Stateless/BYOK providers omit resetSession — the optional call is safe.
+    this.deps.provider.resetSession?.();
   }
 
 }

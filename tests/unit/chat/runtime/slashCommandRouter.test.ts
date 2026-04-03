@@ -7,6 +7,7 @@ function makeDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
     addSystemMessage: vi.fn(),
     addUserMessage: vi.fn(),
     clearMessages: vi.fn(),
+    onClear: vi.fn(),
     exit: vi.fn(),
     engine: { requestConfirmation: vi.fn() } as unknown as SlashCommandDeps['engine'],
     registry: {},
@@ -29,15 +30,13 @@ function makeDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
 
 describe('SlashCommandRouter', () => {
   describe('/clear', () => {
-    it('delegates to turnCoordinator.clearSession()', async () => {
+    it('delegates to onClear callback', async () => {
       const chatMessages = [{ role: 'user' as const, content: 'hello' }];
       const deps = makeDeps({ chatMessages });
 
       await executeSlashCommand(parseSlashCommand('/clear'), deps);
 
-      expect(deps.turnCoordinator.clearSession).toHaveBeenCalled();
-      expect(deps.clearMessages).toHaveBeenCalled();
-      expect(deps.addSystemMessage).toHaveBeenCalledWith('Session cleared.');
+      expect(deps.onClear).toHaveBeenCalled();
     });
   });
 
@@ -326,6 +325,7 @@ describe('SlashCommandRouter', () => {
           (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
           (deps.addUserMessage as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
           (deps.clearMessages as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
+          (deps.onClear as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
           (deps.exit as ReturnType<typeof vi.fn>).mock.calls.length > 0;
         expect(anyCall).toBe(true);
 

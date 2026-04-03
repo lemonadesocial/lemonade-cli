@@ -1121,6 +1121,79 @@ describe('TurnCoordinator', () => {
     });
   });
 
+  describe('clearSession resets provider session', () => {
+    it('calls provider.resetSession when provider implements it', () => {
+      const resetSession = vi.fn();
+      const provider = {
+        name: 'lemonade-ai',
+        model: 'test',
+        capabilities: { supportsToolCalling: false },
+        formatTools: vi.fn(),
+        stream: vi.fn(),
+        resetSession,
+      };
+      const chatMessages: Message[] = [{ role: 'user', content: 'hi' }];
+      const tc = new TurnCoordinator(makeDeps({ provider, chatMessages }));
+
+      tc.clearSession();
+
+      expect(resetSession).toHaveBeenCalledTimes(1);
+      expect(chatMessages).toHaveLength(0);
+    });
+
+    it('does not throw when provider has no resetSession', () => {
+      const provider = {
+        name: 'anthropic',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: vi.fn(),
+        stream: vi.fn(),
+        // no resetSession
+      };
+      const chatMessages: Message[] = [{ role: 'user', content: 'hi' }];
+      const tc = new TurnCoordinator(makeDeps({ provider, chatMessages }));
+
+      expect(() => tc.clearSession()).not.toThrow();
+      expect(chatMessages).toHaveLength(0);
+    });
+  });
+
+  describe('clearSession clears settling gate', () => {
+    it('next turn after clearSession does not wait on stale settling promise', async () => {
+      let resolveOldTurn!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveOldTurn = resolve; }),
+      );
+
+      const tc = new TurnCoordinator(makeDeps());
+
+      // Start and cancel to create a settling promise
+      const oldSubmit = tc.submitMainTurn('old');
+      if (!oldSubmit.accepted) throw new Error('expected accepted');
+      tc.cancelMainTurn();
+
+      // clearSession should discard the settling gate
+      tc.clearSession();
+
+      // Next turn should proceed without waiting for old settling
+      let newTurnStarted = false;
+      mockHandleTurn.mockImplementationOnce(() => {
+        newTurnStarted = true;
+        return Promise.resolve();
+      });
+
+      const newSubmit = tc.submitMainTurn('fresh');
+      if (!newSubmit.accepted) throw new Error('expected accepted');
+
+      // Let old turn resolve (but clearSession already discarded the gate)
+      resolveOldTurn();
+      await oldSubmit.completion;
+      await newSubmit.completion;
+
+      expect(newTurnStarted).toBe(true);
+    });
+  });
+
   describe('clearSession skips redundant rollback', () => {
     it('does not roll back user message individually — truncates entire history', async () => {
       let resolveFirst!: () => void;

@@ -27,6 +27,8 @@ export interface SlashCommandUIDeps {
   addSystemMessage: (text: string) => void;
   addUserMessage: (text: string) => void;
   clearMessages: () => void;
+  /** Full clear: turn lifecycle + provider reset + UI reset + system message. */
+  onClear: () => void;
   exit: () => void;
   startManualPlan: (tool: ToolDef) => void;
   setSpaceName: (name: string) => void;
@@ -57,6 +59,7 @@ export async function executeSlashCommand(
     addSystemMessage,
     addUserMessage,
     clearMessages,
+    onClear,
     exit,
     engine,
     registry,
@@ -85,9 +88,7 @@ export async function executeSlashCommand(
   }
 
   if (slashResult.action === 'clear') {
-    turnCoordinator.clearSession();
-    clearMessages();
-    addSystemMessage('Session cleared.');
+    onClear();
     return;
   }
 
