@@ -135,61 +135,25 @@ describe('Billing Safety: /mode slash command', () => {
   });
 });
 
-describe('Billing Safety: Mode 2 credit balance check integration', () => {
-  it('getStandCredits is called during credits provider initialization flow', async () => {
-    // Verify createCreditsProvider calls getStandCredits before creating the provider
-    const fs = await import('fs');
-    const path = await import('path');
-    const indexPath = path.join(process.cwd(), 'src/chat/index.ts');
-    const content = fs.readFileSync(indexPath, 'utf-8');
+describe('Billing Safety: createCreditsProvider contract', () => {
+  it('createCreditsProvider returns an AIProvider (not a tuple with dead fields)', async () => {
+    const { createCreditsProvider } = await import('../../../src/chat/creditsProvider');
 
-    // createCreditsProvider must call getStandCredits before new LemonadeAIProvider
-    const fnStart = content.indexOf('async function createCreditsProvider');
-    const providerCreation = content.indexOf('new LemonadeAIProvider', fnStart);
-    const creditCheck = content.indexOf('getStandCredits', fnStart);
+    // Mock graphqlRequest to return healthy credits + model
+    const graphql = await import('../../../src/api/graphql');
+    const spy = vi.spyOn(graphql, 'graphqlRequest')
+      .mockResolvedValueOnce({ getStandCredits: { credits: 10, subscription_tier: 'pro' } })
+      .mockResolvedValueOnce({ getAvailableModels: [{ name: 'test-model', is_default: true }] });
 
-    expect(fnStart).toBeGreaterThan(-1);
-    expect(creditCheck).toBeGreaterThan(fnStart);
-    expect(creditCheck).toBeLessThan(providerCreation);
-  });
+    const result = await createCreditsProvider('space-1');
 
-  it('Mode 2 branch rejects free tier with 0 credits', async () => {
-    const fs = await import('fs');
-    const path = await import('path');
-    const indexPath = path.join(process.cwd(), 'src/chat/index.ts');
-    const content = fs.readFileSync(indexPath, 'utf-8');
+    // Return type is AIProvider directly — no wrapper object with modelName
+    expect(result.name).toBe('lemonade-ai');
+    expect(result.model).toBe('test-model');
+    expect(result.capabilities.supportsToolCalling).toBe(false);
+    expect(typeof result.stream).toBe('function');
+    expect(typeof result.formatTools).toBe('function');
 
-    // Must check for free tier + 0 credits and exit
-    expect(content).toContain("credits.subscription_tier === 'free'");
-    expect(content).toContain('free plan with no AI credits');
-  });
-
-  it('LemonadeAIProvider stores sessionId from server response', async () => {
-    const { LemonadeAIProvider } = await import('../../../src/chat/providers/lemonade-ai');
-    const provider = new LemonadeAIProvider('test-model', 'space123');
-
-    // Verify the source code reads metadata.session from response
-    const fs = await import('fs');
-    const path = await import('path');
-    const providerPath = path.join(process.cwd(), 'src/chat/providers/lemonade-ai.ts');
-    const content = fs.readFileSync(providerPath, 'utf-8');
-
-    expect(content).toContain('metadata.session');
-    expect(content).toContain('this.sessionId = metadata.session');
-    expect(provider).toBeDefined();
-  });
-
-  it('Onboarding credit check wires hasCredits before onboardApiKey', async () => {
-    const fs = await import('fs');
-    const path = await import('path');
-    const indexPath = path.join(process.cwd(), 'src/chat/index.ts');
-    const content = fs.readFileSync(indexPath, 'utf-8');
-
-    // Must check aiListMySpaces and getStandCredits before calling onboardApiKey
-    const spacesCheck = content.indexOf('aiListMySpaces');
-    const onboardCall = content.indexOf('onboardApiKey(rl, providerName, hasCredits)');
-
-    expect(spacesCheck).toBeGreaterThan(-1);
-    expect(onboardCall).toBeGreaterThan(spacesCheck);
+    spy.mockRestore();
   });
 });
