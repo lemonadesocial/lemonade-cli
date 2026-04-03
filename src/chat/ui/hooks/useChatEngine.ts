@@ -37,6 +37,35 @@ export interface UseChatEngineResult {
   resetStreaming: () => void;
 }
 
+/**
+ * Compute turn-index adjustments needed after a message removal.
+ * Pure function — no side effects. Caller applies returned mutations to the Map.
+ */
+export function computeIndexAdjustments(
+  turnIndex: ReadonlyMap<string, number>,
+  removedIdx: number,
+): { updates: [string, number][]; deletes: string[] } {
+  const updates: [string, number][] = [];
+  const deletes: string[] = [];
+  for (const [tid, tIdx] of turnIndex) {
+    if (tIdx > removedIdx) {
+      updates.push([tid, tIdx - 1]);
+    } else if (tIdx === removedIdx) {
+      deletes.push(tid);
+    }
+  }
+  return { updates, deletes };
+}
+
+/** Apply the result of computeIndexAdjustments to a mutable Map. */
+function applyIndexAdjustments(
+  turnIndex: Map<string, number>,
+  adj: { updates: [string, number][]; deletes: string[] },
+): void {
+  for (const [tid, newIdx] of adj.updates) turnIndex.set(tid, newIdx);
+  for (const tid of adj.deletes) turnIndex.delete(tid);
+}
+
 export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -65,6 +94,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
         if (tid === 'main') setIsStreaming(true);
       }
 
+      let createdAtIndex = -1;
       setMessages((prev) => {
         const existingIdx = turnMessageIndex.current.get(tid);
         if (existingIdx !== undefined && existingIdx < prev.length && prev[existingIdx]?.role === 'assistant') {
@@ -75,13 +105,17 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
         }
         const newMsg: UIMessage = { role: 'assistant', content: data.text, turnId: tid === 'main' ? undefined : tid };
         const newArr = [...prev, newMsg];
-        turnMessageIndex.current.set(tid, newArr.length - 1);
+        createdAtIndex = newArr.length - 1;
         return newArr;
       });
+      if (createdAtIndex !== -1) {
+        turnMessageIndex.current.set(tid, createdAtIndex);
+      }
     };
 
     const onToolStart = (data: { id: string; name: string; turnId?: string }) => {
       const tid = data.turnId || 'main';
+      let createdAtIndex = -1;
       setMessages((prev) => {
         const updated = [...prev];
         let idx = turnMessageIndex.current.get(tid);
@@ -89,7 +123,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
           const newMsg: UIMessage = { role: 'assistant', content: '', tools: [], turnId: tid === 'main' ? undefined : tid };
           updated.push(newMsg);
           idx = updated.length - 1;
-          turnMessageIndex.current.set(tid, idx);
+          createdAtIndex = idx;
         }
         const msg = updated[idx];
         const tools = [...(msg.tools || [])];
@@ -97,6 +131,9 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
         updated[idx] = { ...msg, tools };
         return updated;
       });
+      if (createdAtIndex !== -1) {
+        turnMessageIndex.current.set(tid, createdAtIndex);
+      }
     };
 
     const onToolDone = (data: { id: string; name: string; result?: unknown; error?: string; turnId?: string }) => {
@@ -178,30 +215,28 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   }, []);
 
   const removeMessageById = useCallback((id: string) => {
+    let removedIdx = -1;
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.msgId === id);
       if (idx === -1) return prev;
+      // msgId is only assigned by addUserMessage (role: 'user'). A mismatch
+      // here means the messages array was corrupted — fail loudly.
       if (prev[idx].role !== 'user') {
-        // Finding 3: role mismatch — surface the divergence instead of hiding it
-        console.warn(
-          `[useChatEngine] removeMessageById: target ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — skipping removal`,
+        throw new Error(
+          `[useChatEngine] removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — aborting (state corruption)`,
         );
-        return prev;
       }
+      removedIdx = idx;
       const next = [...prev];
       next.splice(idx, 1);
-      // Shift turnMessageIndex entries that pointed after the removed position
-      for (const [tid, tIdx] of turnMessageIndex.current) {
-        if (tIdx > idx) {
-          turnMessageIndex.current.set(tid, tIdx - 1);
-        } else if (tIdx === idx) {
-          // The tracked assistant message was at the same index as the removed
-          // user message — this shouldn't happen but clear the stale entry
-          turnMessageIndex.current.delete(tid);
-        }
-      }
       return next;
     });
+    if (removedIdx !== -1) {
+      applyIndexAdjustments(
+        turnMessageIndex.current,
+        computeIndexAdjustments(turnMessageIndex.current, removedIdx),
+      );
+    }
   }, []);
 
   const addSystemMessage = useCallback((text: string) => {

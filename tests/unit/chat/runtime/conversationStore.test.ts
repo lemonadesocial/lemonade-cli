@@ -441,9 +441,6 @@ describe('ConversationStore + handleTurn integration', () => {
     const idx = store.commitTurnUserMessage('will fail immediately');
     expect(store.length).toBe(2);
 
-    // Simulate provider.stream() throwing synchronously
-    const providerError = new Error('invalid API key');
-
     // Catch block rollback — must work without any deferred/async dependency
     expect(store.rollbackTurnUserMessage(idx)).toBe(true);
     expect(store.length).toBe(1);
