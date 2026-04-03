@@ -125,6 +125,52 @@ describe('ConversationStore', () => {
     expect(store.turnActive).toBe(false);
   });
 
+  it('user message committed after beginTurn can be rolled back on failure', () => {
+    const store = new ConversationStore();
+
+    // Simulate the App.tsx pattern: beginTurn → push user message → failure
+    const token = store.beginTurn();
+    const msgs = store.getMutableRef();
+    msgs.push({ role: 'user', content: 'will fail' });
+    expect(store.length).toBe(1);
+
+    // Simulate early failure (e.g. buildSystemMessages throws)
+    // Rollback: pop the user message if it's still the last entry
+    const last = msgs[msgs.length - 1];
+    if (last && last.role === 'user' && last.content === 'will fail') {
+      msgs.pop();
+    }
+    store.endTurn(token);
+
+    // Store should be clean — no orphaned user message
+    expect(store.length).toBe(0);
+    expect(store.turnActive).toBe(false);
+
+    // Subsequent turns work normally
+    store.addUserMessage('real message');
+    expect(store.length).toBe(1);
+    const t2 = store.beginTurn();
+    store.endTurn(t2);
+  });
+
+  it('rollback does not remove assistant message if provider already responded', () => {
+    const store = new ConversationStore();
+    const token = store.beginTurn();
+    const msgs = store.getMutableRef();
+    msgs.push({ role: 'user', content: 'input' });
+    // Simulate provider appending an assistant message
+    msgs.push({ role: 'assistant', content: 'partial response' });
+
+    // Late error — last message is assistant, not user → no rollback
+    const last = msgs[msgs.length - 1];
+    const shouldRollback = last && last.role === 'user' && last.content === 'input';
+    expect(shouldRollback).toBe(false);
+
+    store.endTurn(token);
+    // Both messages remain
+    expect(store.length).toBe(2);
+  });
+
   it('addUserMessage throws during active turn', () => {
     const store = new ConversationStore();
     store.addUserMessage('before turn');

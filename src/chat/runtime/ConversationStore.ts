@@ -48,6 +48,13 @@ export class ConversationStore {
   /**
    * Mark the end of a turn. Only releases if the given token matches the
    * active turn — a stale finally from an older turn is a silent no-op.
+   *
+   * Two call-sites may invoke endTurn for the same token:
+   *   1. The handleSubmit finally block (normal/error path).
+   *   2. The Escape key handler (eager cancellation).
+   * The token comparison guarantees exactly-once semantics: whichever site
+   * runs first clears _activeTurnToken; the other becomes a no-op because
+   * the token no longer matches.
    */
   endTurn(token: number): void {
     if (this._activeTurnToken !== token) return;

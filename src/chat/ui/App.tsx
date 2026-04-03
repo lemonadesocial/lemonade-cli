@@ -1078,16 +1078,22 @@ export function App({
     // Regular message: send to AI
     addUserMessage(input);
     setShowThinking(true);
-    conversationStore.addUserMessage(input);
-
-    const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
-    const abort = new AbortController();
-    streamAbortRef.current = abort;
 
     let token: number | undefined;
+    let userMessageCommitted = false;
     try {
+      // Acquire turn lock BEFORE committing the user message to the store.
+      // This ensures a failure in beginTurn() or early setup cannot orphan a
+      // user message in provider history without a matching assistant response.
       token = conversationStore.beginTurn();
       turnTokenRef.current = token;
+
+      conversationStore.getMutableRef().push({ role: 'user', content: input });
+      userMessageCommitted = true;
+
+      const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
+      const abort = new AbortController();
+      streamAbortRef.current = abort;
 
       await handleTurn(
         provider,
@@ -1102,6 +1108,16 @@ export function App({
         abort.signal,
       );
     } catch (err) {
+      // Rollback: if the user message was committed but handleTurn never ran
+      // (or threw synchronously before the provider touched history), remove
+      // it so the store does not contain an unanswered user message.
+      if (userMessageCommitted && token !== undefined) {
+        const msgs = conversationStore.getMutableRef();
+        const last = msgs[msgs.length - 1];
+        if (last && last.role === 'user' && last.content === input) {
+          msgs.pop();
+        }
+      }
       const msg = err instanceof Error ? err.message : 'Unknown error';
       if (msg.includes('context length') || msg.includes('too many tokens')) {
         addSystemMessage('Error: Session is too long. Start a new session: exit and run make-lemonade again.');
@@ -1109,6 +1125,14 @@ export function App({
         addSystemMessage(`Error: ${msg}`);
       }
     } finally {
+      // Turn cleanup. Two sites release the turn lock:
+      //   1. HERE (finally) — normal completion or error during handleTurn.
+      //   2. Escape handler — user cancels mid-stream, which aborts and
+      //      releases the lock immediately for responsiveness.
+      // The token comparison (turnTokenRef.current === token) ensures that
+      // only the matching site releases — if Escape already cleared the ref,
+      // this finally is a no-op, and vice versa. A stale token from an
+      // earlier turn can never accidentally release a later turn.
       if (token !== undefined && turnTokenRef.current === token) {
         conversationStore.endTurn(token);
         turnTokenRef.current = null;
@@ -1194,6 +1218,9 @@ export function App({
         streamAbortRef.current = null;
         setShowThinking(false);
         resetStreaming();
+        // Release the turn lock eagerly on Escape. The handleSubmit finally
+        // block also attempts endTurn — the token comparison ensures only one
+        // site actually releases. See the matching comment in handleSubmit.
         const activeToken = turnTokenRef.current;
         if (activeToken !== null) {
           conversationStore.endTurn(activeToken);
