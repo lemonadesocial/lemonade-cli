@@ -1,9 +1,13 @@
 import OpenAI from 'openai';
-import { AIProvider, StreamEvent, ToolDef, SystemMessage, Message } from './interface.js';
+import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef, SystemMessage, Message } from './interface.js';
 import { buildJsonSchema } from '../tools/schema.js';
 
 export class OpenAIProvider implements AIProvider {
   name = 'openai';
+  capabilities: ProviderCapabilities = {
+    supportsToolCalling: true,
+    supportsAbortSignal: true,
+  };
   private client: OpenAI;
   model: string;
 
@@ -23,12 +27,7 @@ export class OpenAIProvider implements AIProvider {
     }));
   }
 
-  async *stream(params: {
-    systemPrompt: SystemMessage[];
-    messages: Message[];
-    tools: unknown[];
-    maxTokens: number;
-  }): AsyncIterable<StreamEvent> {
+  async *stream(params: StreamParams): AsyncIterable<StreamEvent> {
     const systemContent = params.systemPrompt.map((s) => s.text).join('\n\n');
     const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemContent },
@@ -85,13 +84,21 @@ export class OpenAIProvider implements AIProvider {
       }
     }
 
-    const stream = await this.client.chat.completions.create({
-      model: this.model,
-      messages: openaiMessages,
-      tools: params.tools as OpenAI.ChatCompletionTool[],
-      max_tokens: params.maxTokens,
-      stream: true,
-    });
+    const createOpts: OpenAI.RequestOptions = {};
+    if (params.signal) {
+      createOpts.signal = params.signal;
+    }
+
+    const stream = await this.client.chat.completions.create(
+      {
+        model: this.model,
+        messages: openaiMessages,
+        tools: params.tools as OpenAI.ChatCompletionTool[],
+        max_tokens: params.maxTokens,
+        stream: true,
+      },
+      createOpts,
+    );
 
     const toolCallAccumulators: Map<number, {
       id: string;

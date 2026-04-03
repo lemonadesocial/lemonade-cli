@@ -33,16 +33,28 @@ export interface SystemMessage {
   cache_control?: { type: 'ephemeral' };
 }
 
+export interface ProviderCapabilities {
+  /** Whether this provider supports local tool-calling (tool_call events + tool_use stop reason). */
+  supportsToolCalling: boolean;
+  /** Whether this provider honours the abort signal passed to stream(). */
+  supportsAbortSignal: boolean;
+}
+
+export interface StreamParams {
+  systemPrompt: SystemMessage[];
+  messages: Message[];
+  tools: unknown[];
+  maxTokens: number;
+  /** Abort signal — providers that declare supportsAbortSignal should use this to cancel in-flight requests. */
+  signal?: AbortSignal;
+}
+
 export interface AIProvider {
   name: string;
   model: string;
+  capabilities: ProviderCapabilities;
   formatTools(tools: ToolDef[]): unknown[];
-  stream(params: {
-    systemPrompt: SystemMessage[];
-    messages: Message[];
-    tools: unknown[];
-    maxTokens: number;
-  }): AsyncIterable<StreamEvent>;
+  stream(params: StreamParams): AsyncIterable<StreamEvent>;
 }
 
 export interface ToolParam {

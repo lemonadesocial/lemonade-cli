@@ -49,8 +49,10 @@ export async function handleTurn(
 ): Promise<void> {
 
   let finalUsage: { input_tokens: number; output_tokens: number } | undefined;
+  const canUseTool = provider.capabilities?.supportsToolCalling !== false;
+  const maxIterations = canUseTool ? MAX_TOOL_ITERATIONS : 1;
 
-  for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
+  for (let iteration = 0; iteration < maxIterations; iteration++) {
     if (iteration > 0 && engine) {
       engine.emit('thinking_start', { turnId });
     }
@@ -66,6 +68,7 @@ export async function handleTurn(
         messages,
         tools: formattedTools,
         maxTokens: 4096,
+        signal,
       });
 
       for await (const event of events) {
@@ -86,7 +89,7 @@ export async function handleTurn(
             break;
 
           case 'tool_call':
-            if (event.toolCall) {
+            if (event.toolCall && canUseTool) {
               toolCalls.push(event.toolCall);
             }
             break;

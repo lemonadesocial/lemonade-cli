@@ -1,9 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { AIProvider, StreamEvent, ToolDef, SystemMessage, Message } from './interface.js';
+import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef, SystemMessage, Message } from './interface.js';
 import { buildJsonSchema } from '../tools/schema.js';
 
 export class AnthropicProvider implements AIProvider {
   name = 'anthropic';
+  capabilities: ProviderCapabilities = {
+    supportsToolCalling: true,
+    supportsAbortSignal: true,
+  };
   private client: Anthropic;
   model: string;
 
@@ -20,19 +24,22 @@ export class AnthropicProvider implements AIProvider {
     }));
   }
 
-  async *stream(params: {
-    systemPrompt: SystemMessage[];
-    messages: Message[];
-    tools: unknown[];
-    maxTokens: number;
-  }): AsyncIterable<StreamEvent> {
-    const stream = this.client.messages.stream({
-      model: this.model,
-      system: params.systemPrompt as Anthropic.MessageCreateParams['system'],
-      messages: params.messages as Anthropic.MessageParam[],
-      tools: params.tools as Anthropic.Tool[],
-      max_tokens: params.maxTokens,
-    });
+  async *stream(params: StreamParams): AsyncIterable<StreamEvent> {
+    const requestOpts: Anthropic.RequestOptions = {};
+    if (params.signal) {
+      requestOpts.signal = params.signal;
+    }
+
+    const stream = this.client.messages.stream(
+      {
+        model: this.model,
+        system: params.systemPrompt as Anthropic.MessageCreateParams['system'],
+        messages: params.messages as Anthropic.MessageParam[],
+        tools: params.tools as Anthropic.Tool[],
+        max_tokens: params.maxTokens,
+      },
+      requestOpts,
+    );
 
     for await (const event of stream) {
       if (event.type === 'content_block_delta') {

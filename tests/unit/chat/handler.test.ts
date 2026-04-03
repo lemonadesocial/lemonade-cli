@@ -3,10 +3,15 @@ import { handleTurn } from '../../../src/chat/stream/handler';
 import { AIProvider, StreamEvent, Message, ToolDef, SystemMessage } from '../../../src/chat/providers/interface';
 import { createSessionState } from '../../../src/chat/session/state';
 
-function createMockProvider(responses: StreamEvent[][]): AIProvider {
+function createMockProvider(
+  responses: StreamEvent[][],
+  overrides?: Partial<AIProvider>,
+): AIProvider {
   let callIndex = 0;
   return {
     name: 'mock',
+    model: 'mock-model',
+    capabilities: { supportsToolCalling: true, supportsAbortSignal: false },
     formatTools: (tools) => tools,
     async *stream() {
       const events = responses[callIndex] || [];
@@ -15,6 +20,7 @@ function createMockProvider(responses: StreamEvent[][]): AIProvider {
         yield event;
       }
     },
+    ...overrides,
   };
 }
 
@@ -101,6 +107,106 @@ describe('handleTurn', () => {
     expect(messages[2].role).toBe('user'); // tool results
     expect(messages[3].role).toBe('assistant');
     expect(tool.execute).toHaveBeenCalled();
+  });
+
+  it('ignores tool_call events from a non-tool-calling provider', async () => {
+    const tool = mockTool();
+    const registry = { test_tool: tool };
+
+    const provider = createMockProvider(
+      [
+        [
+          { type: 'text_delta', text: 'Here is the answer.' },
+          { type: 'tool_call', toolCall: { id: 'tc1', name: 'test_tool', arguments: {} } },
+          { type: 'done', stopReason: 'tool_use' },
+        ],
+      ],
+      { capabilities: { supportsToolCalling: false, supportsAbortSignal: false } },
+    );
+
+    const messages: Message[] = [{ role: 'user', content: 'do something' }];
+
+    await handleTurn(
+      provider,
+      messages,
+      [],
+      systemPrompt,
+      session,
+      registry,
+      null,
+      false,
+    );
+
+    // Only user + assistant text — no tool execution, no second API call
+    expect(messages).toHaveLength(2);
+    expect(messages[1].role).toBe('assistant');
+    expect(tool.execute).not.toHaveBeenCalled();
+  });
+
+  it('limits non-tool-calling provider to a single iteration', async () => {
+    const provider = createMockProvider(
+      [
+        [
+          { type: 'text_delta', text: 'Response' },
+          { type: 'done', stopReason: 'end_turn' },
+        ],
+        // This second response should never be reached
+        [
+          { type: 'text_delta', text: 'Should not appear' },
+          { type: 'done', stopReason: 'end_turn' },
+        ],
+      ],
+      { capabilities: { supportsToolCalling: false, supportsAbortSignal: false } },
+    );
+
+    const messages: Message[] = [{ role: 'user', content: 'hi' }];
+
+    await handleTurn(
+      provider,
+      messages,
+      [],
+      systemPrompt,
+      session,
+      {},
+      null,
+      false,
+    );
+
+    expect(messages).toHaveLength(2);
+    expect(messages[1].role).toBe('assistant');
+  });
+
+  it('forwards signal to provider.stream()', async () => {
+    const abort = new AbortController();
+    let receivedSignal: AbortSignal | undefined;
+
+    const provider: AIProvider = {
+      name: 'signal-test',
+      model: 'test',
+      capabilities: { supportsToolCalling: true, supportsAbortSignal: true },
+      formatTools: (tools) => tools,
+      async *stream(params) {
+        receivedSignal = params.signal;
+        yield { type: 'text_delta' as const, text: 'ok' };
+        yield { type: 'done' as const, stopReason: 'end_turn' as const };
+      },
+    };
+
+    const messages: Message[] = [{ role: 'user', content: 'hi' }];
+    await handleTurn(
+      provider,
+      messages,
+      [],
+      systemPrompt,
+      session,
+      {},
+      null,
+      false,
+      undefined,
+      abort.signal,
+    );
+
+    expect(receivedSignal).toBe(abort.signal);
   });
 
   it('handles token usage warning', async () => {

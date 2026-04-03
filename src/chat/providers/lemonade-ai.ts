@@ -1,4 +1,4 @@
-import { AIProvider, StreamEvent, ToolDef, SystemMessage, Message } from './interface.js';
+import { AIProvider, ProviderCapabilities, StreamEvent, StreamParams, ToolDef, SystemMessage, Message } from './interface.js';
 import { buildJsonSchema } from '../tools/schema.js';
 import { getAuthHeader } from '../../auth/store.js';
 
@@ -8,6 +8,10 @@ function getLemonadeAiUrl(): string {
 
 export class LemonadeAIProvider implements AIProvider {
   name = 'lemonade-ai';
+  capabilities: ProviderCapabilities = {
+    supportsToolCalling: false,
+    supportsAbortSignal: true,
+  };
   model: string;
   private standId: string;
   private sessionId: string | null = null;
@@ -25,12 +29,7 @@ export class LemonadeAIProvider implements AIProvider {
     }));
   }
 
-  async *stream(params: {
-    systemPrompt: SystemMessage[];
-    messages: Message[];
-    tools: unknown[];
-    maxTokens: number;
-  }): AsyncIterable<StreamEvent> {
+  async *stream(params: StreamParams): AsyncIterable<StreamEvent> {
     const auth = getAuthHeader();
     if (!auth) {
       yield { type: 'text_delta', text: 'Not authenticated. Run "lemonade auth login" first.' };
@@ -65,7 +64,9 @@ export class LemonadeAIProvider implements AIProvider {
           standId: this.standId,
         },
       }),
-      signal: AbortSignal.timeout(60_000),
+      signal: params.signal
+        ? AbortSignal.any([params.signal, AbortSignal.timeout(60_000)])
+        : AbortSignal.timeout(60_000),
     });
 
     if (!response.ok) {
