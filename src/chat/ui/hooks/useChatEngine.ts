@@ -14,6 +14,8 @@ export interface UIMessage {
   content: string;
   tools?: ToolStatus[];
   turnId?: string;
+  /** Stable identity for rollback targeting. Present on user messages added via addUserMessage. */
+  msgId?: string;
 }
 
 export interface ConfirmRequest {
@@ -27,8 +29,8 @@ export interface UseChatEngineResult {
   isThinking: boolean;
   pendingConfirm: ConfirmRequest | null;
   tokenCount: number;
-  addUserMessage: (text: string, idxRef?: MutableRefObject<number | null>) => void;
-  removeMessageAt: (idx: number) => void;
+  addUserMessage: (text: string, idRef?: MutableRefObject<string | null>) => void;
+  removeMessageById: (id: string) => void;
   addSystemMessage: (text: string) => void;
   clearMessages: () => void;
   confirmAction: (id: string, confirmed: boolean) => void;
@@ -45,6 +47,8 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   // Track per-turn message indices and active turns
   const turnMessageIndex = useRef<Map<string, number>>(new Map());
   const activeTurns = useRef<Set<string>>(new Set());
+  // Monotonic counter for stable UI message IDs — synchronous, no React flush dependency
+  const nextMsgIdRef = useRef(1);
 
   useEffect(() => {
     const onThinkingStart = (data: { turnId?: string }) => {
@@ -165,18 +169,37 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     };
   }, [engine]);
 
-  const addUserMessage = useCallback((text: string, idxRef?: MutableRefObject<number | null>) => {
-    setMessages((prev) => {
-      if (idxRef) idxRef.current = prev.length;
-      return [...prev, { role: 'user', content: text }];
-    });
+  const addUserMessage = useCallback((text: string, idRef?: MutableRefObject<string | null>) => {
+    // Generate a stable ID synchronously so the caller has a rollback handle
+    // immediately — no dependency on React flushing the state updater.
+    const msgId = `umsg-${nextMsgIdRef.current++}`;
+    if (idRef) idRef.current = msgId;
+    setMessages((prev) => [...prev, { role: 'user', content: text, msgId }]);
   }, []);
 
-  const removeMessageAt = useCallback((idx: number) => {
+  const removeMessageById = useCallback((id: string) => {
     setMessages((prev) => {
-      if (idx < 0 || idx >= prev.length || prev[idx].role !== 'user') return prev;
+      const idx = prev.findIndex((m) => m.msgId === id);
+      if (idx === -1) return prev;
+      if (prev[idx].role !== 'user') {
+        // Finding 3: role mismatch — surface the divergence instead of hiding it
+        console.warn(
+          `[useChatEngine] removeMessageById: target ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — skipping removal`,
+        );
+        return prev;
+      }
       const next = [...prev];
       next.splice(idx, 1);
+      // Shift turnMessageIndex entries that pointed after the removed position
+      for (const [tid, tIdx] of turnMessageIndex.current) {
+        if (tIdx > idx) {
+          turnMessageIndex.current.set(tid, tIdx - 1);
+        } else if (tIdx === idx) {
+          // The tracked assistant message was at the same index as the removed
+          // user message — this shouldn't happen but clear the stale entry
+          turnMessageIndex.current.delete(tid);
+        }
+      }
       return next;
     });
   }, []);
@@ -211,7 +234,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     pendingConfirm,
     tokenCount,
     addUserMessage,
-    removeMessageAt,
+    removeMessageById,
     addSystemMessage,
     clearMessages,
     confirmAction,

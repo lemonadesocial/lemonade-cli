@@ -228,7 +228,7 @@ export function App({
     pendingConfirm,
     tokenCount,
     addUserMessage,
-    removeMessageAt,
+    removeMessageById,
     addSystemMessage,
     clearMessages,
     confirmAction,
@@ -245,7 +245,7 @@ export function App({
   const streamAbortRef = useRef<AbortController | null>(null);
   const turnTokenRef = useRef<number | null>(null);
   const pendingUserMsgIdxRef = useRef<number | null>(null);
-  const pendingUIMsgIdxRef = useRef<number | null>(null);
+  const pendingUIMsgIdRef = useRef<string | null>(null);
   const btwAbortsRef = useRef<Map<string, AbortController>>(new Map());
 
   // Reactive terminal width
@@ -1101,7 +1101,7 @@ export function App({
       // Only add to UI after store commit succeeds — keeps both surfaces in
       // sync. The idxRef captures the UI insertion index so rollback can
       // target the exact position rather than scanning by role.
-      addUserMessage(input, pendingUIMsgIdxRef);
+      addUserMessage(input, pendingUIMsgIdRef);
 
       const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
 
@@ -1123,11 +1123,11 @@ export function App({
       // surface contains an orphaned user message.
       if (userMsgIdx !== null) {
         if (conversationStore.rollbackTurnUserMessage(userMsgIdx)) {
-          const uiIdx = pendingUIMsgIdxRef.current;
-          if (uiIdx !== null) removeMessageAt(uiIdx);
+          const uiId = pendingUIMsgIdRef.current;
+          if (uiId !== null) removeMessageById(uiId);
         }
         pendingUserMsgIdxRef.current = null;
-        pendingUIMsgIdxRef.current = null;
+        pendingUIMsgIdRef.current = null;
       }
       const msg = err instanceof Error ? err.message : 'Unknown error';
       if (msg.includes('context length') || msg.includes('too many tokens')) {
@@ -1149,10 +1149,10 @@ export function App({
       }
       streamAbortRef.current = null;
       pendingUserMsgIdxRef.current = null;
-      pendingUIMsgIdxRef.current = null;
+      pendingUIMsgIdRef.current = null;
       setShowThinking(false);
     }
-  }, [engine, provider, formattedTools, session, registry, conversationStore, addUserMessage, removeMessageAt, addSystemMessage, clearMessages, exit]);
+  }, [engine, provider, formattedTools, session, registry, conversationStore, addUserMessage, removeMessageById, addSystemMessage, clearMessages, exit]);
 
   // History navigation callbacks
   const handleHistoryUp = useCallback(() => {
@@ -1231,16 +1231,16 @@ export function App({
         setShowThinking(false);
         resetStreaming();
         // Roll back the pending user message if no assistant reply was committed.
-        // Uses index-based removal aligned with the store's positional rollback
-        // so both surfaces target the same message deliberately.
+        // Uses ID-based removal so splicing a message never invalidates BTW
+        // turn indices that reference later positions.
         const pendingIdx = pendingUserMsgIdxRef.current;
         if (pendingIdx !== null) {
           if (conversationStore.rollbackTurnUserMessage(pendingIdx)) {
-            const uiIdx = pendingUIMsgIdxRef.current;
-            if (uiIdx !== null) removeMessageAt(uiIdx);
+            const uiId = pendingUIMsgIdRef.current;
+            if (uiId !== null) removeMessageById(uiId);
           }
           pendingUserMsgIdxRef.current = null;
-          pendingUIMsgIdxRef.current = null;
+          pendingUIMsgIdRef.current = null;
         }
         // Release the turn lock eagerly on Escape. The handleSubmit finally
         // block also attempts endTurn — the token comparison ensures only one

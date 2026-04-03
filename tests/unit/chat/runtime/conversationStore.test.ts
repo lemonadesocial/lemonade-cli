@@ -432,6 +432,74 @@ describe('ConversationStore + handleTurn integration', () => {
     expect(store.length).toBe(0);
   });
 
+  it('immediate provider failure: rollback succeeds before any async work', () => {
+    // Simulates Finding 1: provider throws synchronously after commitTurnUserMessage
+    // but before any React flush or async stream event.
+    const store = new ConversationStore();
+    store.addUserMessage('context');
+    const token = store.beginTurn();
+    const idx = store.commitTurnUserMessage('will fail immediately');
+    expect(store.length).toBe(2);
+
+    // Simulate provider.stream() throwing synchronously
+    const providerError = new Error('invalid API key');
+
+    // Catch block rollback — must work without any deferred/async dependency
+    expect(store.rollbackTurnUserMessage(idx)).toBe(true);
+    expect(store.length).toBe(1);
+    expect(store.getMutableRef()[0].content).toBe('context');
+
+    store.endTurn(token);
+    expect(store.turnActive).toBe(false);
+  });
+
+  it('rollback with concurrent BTW: store indices unaffected by main-turn rollback', () => {
+    // Simulates Finding 2: a BTW turn runs on a snapshot, so the main store's
+    // rollback cannot invalidate BTW indices. This test verifies the main store
+    // stays internally consistent when a rollback occurs while a BTW snapshot
+    // exists independently.
+    const store = new ConversationStore();
+    store.addUserMessage('prior context');
+
+    // Snapshot for BTW (isolated copy)
+    const snapshot = store.getSnapshot();
+    snapshot.push({ role: 'user', content: 'btw question' });
+    expect(snapshot.length).toBe(2);
+
+    // Main turn begins and immediately fails
+    const token = store.beginTurn();
+    const idx = store.commitTurnUserMessage('main input');
+    expect(store.length).toBe(2);
+
+    // Rollback main turn
+    expect(store.rollbackTurnUserMessage(idx)).toBe(true);
+    expect(store.length).toBe(1);
+
+    // BTW snapshot is completely unaffected
+    expect(snapshot.length).toBe(2);
+    expect(snapshot[1].content).toBe('btw question');
+
+    store.endTurn(token);
+  });
+
+  it('rollbackTurnUserMessage on non-user-role message returns false', () => {
+    // Finding 3: if the message at the rollback index isn't a user message,
+    // the rollback must not silently succeed.
+    const store = new ConversationStore();
+    const token = store.beginTurn();
+    const idx = store.commitTurnUserMessage('input');
+    // Simulate provider appending an assistant message, then somehow the user
+    // message got replaced (corruption scenario)
+    const ref = store.getMutableRef();
+    ref[idx] = { role: 'assistant', content: 'replaced' };
+
+    // Rollback detects role mismatch and refuses
+    expect(store.rollbackTurnUserMessage(idx)).toBe(false);
+    expect(store.length).toBe(1);
+
+    store.endTurn(token);
+  });
+
   it('stale finally from aborted turn A cannot unlock turn B (race)', async () => {
     const store = new ConversationStore();
     store.addUserMessage('hello');
