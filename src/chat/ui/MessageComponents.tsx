@@ -7,7 +7,7 @@ import { VERSION } from '../version.js';
 import { MarkdownRenderer } from './MarkdownRenderer.js';
 import type { UIMessage, ToolStatus } from './hooks/useChatEngine.js';
 
-export const SPINNER_FRAMES = ['\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'];
+const SPINNER_FRAMES = ['\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'];
 
 export const TIPS = [
   'say "switch to my Berlin space"',
@@ -61,7 +61,7 @@ export function ThinkingSpinner(): React.JSX.Element {
   );
 }
 
-export function ToolSpinner({ name }: { name: string }): React.JSX.Element {
+function ToolSpinner({ name }: { name: string }): React.JSX.Element {
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
@@ -78,7 +78,7 @@ export function ToolSpinner({ name }: { name: string }): React.JSX.Element {
   );
 }
 
-export function ToolResultLine({ tool }: { tool: ToolStatus }): React.JSX.Element {
+function ToolResultLine({ tool }: { tool: ToolStatus }): React.JSX.Element {
   if (tool.status === 'running') {
     return <ToolSpinner name={tool.name} />;
   }

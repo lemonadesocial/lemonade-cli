@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 
-/** Pure history state logic — exported for testability. */
+/** Pure history state logic — used by the hook and directly testable. */
 
 export interface HistoryState {
   history: string[];
@@ -58,9 +58,6 @@ export function computeResetBrowsing(state: HistoryState): HistoryState {
 }
 
 export interface UseCommandHistoryResult {
-  commandHistory: string[];
-  historyIndex: number;
-  savedInput: string;
   /** Record a submitted input line into command history. */
   recordSubmit: (input: string) => void;
   handleHistoryUp: (currentInput: string) => string | null;
@@ -70,67 +67,29 @@ export interface UseCommandHistoryResult {
 }
 
 export function useCommandHistory(): UseCommandHistoryResult {
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [savedInput, setSavedInput] = useState('');
-
-  // Keep refs current so callbacks never read stale closure values
-  const commandHistoryRef = useRef(commandHistory);
-  commandHistoryRef.current = commandHistory;
-  const historyIndexRef = useRef(historyIndex);
-  historyIndexRef.current = historyIndex;
-  const savedInputRef = useRef(savedInput);
-  savedInputRef.current = savedInput;
+  const stateRef = useRef<HistoryState>(initHistoryState());
 
   const recordSubmit = useCallback((input: string) => {
-    setCommandHistory(prev => {
-      if (prev[prev.length - 1] === input) return prev;
-      return [...prev, input];
-    });
-    setHistoryIndex(-1);
-    setSavedInput('');
+    stateRef.current = computeRecordSubmit(stateRef.current, input);
   }, []);
 
   const handleHistoryUp = useCallback((currentInput: string): string | null => {
-    const history = commandHistoryRef.current;
-    const idx = historyIndexRef.current;
-    if (history.length === 0) return null;
-    let newIdx: number;
-    if (idx === -1) {
-      setSavedInput(currentInput);
-      newIdx = history.length - 1;
-    } else {
-      newIdx = Math.max(0, idx - 1);
-    }
-    setHistoryIndex(newIdx);
-    return history[newIdx];
+    const result = computeHistoryUp(stateRef.current, currentInput);
+    stateRef.current = result.state;
+    return result.value;
   }, []);
 
   const handleHistoryDown = useCallback((): string | null => {
-    const idx = historyIndexRef.current;
-    const history = commandHistoryRef.current;
-    const saved = savedInputRef.current;
-    if (idx === -1) return null;
-    const next = idx + 1;
-    if (next >= history.length) {
-      setHistoryIndex(-1);
-      return saved;
-    }
-    setHistoryIndex(next);
-    return history[next];
+    const result = computeHistoryDown(stateRef.current);
+    stateRef.current = result.state;
+    return result.value;
   }, []);
 
   const resetBrowsing = useCallback(() => {
-    if (historyIndexRef.current !== -1) {
-      setHistoryIndex(-1);
-      setSavedInput('');
-    }
+    stateRef.current = computeResetBrowsing(stateRef.current);
   }, []);
 
   return {
-    commandHistory,
-    historyIndex,
-    savedInput,
     recordSubmit,
     handleHistoryUp,
     handleHistoryDown,

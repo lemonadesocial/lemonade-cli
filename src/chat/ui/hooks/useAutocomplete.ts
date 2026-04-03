@@ -3,7 +3,7 @@ import { SLASH_COMMANDS } from '../SlashCommands.js';
 
 export const AC_MAX_VISIBLE = 6;
 
-/** Pure filtering logic — exported for testability. */
+/** Pure filtering logic — used by the hook and directly testable. */
 export function filterCommands(inputValue: string) {
   const showAutocomplete = inputValue.startsWith('/');
   const filteredCommands = showAutocomplete
@@ -12,7 +12,7 @@ export function filterCommands(inputValue: string) {
   return { showAutocomplete, filteredCommands };
 }
 
-/** Pure index navigation — exported for testability. */
+/** Pure index navigation — used by the hook and directly testable. */
 export function computeNavigateUp(currentIndex: number, count: number): number {
   return currentIndex <= 0 ? count - 1 : currentIndex - 1;
 }
@@ -40,9 +40,6 @@ export function useAutocomplete(inputValue: string): UseAutocompleteResult {
 
   const { showAutocomplete, filteredCommands } = filterCommands(inputValue);
 
-  // Keep refs current so callbacks never read stale closure values
-  const acScrollOffsetRef = useRef(acScrollOffset);
-  acScrollOffsetRef.current = acScrollOffset;
   const filteredCommandsRef = useRef(filteredCommands);
   filteredCommandsRef.current = filteredCommands;
   const acIndexRef = useRef(acIndex);
@@ -57,7 +54,7 @@ export function useAutocomplete(inputValue: string): UseAutocompleteResult {
   const navigateUp = useCallback(() => {
     setAcIndex((prev) => {
       const len = filteredCommandsRef.current.length;
-      const next = prev <= 0 ? len - 1 : prev - 1;
+      const next = computeNavigateUp(prev, len);
       setAcScrollOffset((prevOffset) => {
         if (next < prevOffset) return next;
         if (next >= prevOffset + AC_MAX_VISIBLE) return next - AC_MAX_VISIBLE + 1;
@@ -70,7 +67,7 @@ export function useAutocomplete(inputValue: string): UseAutocompleteResult {
   const navigateDown = useCallback(() => {
     setAcIndex((prev) => {
       const len = filteredCommandsRef.current.length;
-      const next = prev >= len - 1 ? 0 : prev + 1;
+      const next = computeNavigateDown(prev, len);
       setAcScrollOffset((prevOffset) => {
         if (next >= prevOffset + AC_MAX_VISIBLE) return next - AC_MAX_VISIBLE + 1;
         if (next < prevOffset) return next;
