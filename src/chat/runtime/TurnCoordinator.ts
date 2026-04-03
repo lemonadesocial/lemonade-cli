@@ -13,11 +13,9 @@ export interface TurnDeps {
   chatMessages: Message[];
 }
 
-export interface TurnSubmitResult {
-  accepted: boolean;
-  error?: string;
-  completion?: Promise<{ error?: string }>;
-}
+export type TurnSubmitResult =
+  | { accepted: true; completion: Promise<{ error?: string }> }
+  | { accepted: false; error: string };
 
 export interface TurnCoordinatorState {
   readonly isMainTurnActive: boolean;
@@ -26,14 +24,13 @@ export interface TurnCoordinatorState {
 
 export const MAIN_TURN_BUSY = 'Please wait for the current response to finish, or press Escape to cancel. Use /btw for side questions.';
 
-let btwCounter = 0;
-let mainTurnCounter = 0;
-
 export class TurnCoordinator {
   private deps: TurnDeps;
   private mainAbort: AbortController | null = null;
   private mainTurnActive = false;
   private mainTurnId = 0;
+  private mainTurnCounter = 0;
+  private btwCounter = 0;
   private mainTurnSettling: Promise<void> | null = null;
   private btwAborts = new Map<string, AbortController>();
 
@@ -61,7 +58,7 @@ export class TurnCoordinator {
 
     // Claim the turn synchronously — provides mutual exclusion during settling.
     this.mainTurnActive = true;
-    const turnId = ++mainTurnCounter;
+    const turnId = ++this.mainTurnCounter;
     this.mainTurnId = turnId;
     const abort = new AbortController();
     this.mainAbort = abort;
@@ -128,7 +125,7 @@ export class TurnCoordinator {
     snapshot.push({ role: 'user', content: input });
 
     const btwSession = { ...session };
-    const btwTurnId = `btw-${Date.now()}-${++btwCounter}`;
+    const btwTurnId = `btw-${Date.now()}-${++this.btwCounter}`;
     const btwSystemPrompt: SystemMessage[] = buildSystemMessages(btwSession, provider.name);
     btwSystemPrompt.push({
       type: 'text',
@@ -157,7 +154,7 @@ export class TurnCoordinator {
     if (this.mainAbort) {
       this.mainAbort.abort();
       // Advance turn ID so the old finally block won't clear state
-      this.mainTurnId = ++mainTurnCounter;
+      this.mainTurnId = ++this.mainTurnCounter;
       this.mainAbort = null;
       this.mainTurnActive = false;
       return true;

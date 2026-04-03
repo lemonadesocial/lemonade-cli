@@ -53,6 +53,7 @@ describe('TurnCoordinator', () => {
 
       const submit = tc.submitMainTurn();
       expect(submit.accepted).toBe(true);
+      if (!submit.accepted) return;
       await submit.completion;
 
       // TurnCoordinator must NOT push the user message
@@ -67,6 +68,7 @@ describe('TurnCoordinator', () => {
       const tc = new TurnCoordinator(deps);
 
       const submit = tc.submitMainTurn();
+      if (!submit.accepted) throw new Error('expected accepted');
       await submit.completion;
 
       expect(mockHandleTurn).toHaveBeenCalledWith(
@@ -87,7 +89,8 @@ describe('TurnCoordinator', () => {
       const tc = new TurnCoordinator(makeDeps());
       const submit = tc.submitMainTurn();
       expect(submit.accepted).toBe(true);
-      const result = await submit.completion!;
+      if (!submit.accepted) return;
+      const result = await submit.completion;
       expect(result.error).toBeUndefined();
     });
 
@@ -97,7 +100,8 @@ describe('TurnCoordinator', () => {
 
       const submit = tc.submitMainTurn();
       expect(submit.accepted).toBe(true);
-      const result = await submit.completion!;
+      if (!submit.accepted) return;
+      const result = await submit.completion;
       expect(result.error).toBe('Error: API down');
     });
 
@@ -107,7 +111,8 @@ describe('TurnCoordinator', () => {
 
       const submit = tc.submitMainTurn();
       expect(submit.accepted).toBe(true);
-      const result = await submit.completion!;
+      if (!submit.accepted) return;
+      const result = await submit.completion;
       expect(result.error).toContain('Session is too long');
     });
 
@@ -120,6 +125,7 @@ describe('TurnCoordinator', () => {
       const tc = new TurnCoordinator(makeDeps());
       const firstTurn = tc.submitMainTurn();
       expect(firstTurn.accepted).toBe(true);
+      if (!firstTurn.accepted) return;
 
       // State should be active
       expect(tc.state.isMainTurnActive).toBe(true);
@@ -127,6 +133,7 @@ describe('TurnCoordinator', () => {
       // Second turn should be rejected synchronously
       const result = tc.submitMainTurn();
       expect(result.accepted).toBe(false);
+      if (result.accepted) return;
       expect(result.error).toContain('Please wait');
       expect(mockHandleTurn).toHaveBeenCalledOnce();
 
@@ -142,6 +149,7 @@ describe('TurnCoordinator', () => {
 
       const submit = tc.submitMainTurn();
       expect(submit.accepted).toBe(true);
+      if (!submit.accepted) return;
       await submit.completion;
       expect(tc.state.isMainTurnActive).toBe(false);
     });
@@ -204,6 +212,7 @@ describe('TurnCoordinator', () => {
 
       const tc = new TurnCoordinator(makeDeps());
       const mainTurn = tc.submitMainTurn();
+      if (!mainTurn.accepted) throw new Error('expected accepted');
 
       // BTW should still work
       mockHandleTurn.mockResolvedValueOnce(undefined);
@@ -234,6 +243,7 @@ describe('TurnCoordinator', () => {
 
       const tc = new TurnCoordinator(makeDeps());
       const submit = tc.submitMainTurn();
+      if (!submit.accepted) throw new Error('expected accepted');
 
       // Wait for handleTurn to be called
       await vi.waitFor(() => expect(capturedSignal).toBeDefined());
@@ -301,6 +311,7 @@ describe('TurnCoordinator', () => {
 
       const tc = new TurnCoordinator(makeDeps());
       const mainSubmit = tc.submitMainTurn();
+      if (!mainSubmit.accepted) throw new Error('expected accepted');
 
       await vi.waitFor(() => expect(mainSignal).toBeDefined());
 
@@ -336,6 +347,7 @@ describe('TurnCoordinator', () => {
       tc.updateDeps(deps2);
 
       const submit = tc.submitMainTurn();
+      if (!submit.accepted) throw new Error('expected accepted');
       await submit.completion;
 
       expect(mockHandleTurn).toHaveBeenCalledWith(
@@ -360,6 +372,7 @@ describe('TurnCoordinator', () => {
       tc.updateDeps({ ...deps1, session: newSession });
 
       const submit = tc.submitMainTurn();
+      if (!submit.accepted) throw new Error('expected accepted');
       await submit.completion;
 
       const passedSession = mockHandleTurn.mock.calls[0][4];
@@ -380,6 +393,7 @@ describe('TurnCoordinator', () => {
 
       // Start first turn
       const oldSubmit = tc.submitMainTurn();
+      if (!oldSubmit.accepted) throw new Error('expected accepted');
       expect(tc.state.isMainTurnActive).toBe(true);
 
       // Cancel first turn — this advances the turn ID
@@ -394,6 +408,7 @@ describe('TurnCoordinator', () => {
       // Start second turn — accepted synchronously, awaits settling internally
       const newSubmit = tc.submitMainTurn();
       expect(newSubmit.accepted).toBe(true);
+      if (!newSubmit.accepted) return;
 
       // Settle the old turn so the new one can proceed
       resolveOldTurn();
@@ -424,6 +439,7 @@ describe('TurnCoordinator', () => {
 
       // Start first turn
       const oldSubmit = tc.submitMainTurn();
+      if (!oldSubmit.accepted) throw new Error('expected accepted');
       expect(tc.state.isMainTurnActive).toBe(true);
 
       // Cancel — sets mainTurnActive=false but old handleTurn hasn't settled
@@ -440,6 +456,7 @@ describe('TurnCoordinator', () => {
       // Start second turn — accepted synchronously, settling awaited internally
       const newSubmit = tc.submitMainTurn();
       expect(newSubmit.accepted).toBe(true);
+      if (!newSubmit.accepted) return;
 
       // Old turn hasn't settled yet, so new handleTurn must not have started
       expect(newTurnStarted).toBe(false);
@@ -465,6 +482,7 @@ describe('TurnCoordinator', () => {
 
       const tc = new TurnCoordinator(makeDeps({ chatMessages }));
       const oldSubmit = tc.submitMainTurn();
+      if (!oldSubmit.accepted) throw new Error('expected accepted');
 
       tc.cancelMainTurn();
 
@@ -475,6 +493,7 @@ describe('TurnCoordinator', () => {
       });
 
       const newSubmit = tc.submitMainTurn();
+      if (!newSubmit.accepted) throw new Error('expected accepted');
 
       // Settle old turn — settling gate ensures new turn hasn't started yet
       resolveOldTurn();
@@ -498,7 +517,7 @@ describe('TurnCoordinator', () => {
 
       // Start and cancel a turn to create a settling window
       const oldSubmit = tc.submitMainTurn();
-      expect(oldSubmit.accepted).toBe(true);
+      if (!oldSubmit.accepted) throw new Error('expected accepted');
       tc.cancelMainTurn();
 
       // Two calls during the settling window — only the first should be accepted
@@ -508,6 +527,8 @@ describe('TurnCoordinator', () => {
 
       expect(call1.accepted).toBe(true);
       expect(call2.accepted).toBe(false);
+      if (!call1.accepted) return;
+      if (call2.accepted) return;
       expect(call2.error).toContain('Please wait');
 
       // Only one additional handleTurn call should occur (the accepted one)
@@ -527,6 +548,7 @@ describe('TurnCoordinator', () => {
       const tc = new TurnCoordinator(deps);
 
       const submit = tc.submitMainTurn();
+      if (!submit.accepted) throw new Error('expected accepted');
       await submit.completion;
 
       // Only the original message should be there — coordinator must not push
@@ -564,6 +586,71 @@ describe('TurnCoordinator', () => {
       tc.submitBtwTurn('q');
 
       await vi.waitFor(() => expect(tc.state.activeBtwCount).toBe(0));
+    });
+  });
+
+  describe('updateDeps during settling window', () => {
+    it('turn accepted after settling picks up deps updated mid-settle', async () => {
+      let resolveOldTurn!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveOldTurn = resolve; }),
+      );
+
+      const deps1 = makeDeps();
+      const tc = new TurnCoordinator(deps1);
+
+      // Start and cancel to create a settling window
+      const oldSubmit = tc.submitMainTurn();
+      if (!oldSubmit.accepted) throw new Error('expected accepted');
+      tc.cancelMainTurn();
+
+      // Update deps while the old turn is still settling
+      const newProvider = { name: 'openai', model: 'gpt-4', formatTools: vi.fn(), stream: vi.fn() };
+      tc.updateDeps({ ...deps1, provider: newProvider });
+
+      mockHandleTurn.mockResolvedValueOnce(undefined);
+      const newSubmit = tc.submitMainTurn();
+      if (!newSubmit.accepted) throw new Error('expected accepted');
+
+      // Settle old turn
+      resolveOldTurn();
+      await oldSubmit.completion;
+      await newSubmit.completion;
+
+      // The second handleTurn call (index 1) should use the updated provider
+      const secondCall = mockHandleTurn.mock.calls[1];
+      expect(secondCall[0]).toBe(newProvider);
+    });
+  });
+
+  describe('synchronous handleTurn throw', () => {
+    it('returns error when handleTurn throws synchronously', async () => {
+      mockHandleTurn.mockImplementationOnce(() => {
+        throw new Error('sync kaboom');
+      });
+
+      const tc = new TurnCoordinator(makeDeps());
+      const submit = tc.submitMainTurn();
+      expect(submit.accepted).toBe(true);
+      if (!submit.accepted) return;
+
+      const result = await submit.completion;
+      expect(result.error).toBe('Error: sync kaboom');
+      expect(tc.state.isMainTurnActive).toBe(false);
+    });
+  });
+
+  describe('counter isolation across instances', () => {
+    it('separate coordinator instances have independent counters', () => {
+      const tc1 = new TurnCoordinator(makeDeps());
+      const tc2 = new TurnCoordinator(makeDeps());
+
+      const btw1 = tc1.submitBtwTurn('a');
+      const btw2 = tc2.submitBtwTurn('b');
+
+      // Both should start from counter 1 independently
+      expect(btw1).toMatch(/^btw-\d+-1$/);
+      expect(btw2).toMatch(/^btw-\d+-1$/);
     });
   });
 });

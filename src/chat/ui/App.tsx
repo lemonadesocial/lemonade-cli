@@ -1047,7 +1047,7 @@ export function App({
     // Regular messages: coordinator is the single authority for turn acceptance.
     const submit = turnCoordinator.submitMainTurn();
     if (!submit.accepted) {
-      addSystemMessage(submit.error!);
+      addSystemMessage(submit.error);
       return;
     }
 
@@ -1056,7 +1056,7 @@ export function App({
     chatMessages.push({ role: 'user', content: input });
     setShowThinking(true);
 
-    const result = await submit.completion!;
+    const result = await submit.completion;
     if (result.error) {
       addSystemMessage(result.error);
     }
