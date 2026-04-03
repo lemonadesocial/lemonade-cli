@@ -6,7 +6,6 @@ function makeDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
   return {
     addSystemMessage: vi.fn(),
     addUserMessage: vi.fn(),
-    clearMessages: vi.fn(),
     onClear: vi.fn(),
     exit: vi.fn(),
     engine: { requestConfirmation: vi.fn() } as unknown as SlashCommandDeps['engine'],
@@ -324,7 +323,6 @@ describe('SlashCommandRouter', () => {
         const anyCall =
           (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
           (deps.addUserMessage as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
-          (deps.clearMessages as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
           (deps.onClear as ReturnType<typeof vi.fn>).mock.calls.length > 0 ||
           (deps.exit as ReturnType<typeof vi.fn>).mock.calls.length > 0;
         expect(anyCall).toBe(true);

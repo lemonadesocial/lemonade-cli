@@ -173,7 +173,6 @@ export function App({
       await executeSlashCommand(slashResult, {
         addSystemMessage,
         addUserMessage,
-        clearMessages,
         onClear: performClear,
         exit,
         engine,
@@ -218,7 +217,7 @@ export function App({
         setShowThinking(false);
       }
     }
-  }, [engine, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, performClear, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, recordSubmit]);
+  }, [engine, session, registry, chatMessages, addUserMessage, addSystemMessage, performClear, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, recordSubmit]);
 
   // Input change with history reset
   const handleChange = useCallback((val: string) => {

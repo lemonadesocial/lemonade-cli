@@ -26,7 +26,6 @@ export interface SlashCommandRuntimeDeps {
 export interface SlashCommandUIDeps {
   addSystemMessage: (text: string) => void;
   addUserMessage: (text: string) => void;
-  clearMessages: () => void;
   /** Full clear: turn lifecycle + provider reset + UI reset + system message. */
   onClear: () => void;
   exit: () => void;
@@ -58,7 +57,6 @@ export async function executeSlashCommand(
   const {
     addSystemMessage,
     addUserMessage,
-    clearMessages,
     onClear,
     exit,
     engine,
