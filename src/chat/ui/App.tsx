@@ -353,8 +353,10 @@ export function App({
           return;
         }
 
-        // Show btw user message in chat
-        addUserMessage(`btw: ${btwInput}`);
+        // Show btw user message in chat — capture ID for rollback on failure.
+        // BTW is UI-only (snapshot-based), so rollback is purely a UI removal.
+        const btwMsgIdRef: { current: string | null } = { current: null };
+        addUserMessage(`btw: ${btwInput}`, btwMsgIdRef);
 
         // Clone message history for isolation
         const snapshot = conversationStore.getSnapshot();
@@ -378,6 +380,10 @@ export function App({
           provider, snapshot, formattedTools, btwSystemPrompt,
           btwSession, registry, null, true, engine, btwAbort.signal, btwTurnId,
         ).catch((err) => {
+          // Roll back the orphaned user message — no store rollback needed
+          // because BTW uses a snapshot, not the live conversation store.
+          const btwMsgId = btwMsgIdRef.current;
+          if (btwMsgId) removeMessageById(btwMsgId);
           addSystemMessage(`btw error: ${err instanceof Error ? err.message : 'Unknown'}`);
         }).finally(() => {
           btwAbortsRef.current.delete(btwTurnId);

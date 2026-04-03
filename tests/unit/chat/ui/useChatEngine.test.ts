@@ -463,6 +463,70 @@ describe('removeMessageUpdater — rollback sequence alignment', () => {
     expect(turnIndex.get('btw-late')).toBe(2);
   });
 
+  it('BTW failure rollback removes orphaned user message when no assistant response exists', () => {
+    // Scenario: /btw fires, user message is added, handleTurn throws before
+    // producing any assistant response. The catch block calls removeMessageById
+    // to clean up the orphaned user message.
+    const msgs = makeMessages(
+      { role: 'assistant', content: 'main-response' },
+      { role: 'user', content: 'btw: what time is it?', msgId: 'btw-u1' },
+    );
+    const turnIndex = new Map<string, number>([['main', 0]]);
+
+    const result = removeMessageUpdater(msgs, 'btw-u1', turnIndex, false);
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].content).toBe('main-response');
+    // Main turn index below removed position is unchanged
+    expect(turnIndex.get('main')).toBe(0);
+    expect(result.didMutateIndex).toBe(true);
+  });
+
+  it('BTW failure rollback adjusts concurrent BTW turn indices', () => {
+    // Two BTW turns in flight. One fails and its user message is removed.
+    // The other BTW's assistant message index must be adjusted.
+    const msgs = makeMessages(
+      { role: 'assistant', content: 'main-response' },
+      { role: 'user', content: 'btw: first', msgId: 'btw-u1' },
+      { role: 'assistant', content: 'btw-1-response' },
+      { role: 'user', content: 'btw: second', msgId: 'btw-u2' },
+    );
+    const turnIndex = new Map<string, number>([
+      ['main', 0],
+      ['btw-1', 2],
+    ]);
+
+    // btw-u2 fails before producing a response — catch removes it
+    const result = removeMessageUpdater(msgs, 'btw-u2', turnIndex, false);
+
+    expect(result.messages).toHaveLength(3);
+    expect(result.messages[0].content).toBe('main-response');
+    expect(result.messages[1].content).toBe('btw: first');
+    expect(result.messages[2].content).toBe('btw-1-response');
+    // Indices below removedIdx (3) unchanged
+    expect(turnIndex.get('main')).toBe(0);
+    expect(turnIndex.get('btw-1')).toBe(2);
+  });
+
+  it('BTW failure rollback is no-op when user message already removed (Escape + catch race)', () => {
+    // Escape cancels all BTW turns, then catch also tries to remove the
+    // user message. Second removal must be a safe no-op.
+    const msgs = makeMessages(
+      { role: 'assistant', content: 'main-response' },
+      { role: 'user', content: 'btw: question', msgId: 'btw-u1' },
+    );
+    const turnIndex = new Map<string, number>([['main', 0]]);
+
+    // First removal (Escape handler)
+    const r1 = removeMessageUpdater(msgs, 'btw-u1', turnIndex, false);
+    expect(r1.messages).toHaveLength(1);
+
+    // Second removal (catch block) — btw-u1 no longer in array
+    const r2 = removeMessageUpdater(r1.messages, 'btw-u1', turnIndex, false);
+    expect(r2.messages).toBe(r1.messages); // same reference — no-op
+    expect(r2.didMutateIndex).toBe(false);
+  });
+
   it('double rollback attempt (Escape + catch) is safe', () => {
     const msgs = makeMessages(
       { role: 'user', content: 'prior', msgId: 'u1' },
