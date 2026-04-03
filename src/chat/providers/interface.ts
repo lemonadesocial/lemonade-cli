@@ -53,6 +53,8 @@ export interface AIProvider {
   capabilities: ProviderCapabilities;
   formatTools(tools: ToolDef[]): unknown[];
   stream(params: StreamParams): AsyncIterable<StreamEvent>;
+  /** Reset provider-internal session state (e.g. server-side session ID). No-op for stateless providers. */
+  resetSession?(): void;
 }
 
 export interface ToolParam {

@@ -81,6 +81,10 @@ export class LemonadeAIProvider implements AIProvider {
     this.standId = standId;
   }
 
+  resetSession(): void {
+    this.sessionId = null;
+  }
+
   formatTools(_tools: ToolDef[]): unknown[] {
     return [];
   }

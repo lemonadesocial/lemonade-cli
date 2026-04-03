@@ -128,6 +128,16 @@ export function App({
     }
   }, [isStreaming, tokenCount]);
 
+  // Single clear path for both /clear and Ctrl+L. Coordinates turn
+  // lifecycle (via TurnCoordinator), provider-side session reset,
+  // UI message list, and App-local showThinking state in one call.
+  const performClear = useCallback(() => {
+    turnCoordinatorRef.current!.clearSession();
+    setShowThinking(false);
+    clearMessages();
+    addSystemMessage('Session cleared.');
+  }, [clearMessages, addSystemMessage]);
+
   const { recordSubmit, handleHistoryUp: historyUp, handleHistoryDown: historyDown, resetBrowsing } = history;
   const { showAutocomplete, filteredCommands, selectCurrent } = autocomplete;
 
@@ -163,7 +173,7 @@ export function App({
       await executeSlashCommand(slashResult, {
         addSystemMessage,
         addUserMessage,
-        clearMessages,
+        onClear: performClear,
         exit,
         engine,
         registry,
@@ -207,7 +217,7 @@ export function App({
         setShowThinking(false);
       }
     }
-  }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, recordSubmit]);
+  }, [engine, session, registry, chatMessages, addUserMessage, addSystemMessage, performClear, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, recordSubmit]);
 
   // Input change with history reset
   const handleChange = useCallback((val: string) => {
@@ -245,11 +255,9 @@ export function App({
 
   // Keyboard handling — only keys NOT handled by MultilineInput
   useInput((input, key) => {
-    // Ctrl+L: clear screen (same as /clear)
+    // Ctrl+L: clear screen — identical path to /clear.
     if (key.ctrl && input === 'l') {
-      chatMessages.length = 0;
-      clearMessages();
-      addSystemMessage('Session cleared.');
+      performClear();
       return;
     }
 

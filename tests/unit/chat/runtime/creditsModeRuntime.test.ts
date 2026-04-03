@@ -17,12 +17,13 @@ vi.mock('../../../../src/chat/session/cache', () => ({
 const mockHandleTurn = vi.mocked(handleTurn);
 
 // Simulates the LemonadeAIProvider contract: no tool calling, text-only responses.
-function createCreditsProvider(): AIProvider {
+function createCreditsProvider(): AIProvider & { resetSession: () => void } {
   return {
     name: 'lemonade-ai',
     model: 'Lemonade AI',
     capabilities: { supportsToolCalling: false },
     formatTools: () => [],
+    resetSession: vi.fn(),
     async *stream(params) {
       const lastMsg = params.messages[params.messages.length - 1];
       const text = typeof lastMsg.content === 'string' ? lastMsg.content : 'response';
@@ -191,6 +192,83 @@ describe('Credits mode through TurnCoordinator', () => {
     const btwId = tc.submitBtwTurn('side question');
     expect(btwId).toMatch(/^btw-/);
     expect(tc.state.activeBtwCount).toBe(1);
+  });
+
+  it('clearSession works identically for credits and BYOK', async () => {
+    const creditsProvider = createCreditsProvider();
+    const byokProvider = createBYOKProvider();
+
+    const creditsMsgs: Message[] = [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: 'hi from credits' },
+    ];
+    const byokMsgs: Message[] = [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: 'hi from byok' },
+    ];
+
+    const creditsTc = new TurnCoordinator(makeDeps(creditsProvider, { chatMessages: creditsMsgs }));
+    const byokTc = new TurnCoordinator(makeDeps(byokProvider, { chatMessages: byokMsgs }));
+
+    creditsTc.clearSession();
+    byokTc.clearSession();
+
+    expect(creditsMsgs).toHaveLength(0);
+    expect(byokMsgs).toHaveLength(0);
+    expect(creditsTc.state.isMainTurnActive).toBe(false);
+    expect(byokTc.state.isMainTurnActive).toBe(false);
+  });
+
+  it('clearSession resets credits-mode provider session state', async () => {
+    const provider = createCreditsProvider();
+    const resetSpy = vi.fn();
+    provider.resetSession = resetSpy;
+
+    const chatMessages: Message[] = [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: 'hi from credits' },
+    ];
+
+    const tc = new TurnCoordinator(makeDeps(provider, { chatMessages }));
+
+    tc.clearSession();
+
+    expect(resetSpy).toHaveBeenCalledTimes(1);
+    expect(chatMessages).toHaveLength(0);
+  });
+
+  it('clearSession on BYOK provider does not throw (no resetSession)', () => {
+    const provider = createBYOKProvider();
+    const chatMessages: Message[] = [
+      { role: 'user', content: 'hello' },
+    ];
+
+    const tc = new TurnCoordinator(makeDeps(provider, { chatMessages }));
+
+    expect(() => tc.clearSession()).not.toThrow();
+    expect(chatMessages).toHaveLength(0);
+  });
+
+  it('clearSession cancels active credits turn and empties history', async () => {
+    let resolveFirst!: () => void;
+    mockHandleTurn.mockImplementationOnce(() =>
+      new Promise<void>((resolve) => { resolveFirst = resolve; }),
+    );
+
+    const provider = createCreditsProvider();
+    const chatMessages: Message[] = [];
+    const tc = new TurnCoordinator(makeDeps(provider, { chatMessages }));
+
+    const submit = tc.submitMainTurn('credits question');
+    expect(submit.accepted).toBe(true);
+    expect(chatMessages).toHaveLength(1);
+
+    tc.clearSession();
+    expect(chatMessages).toHaveLength(0);
+    expect(tc.state.isMainTurnActive).toBe(false);
+
+    resolveFirst();
+    if (submit.accepted) await submit.completion;
   });
 });
 
