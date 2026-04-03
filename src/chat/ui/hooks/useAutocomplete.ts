@@ -1,7 +1,25 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { SLASH_COMMANDS } from '../SlashCommands.js';
 
 export const AC_MAX_VISIBLE = 6;
+
+/** Pure filtering logic — exported for testability. */
+export function filterCommands(inputValue: string) {
+  const showAutocomplete = inputValue.startsWith('/');
+  const filteredCommands = showAutocomplete
+    ? SLASH_COMMANDS.filter((cmd) => cmd.name.startsWith(inputValue))
+    : [];
+  return { showAutocomplete, filteredCommands };
+}
+
+/** Pure index navigation — exported for testability. */
+export function computeNavigateUp(currentIndex: number, count: number): number {
+  return currentIndex <= 0 ? count - 1 : currentIndex - 1;
+}
+
+export function computeNavigateDown(currentIndex: number, count: number): number {
+  return currentIndex >= count - 1 ? 0 : currentIndex + 1;
+}
 
 export interface AutocompleteState {
   showAutocomplete: boolean;
@@ -20,10 +38,15 @@ export function useAutocomplete(inputValue: string): UseAutocompleteResult {
   const [acIndex, setAcIndex] = useState(0);
   const [acScrollOffset, setAcScrollOffset] = useState(0);
 
-  const showAutocomplete = inputValue.startsWith('/');
-  const filteredCommands = showAutocomplete
-    ? SLASH_COMMANDS.filter((cmd) => cmd.name.startsWith(inputValue))
-    : [];
+  const { showAutocomplete, filteredCommands } = filterCommands(inputValue);
+
+  // Keep refs current so callbacks never read stale closure values
+  const acScrollOffsetRef = useRef(acScrollOffset);
+  acScrollOffsetRef.current = acScrollOffset;
+  const filteredCommandsRef = useRef(filteredCommands);
+  filteredCommandsRef.current = filteredCommands;
+  const acIndexRef = useRef(acIndex);
+  acIndexRef.current = acIndex;
 
   // Reset when input changes
   useEffect(() => {
@@ -33,32 +56,36 @@ export function useAutocomplete(inputValue: string): UseAutocompleteResult {
 
   const navigateUp = useCallback(() => {
     setAcIndex((prev) => {
-      const next = prev <= 0 ? filteredCommands.length - 1 : prev - 1;
-      if (next < acScrollOffset) {
-        setAcScrollOffset(next);
-      } else if (next >= acScrollOffset + AC_MAX_VISIBLE) {
-        setAcScrollOffset(next - AC_MAX_VISIBLE + 1);
-      }
+      const len = filteredCommandsRef.current.length;
+      const next = prev <= 0 ? len - 1 : prev - 1;
+      setAcScrollOffset((prevOffset) => {
+        if (next < prevOffset) return next;
+        if (next >= prevOffset + AC_MAX_VISIBLE) return next - AC_MAX_VISIBLE + 1;
+        return prevOffset;
+      });
       return next;
     });
-  }, [filteredCommands.length, acScrollOffset]);
+  }, []);
 
   const navigateDown = useCallback(() => {
     setAcIndex((prev) => {
-      const next = prev >= filteredCommands.length - 1 ? 0 : prev + 1;
-      if (next >= acScrollOffset + AC_MAX_VISIBLE) {
-        setAcScrollOffset(next - AC_MAX_VISIBLE + 1);
-      } else if (next < acScrollOffset) {
-        setAcScrollOffset(next);
-      }
+      const len = filteredCommandsRef.current.length;
+      const next = prev >= len - 1 ? 0 : prev + 1;
+      setAcScrollOffset((prevOffset) => {
+        if (next >= prevOffset + AC_MAX_VISIBLE) return next - AC_MAX_VISIBLE + 1;
+        if (next < prevOffset) return next;
+        return prevOffset;
+      });
       return next;
     });
-  }, [filteredCommands.length, acScrollOffset]);
+  }, []);
 
   const selectCurrent = useCallback((): string | null => {
-    if (filteredCommands.length === 0) return null;
-    return filteredCommands[acIndex].name;
-  }, [filteredCommands, acIndex]);
+    const cmds = filteredCommandsRef.current;
+    const idx = acIndexRef.current;
+    if (cmds.length === 0) return null;
+    return cmds[idx].name;
+  }, []);
 
   return {
     showAutocomplete,

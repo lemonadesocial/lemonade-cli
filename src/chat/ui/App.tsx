@@ -128,12 +128,15 @@ export function App({
     }
   }, [isStreaming, tokenCount]);
 
+  const { recordSubmit, handleHistoryUp: historyUp, handleHistoryDown: historyDown, resetBrowsing } = history;
+  const { showAutocomplete, filteredCommands, selectCurrent } = autocomplete;
+
   // Handle submit
   const handleSubmit = useCallback(async (value: string) => {
     const input = value.trim();
     if (!input) return;
     setInputValue('');
-    history.recordSubmit(input);
+    recordSubmit(input);
 
     // Exit commands (always allowed)
     if (['exit', 'quit', 'bye'].includes(input.toLowerCase())) {
@@ -179,13 +182,15 @@ export function App({
     }
 
     // Regular messages: coordinator is the single authority for turn acceptance.
+    // ORDERING CONSTRAINT: submitMainTurn must be called before addUserMessage.
+    // The coordinator must accept the turn before the UI commits the message,
+    // otherwise a rejected turn would leave a dangling user message in the UI.
     const submit = turnCoordinator.submitMainTurn(input);
     if (!submit.accepted) {
       addSystemMessage(submit.error);
       return;
     }
 
-    // UI-visible message committed after coordinator has accepted.
     addUserMessage(input);
     const myTurnId = ++submitTurnIdRef.current;
     setShowThinking(true);
@@ -202,23 +207,23 @@ export function App({
         setShowThinking(false);
       }
     }
-  }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, history]);
+  }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, recordSubmit]);
 
   // Input change with history reset
   const handleChange = useCallback((val: string) => {
     setInputValue(val);
-    history.resetBrowsing();
-  }, [history]);
+    resetBrowsing();
+  }, [resetBrowsing]);
 
   const handleHistoryUp = useCallback(() => {
-    const val = history.handleHistoryUp(inputValue);
+    const val = historyUp(inputValue);
     if (val !== null) setInputValue(val);
-  }, [history, inputValue]);
+  }, [historyUp, inputValue]);
 
   const handleHistoryDown = useCallback(() => {
-    const val = history.handleHistoryDown();
+    const val = historyDown();
     if (val !== null) setInputValue(val);
-  }, [history]);
+  }, [historyDown]);
 
   const handleExit = useCallback(() => { exit(); }, [exit]);
 
@@ -289,8 +294,8 @@ export function App({
 
   // Wrap submit to intercept autocomplete selection on Enter
   const onSubmit = useCallback((value: string) => {
-    if (autocomplete.showAutocomplete && autocomplete.filteredCommands.length > 0) {
-      const selected = autocomplete.selectCurrent();
+    if (showAutocomplete && filteredCommands.length > 0) {
+      const selected = selectCurrent();
       if (selected) {
         setInputValue(selected);
         handleSubmit(selected);
@@ -298,7 +303,7 @@ export function App({
       }
     }
     handleSubmit(value);
-  }, [autocomplete, handleSubmit]);
+  }, [showAutocomplete, filteredCommands.length, selectCurrent, handleSubmit]);
 
   // Confirm dialog input
   useInput((input) => {
