@@ -67,9 +67,9 @@ describe('Space Selection for Credits Mode', () => {
   it('/mode credits triggers space selection in terminal UI', async () => {
     const fs = await import('fs');
     const path = await import('path');
-    // Slash command handling moved from terminal.ts to the Ink App component
-    const appPath = path.join(process.cwd(), 'src/chat/ui/App.tsx');
-    const content = fs.readFileSync(appPath, 'utf-8');
+    // Slash command execution moved from App.tsx to SlashCommandRouter
+    const routerPath = path.join(process.cwd(), 'src/chat/runtime/SlashCommandRouter.ts');
+    const content = fs.readFileSync(routerPath, 'utf-8');
 
     // When /mode credits is used, setAiModeConfig must be called
     expect(content).toContain("slashResult.args === 'credits'");
