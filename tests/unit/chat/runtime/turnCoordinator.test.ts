@@ -254,6 +254,59 @@ describe('TurnCoordinator', () => {
 
       await submit.completion;
     });
+
+    it('double cancel returns false on second call and does not throw', async () => {
+      let resolveFirst!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveFirst = resolve; }),
+      );
+
+      const tc = new TurnCoordinator(makeDeps());
+      const submit = tc.submitMainTurn();
+      if (!submit.accepted) throw new Error('expected accepted');
+
+      expect(tc.cancelMainTurn()).toBe(true);
+      expect(tc.cancelMainTurn()).toBe(false);
+      expect(tc.state.isMainTurnActive).toBe(false);
+
+      resolveFirst();
+      await submit.completion;
+    });
+
+    it('cancel during settling-await window cleans up correctly', async () => {
+      let resolveOldTurn!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveOldTurn = resolve; }),
+      );
+
+      const tc = new TurnCoordinator(makeDeps());
+
+      // Start and cancel turn A to create a settling window
+      const oldSubmit = tc.submitMainTurn();
+      if (!oldSubmit.accepted) throw new Error('expected accepted');
+      tc.cancelMainTurn();
+
+      // Start turn B — it will await the settling promise internally
+      let newTurnStarted = false;
+      mockHandleTurn.mockImplementationOnce(() => {
+        newTurnStarted = true;
+        return new Promise<void>((resolve) => { setTimeout(resolve, 50); });
+      });
+      const newSubmit = tc.submitMainTurn();
+      if (!newSubmit.accepted) throw new Error('expected accepted');
+
+      // Turn B is awaiting settling — cancel it now
+      expect(tc.cancelMainTurn()).toBe(true);
+      expect(tc.state.isMainTurnActive).toBe(false);
+
+      // Let old turn settle so new turn can proceed (and immediately see abort)
+      resolveOldTurn();
+      await oldSubmit.completion;
+      await newSubmit.completion;
+
+      // State should be idle — the stale finally from B must not leave active=true
+      expect(tc.state.isMainTurnActive).toBe(false);
+    });
   });
 
   describe('cancelAllBtw', () => {

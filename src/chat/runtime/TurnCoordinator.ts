@@ -24,6 +24,11 @@ export interface TurnCoordinatorState {
 
 export const MAIN_TURN_BUSY = 'Please wait for the current response to finish, or press Escape to cancel. Use /btw for side questions.';
 
+// TurnCoordinator owns turn admission (accept/reject) and cancellation lifecycle.
+// It does NOT own chat history: handleTurn (stream/handler.ts) mutates the shared
+// chatMessages array directly (pushing assistant/tool messages). Any future changes
+// to cancel semantics or history rollback must account for this split — cancelling
+// a turn does not undo messages that handleTurn already appended.
 export class TurnCoordinator {
   private deps: TurnDeps;
   private mainAbort: AbortController | null = null;
@@ -109,10 +114,12 @@ export class TurnCoordinator {
         this.mainTurnActive = false;
         this.mainAbort = null;
       }
-      resolveSettling();
+      // Clear the settling reference BEFORE resolving so awaiting code
+      // never observes a stale resolved promise in mainTurnSettling.
       if (this.mainTurnSettling === settling) {
         this.mainTurnSettling = null;
       }
+      resolveSettling();
     }
 
     return {};
