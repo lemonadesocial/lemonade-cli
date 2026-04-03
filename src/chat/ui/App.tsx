@@ -2,11 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { MultilineInput } from './input/index.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
-import { AIProvider, ToolDef, SystemMessage } from '../providers/interface.js';
-import { ConversationStore } from '../runtime/ConversationStore.js';
+import { AIProvider, Message, ToolDef } from '../providers/interface.js';
 import { SessionState } from '../session/state.js';
-import { buildSystemMessages } from '../session/cache.js';
-import { handleTurn } from '../stream/handler.js';
+import { TurnCoordinator } from '../runtime/TurnCoordinator.js';
 import { parseSlashCommand, SLASH_COMMANDS } from './SlashCommands.js';
 import { getAgentName } from '../skills/loader.js';
 import { graphqlRequest } from '../../api/graphql.js';
@@ -199,7 +197,7 @@ export interface AppProps {
   formattedTools: unknown[];
   session: SessionState;
   registry: Record<string, ToolDef>;
-  conversationStore: ConversationStore;
+  messages: Message[];
   firstName: string;
   agentName: string;
   displayOpts: {
@@ -215,7 +213,7 @@ export function App({
   formattedTools,
   session,
   registry,
-  conversationStore,
+  messages: chatMessages,
   firstName,
   agentName,
   displayOpts,
@@ -228,7 +226,6 @@ export function App({
     pendingConfirm,
     tokenCount,
     addUserMessage,
-    removeMessageById,
     addSystemMessage,
     clearMessages,
     confirmAction,
@@ -242,11 +239,14 @@ export function App({
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
-  const streamAbortRef = useRef<AbortController | null>(null);
-  const turnTokenRef = useRef<number | null>(null);
-  const pendingUserMsgIdxRef = useRef<number | null>(null);
-  const pendingUIMsgIdRef = useRef<string | null>(null);
-  const btwAbortsRef = useRef<Map<string, AbortController>>(new Map());
+
+  const turnCoordinatorRef = useRef<TurnCoordinator | null>(null);
+  if (!turnCoordinatorRef.current) {
+    turnCoordinatorRef.current = new TurnCoordinator({
+      engine, provider, formattedTools, session, registry, chatMessages,
+    });
+  }
+  const turnCoordinator = turnCoordinatorRef.current;
 
   // Reactive terminal width
   const [termColumns, setTermColumns] = useState(process.stdout.columns || 80);
@@ -353,52 +353,14 @@ export function App({
           return;
         }
 
-        // Show btw user message in chat — capture ID for rollback on failure.
-        // BTW is UI-only (snapshot-based), so rollback is purely a UI removal.
-        const btwMsgIdRef: { current: string | null } = { current: null };
-        addUserMessage(`btw: ${btwInput}`, btwMsgIdRef);
-
-        // Clone message history for isolation
-        const snapshot = conversationStore.getSnapshot();
-        snapshot.push({ role: 'user', content: btwInput });
-
-        // Clone session for isolation
-        const btwSession = { ...session };
-
-        const btwTurnId = `btw-${Date.now()}`;
-        const btwSystemPrompt: SystemMessage[] = buildSystemMessages(btwSession, provider.name);
-        btwSystemPrompt.push({
-          type: 'text',
-          text: 'BTW SIDE REQUEST: Keep response to 1-2 sentences MAX. Answer the specific question only. Do not reference or modify the main task in progress. No follow-up questions. Execute at most one tool call. No personality flair.',
-        });
-
-        const btwAbort = new AbortController();
-        btwAbortsRef.current.set(btwTurnId, btwAbort);
-
-        // Fire and forget - runs in parallel
-        handleTurn(
-          provider, snapshot, formattedTools, btwSystemPrompt,
-          btwSession, registry, null, true, engine, btwAbort.signal, btwTurnId,
-        ).catch((err) => {
-          // Roll back the orphaned user message — no store rollback needed
-          // because BTW uses a snapshot, not the live conversation store.
-          const btwMsgId = btwMsgIdRef.current;
-          if (btwMsgId) removeMessageById(btwMsgId);
-          addSystemMessage(`btw error: ${err instanceof Error ? err.message : 'Unknown'}`);
-        }).finally(() => {
-          btwAbortsRef.current.delete(btwTurnId);
-        });
-
+        addUserMessage(`btw: ${btwInput}`);
+        turnCoordinator.submitBtwTurn(btwInput);
         return;
       }
 
       // All other slash commands require no active turn (except already handled above)
       if (slashResult.action === 'clear') {
-        if (turnTokenRef.current !== null) {
-          addSystemMessage('Cannot clear while a response is in progress. Press Escape to cancel first.');
-          return;
-        }
-        conversationStore.clear();
+        chatMessages.length = 0;
         clearMessages();
         addSystemMessage('Session cleared.');
         return;
@@ -1078,87 +1040,21 @@ export function App({
       return;
     }
 
-    // Regular messages: block during active turn
-    if (turnTokenRef.current !== null) {
+    // Regular messages: delegate to TurnCoordinator
+    if (turnCoordinator.state.isMainTurnActive) {
       addSystemMessage('Please wait for the current response to finish, or press Escape to cancel. Use /btw for side questions.');
       return;
     }
 
-    // Regular message: send to AI
+    addUserMessage(input);
     setShowThinking(true);
 
-    // Create AbortController early so Escape can cancel even during setup.
-    const abort = new AbortController();
-    streamAbortRef.current = abort;
-
-    let token: number | undefined;
-    let userMsgIdx: number | null = null;
-    try {
-      // Acquire turn lock and commit user message to store BEFORE showing it
-      // in the UI. This guarantees that a failure in beginTurn() or
-      // commitTurnUserMessage() cannot leave a UI-only orphan with no store
-      // counterpart.
-      token = conversationStore.beginTurn();
-      turnTokenRef.current = token;
-
-      userMsgIdx = conversationStore.commitTurnUserMessage(input);
-      pendingUserMsgIdxRef.current = userMsgIdx;
-
-      // Only add to UI after store commit succeeds — keeps both surfaces in
-      // sync. The idxRef captures the UI insertion index so rollback can
-      // target the exact position rather than scanning by role.
-      addUserMessage(input, pendingUIMsgIdRef);
-
-      const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
-
-      await handleTurn(
-        provider,
-        conversationStore.getMutableRef(),
-        formattedTools,
-        systemPrompt,
-        session,
-        registry,
-        null, // no readline
-        true,
-        engine,
-        abort.signal,
-      );
-    } catch (err) {
-      // Rollback: if the user message was committed but no assistant reply
-      // was appended, remove it from both the store and the UI so neither
-      // surface contains an orphaned user message.
-      if (userMsgIdx !== null) {
-        if (conversationStore.rollbackTurnUserMessage(userMsgIdx)) {
-          const uiId = pendingUIMsgIdRef.current;
-          if (uiId !== null) removeMessageById(uiId);
-        }
-        pendingUserMsgIdxRef.current = null;
-        pendingUIMsgIdRef.current = null;
-      }
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      if (msg.includes('context length') || msg.includes('too many tokens')) {
-        addSystemMessage('Error: Session is too long. Start a new session: exit and run make-lemonade again.');
-      } else {
-        addSystemMessage(`Error: ${msg}`);
-      }
-    } finally {
-      // Turn cleanup. Two sites release the turn lock:
-      //   1. HERE (finally) — normal completion or error during handleTurn.
-      //   2. Escape handler — user cancels mid-stream, which aborts and
-      //      releases the lock immediately for responsiveness.
-      // The token comparison (turnTokenRef.current === token) ensures that
-      // only the matching site releases — if Escape already cleared the ref,
-      // this finally is a no-op, and vice versa.
-      if (token !== undefined && turnTokenRef.current === token) {
-        conversationStore.endTurn(token);
-        turnTokenRef.current = null;
-      }
-      streamAbortRef.current = null;
-      pendingUserMsgIdxRef.current = null;
-      pendingUIMsgIdRef.current = null;
-      setShowThinking(false);
+    const result = await turnCoordinator.submitMainTurn(input);
+    if (result.error) {
+      addSystemMessage(result.error);
     }
-  }, [engine, provider, formattedTools, session, registry, conversationStore, addUserMessage, removeMessageById, addSystemMessage, clearMessages, exit]);
+    setShowThinking(false);
+  }, [engine, provider, formattedTools, session, registry, chatMessages, addUserMessage, addSystemMessage, clearMessages, exit, turnCoordinator]);
 
   // History navigation callbacks
   const handleHistoryUp = useCallback(() => {
@@ -1213,11 +1109,7 @@ export function App({
   useInput((input, key) => {
     // Ctrl+L: clear screen (same as /clear)
     if (key.ctrl && input === 'l') {
-      if (turnTokenRef.current !== null) {
-        addSystemMessage('Cannot clear while a response is in progress. Press Escape to cancel first.');
-        return;
-      }
-      conversationStore.clear();
+      chatMessages.length = 0;
       clearMessages();
       addSystemMessage('Session cleared.');
       return;
@@ -1231,46 +1123,11 @@ export function App({
       } else if (planState.active) {
         cancelPlan();
         addSystemMessage('(plan cancelled)');
-      } else if (streamAbortRef.current) {
-        streamAbortRef.current.abort();
-        streamAbortRef.current = null;
+      } else if (turnCoordinator.cancelMainTurn()) {
         setShowThinking(false);
         resetStreaming();
-        // Roll back the pending user message if no assistant reply was committed.
-        // Uses ID-based removal so splicing a message never invalidates BTW
-        // turn indices that reference later positions.
-        //
-        // INVARIANT: The pending user message is always the last message in the
-        // array when Escape fires — no assistant chunk has been committed yet.
-        // This is why calling resetStreaming() before removeMessageById() is
-        // safe: resetStreaming clears in-flight assistant tokens that have not
-        // been committed to the messages array, so it cannot re-order or
-        // invalidate the pending user message's position.
-        // If this invariant changes (e.g. assistant chunks commit eagerly),
-        // the ordering of resetStreaming vs removeMessageById must be revisited.
-        const pendingIdx = pendingUserMsgIdxRef.current;
-        if (pendingIdx !== null) {
-          if (conversationStore.rollbackTurnUserMessage(pendingIdx)) {
-            const uiId = pendingUIMsgIdRef.current;
-            if (uiId !== null) removeMessageById(uiId);
-          }
-          pendingUserMsgIdxRef.current = null;
-          pendingUIMsgIdRef.current = null;
-        }
-        // Release the turn lock eagerly on Escape. The handleSubmit finally
-        // block also attempts endTurn — the token comparison ensures only one
-        // site actually releases. See the matching comment in handleSubmit.
-        const activeToken = turnTokenRef.current;
-        if (activeToken !== null) {
-          conversationStore.endTurn(activeToken);
-          turnTokenRef.current = null;
-        }
         addSystemMessage('(cancelled)');
-      } else if (btwAbortsRef.current.size > 0) {
-        for (const [, controller] of btwAbortsRef.current) {
-          controller.abort();
-        }
-        btwAbortsRef.current.clear();
+      } else if (turnCoordinator.cancelAllBtw()) {
         resetStreaming();
         addSystemMessage('(btw cancelled)');
       } else {
