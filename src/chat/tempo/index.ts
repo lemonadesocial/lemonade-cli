@@ -36,11 +36,16 @@ export async function installTempo(): Promise<boolean> {
   }
 }
 
-export function tempoExec(args: string): string {
+export function tempoExec(args: string[]): string {
   const bin = getTempoBin();
   if (!bin) throw new Error('Tempo CLI not installed. Use /tempo install.');
   try {
-    return execSync(`${bin} ${args}`, { encoding: 'utf-8', stdio: 'pipe', timeout: 15000 }).trim();
+    const result = spawnSync(bin, args, { encoding: 'utf-8', stdio: 'pipe', timeout: 15000 });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(result.stderr?.trim() || `Exit code ${result.status}`);
+    }
+    return result.stdout.trim();
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     throw new Error(`Tempo CLI error: ${msg}`);
@@ -115,7 +120,7 @@ export function getWalletInfo(): TempoWalletInfo {
     return { installed: false, loggedIn: false };
   }
   try {
-    const output = tempoExec('wallet whoami -t');
+    const output = tempoExec(['wallet', 'whoami', '-t']);
     try {
       const data = JSON.parse(output);
       return { installed: true, loggedIn: true, ...data };
