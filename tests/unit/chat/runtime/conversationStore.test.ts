@@ -227,6 +227,25 @@ describe('ConversationStore', () => {
     store.endTurn(token);
   });
 
+  it('double-rollback (Escape + catch) does not double-delete', () => {
+    const store = new ConversationStore();
+    store.addUserMessage('prior context');
+    const token = store.beginTurn();
+    const idx = store.commitTurnUserMessage('will cancel');
+    expect(store.length).toBe(2);
+
+    // Simulate Escape handler: first rollback succeeds
+    expect(store.rollbackTurnUserMessage(idx)).toBe(true);
+    expect(store.length).toBe(1);
+
+    // Simulate catch block: second rollback is a no-op (message already removed)
+    expect(store.rollbackTurnUserMessage(idx)).toBe(false);
+    expect(store.length).toBe(1);
+    expect(store.getMutableRef()[0].content).toBe('prior context');
+
+    store.endTurn(token);
+  });
+
   it('addUserMessage throws during active turn', () => {
     const store = new ConversationStore();
     store.addUserMessage('before turn');

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type MutableRefObject } from 'react';
 import { ChatEngine, ChatEngineEvents } from '../../engine/ChatEngine.js';
 
 export interface ToolStatus {
@@ -27,8 +27,8 @@ export interface UseChatEngineResult {
   isThinking: boolean;
   pendingConfirm: ConfirmRequest | null;
   tokenCount: number;
-  addUserMessage: (text: string) => void;
-  removeLastUserMessage: () => void;
+  addUserMessage: (text: string, idxRef?: MutableRefObject<number | null>) => void;
+  removeMessageAt: (idx: number) => void;
   addSystemMessage: (text: string) => void;
   clearMessages: () => void;
   confirmAction: (id: string, confirmed: boolean) => void;
@@ -165,20 +165,19 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     };
   }, [engine]);
 
-  const addUserMessage = useCallback((text: string) => {
-    setMessages((prev) => [...prev, { role: 'user', content: text }]);
+  const addUserMessage = useCallback((text: string, idxRef?: MutableRefObject<number | null>) => {
+    setMessages((prev) => {
+      if (idxRef) idxRef.current = prev.length;
+      return [...prev, { role: 'user', content: text }];
+    });
   }, []);
 
-  const removeLastUserMessage = useCallback(() => {
+  const removeMessageAt = useCallback((idx: number) => {
     setMessages((prev) => {
-      for (let i = prev.length - 1; i >= 0; i--) {
-        if (prev[i].role === 'user') {
-          const next = [...prev];
-          next.splice(i, 1);
-          return next;
-        }
-      }
-      return prev;
+      if (idx < 0 || idx >= prev.length || prev[idx].role !== 'user') return prev;
+      const next = [...prev];
+      next.splice(idx, 1);
+      return next;
     });
   }, []);
 
@@ -212,7 +211,7 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     pendingConfirm,
     tokenCount,
     addUserMessage,
-    removeLastUserMessage,
+    removeMessageAt,
     addSystemMessage,
     clearMessages,
     confirmAction,

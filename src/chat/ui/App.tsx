@@ -228,7 +228,7 @@ export function App({
     pendingConfirm,
     tokenCount,
     addUserMessage,
-    removeLastUserMessage,
+    removeMessageAt,
     addSystemMessage,
     clearMessages,
     confirmAction,
@@ -245,6 +245,7 @@ export function App({
   const streamAbortRef = useRef<AbortController | null>(null);
   const turnTokenRef = useRef<number | null>(null);
   const pendingUserMsgIdxRef = useRef<number | null>(null);
+  const pendingUIMsgIdxRef = useRef<number | null>(null);
   const btwAbortsRef = useRef<Map<string, AbortController>>(new Map());
 
   // Reactive terminal width
@@ -1078,7 +1079,6 @@ export function App({
     }
 
     // Regular message: send to AI
-    addUserMessage(input);
     setShowThinking(true);
 
     // Create AbortController early so Escape can cancel even during setup.
@@ -1088,14 +1088,20 @@ export function App({
     let token: number | undefined;
     let userMsgIdx: number | null = null;
     try {
-      // Acquire turn lock BEFORE committing the user message to the store.
-      // This ensures a failure in beginTurn() or early setup cannot orphan a
-      // user message in provider history without a matching assistant response.
+      // Acquire turn lock and commit user message to store BEFORE showing it
+      // in the UI. This guarantees that a failure in beginTurn() or
+      // commitTurnUserMessage() cannot leave a UI-only orphan with no store
+      // counterpart.
       token = conversationStore.beginTurn();
       turnTokenRef.current = token;
 
       userMsgIdx = conversationStore.commitTurnUserMessage(input);
       pendingUserMsgIdxRef.current = userMsgIdx;
+
+      // Only add to UI after store commit succeeds — keeps both surfaces in
+      // sync. The idxRef captures the UI insertion index so rollback can
+      // target the exact position rather than scanning by role.
+      addUserMessage(input, pendingUIMsgIdxRef);
 
       const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
 
@@ -1117,9 +1123,11 @@ export function App({
       // surface contains an orphaned user message.
       if (userMsgIdx !== null) {
         if (conversationStore.rollbackTurnUserMessage(userMsgIdx)) {
-          removeLastUserMessage();
+          const uiIdx = pendingUIMsgIdxRef.current;
+          if (uiIdx !== null) removeMessageAt(uiIdx);
         }
         pendingUserMsgIdxRef.current = null;
+        pendingUIMsgIdxRef.current = null;
       }
       const msg = err instanceof Error ? err.message : 'Unknown error';
       if (msg.includes('context length') || msg.includes('too many tokens')) {
@@ -1141,9 +1149,10 @@ export function App({
       }
       streamAbortRef.current = null;
       pendingUserMsgIdxRef.current = null;
+      pendingUIMsgIdxRef.current = null;
       setShowThinking(false);
     }
-  }, [engine, provider, formattedTools, session, registry, conversationStore, addUserMessage, removeLastUserMessage, addSystemMessage, clearMessages, exit]);
+  }, [engine, provider, formattedTools, session, registry, conversationStore, addUserMessage, removeMessageAt, addSystemMessage, clearMessages, exit]);
 
   // History navigation callbacks
   const handleHistoryUp = useCallback(() => {
@@ -1222,12 +1231,16 @@ export function App({
         setShowThinking(false);
         resetStreaming();
         // Roll back the pending user message if no assistant reply was committed.
+        // Uses index-based removal aligned with the store's positional rollback
+        // so both surfaces target the same message deliberately.
         const pendingIdx = pendingUserMsgIdxRef.current;
         if (pendingIdx !== null) {
           if (conversationStore.rollbackTurnUserMessage(pendingIdx)) {
-            removeLastUserMessage();
+            const uiIdx = pendingUIMsgIdxRef.current;
+            if (uiIdx !== null) removeMessageAt(uiIdx);
           }
           pendingUserMsgIdxRef.current = null;
+          pendingUIMsgIdxRef.current = null;
         }
         // Release the turn lock eagerly on Escape. The handleSubmit finally
         // block also attempts endTurn — the token comparison ensures only one
