@@ -15,9 +15,7 @@ import { getDiag } from '../../diagnostics/index.js';
 const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 function graphemeCount(text: string): number {
-  let count = 0;
-  for (const _seg of GRAPHEME_SEGMENTER.segment(text)) count++;
-  return count;
+  return [...GRAPHEME_SEGMENTER.segment(text)].length;
 }
 
 /** Count graphemes whose start index < sourceOffset. */
