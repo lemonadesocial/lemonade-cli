@@ -9,8 +9,24 @@ import { Box, Text, useInput } from 'ink';
 import { EditorState } from './EditorState.js';
 import { KillRing } from './KillRing.js';
 import { UndoStack } from './UndoStack.js';
-import type { Position } from './MeasuredText.js';
+import { MeasuredText, type Position } from './MeasuredText.js';
 import { getDiag } from '../../diagnostics/index.js';
+
+const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+function graphemeCount(text: string): number {
+  return [...GRAPHEME_SEGMENTER.segment(text)].length;
+}
+
+/** Count graphemes whose start index < sourceOffset. */
+function graphemesBeforeOffset(text: string, sourceOffset: number): number {
+  let count = 0;
+  for (const seg of GRAPHEME_SEGMENTER.segment(text)) {
+    if (seg.index >= sourceOffset) break;
+    count++;
+  }
+  return count;
+}
 
 export interface MultilineInputProps {
   value: string;
@@ -517,15 +533,16 @@ export function MultilineInput({
       {visibleLines.map((wline, i) => {
         const lineIdx = i + scrollOffset;
         const prefix = lineIdx === 0 ? '' : (continuationPrefix ?? '  ');
-        const displayText = mask ? mask.repeat(wline.text.length) : wline.text;
+        const displayText = mask ? mask.repeat(graphemeCount(wline.text)) : wline.text;
         const rendered = renderLine(
           displayText,
+          wline.text,
           wline.startOffset,
-          wline.length,
           lineIdx,
           cursorPos,
+          editorState.cursor,
           selRange,
-          mask != null,
+          mask ?? null,
           focus,
           cursorChar,
         );
@@ -537,55 +554,85 @@ export function MultilineInput({
 }
 
 /**
- * Render a single line with cursor and selection highlighting.
- * @param isMasked When true, skip selection highlighting (mask shows uniform characters)
+ * Convert a local source offset within a line's text to a display column
+ * by walking graphemes and accumulating their display widths.
  */
-function renderLine(
+export function sourceOffsetToDisplayCol(text: string, localOffset: number): number {
+  let col = 0;
+  for (const seg of GRAPHEME_SEGMENTER.segment(text)) {
+    if (seg.index >= localOffset) break;
+    col += MeasuredText.displayWidth(seg.segment);
+  }
+  return col;
+}
+
+/**
+ * Render a single line with cursor and selection highlighting.
+ * All comparisons use display-column coordinates, not character indices.
+ *
+ * @param displayText  Visible text (masked or real)
+ * @param originalText Unmasked line text, used for offset→display-column mapping
+ * @param startOffset  Absolute source offset of the line start
+ * @param cursorOffset Absolute source cursor offset
+ * @param mask         Mask character (null when unmasked)
+ */
+export function renderLine(
   displayText: string,
+  originalText: string,
   startOffset: number,
-  length: number,
   lineIdx: number,
   cursorPos: Position,
+  cursorOffset: number,
   selRange: { start: number; end: number } | null,
-  isMasked: boolean,
+  mask: string | null,
   hasFocus: boolean,
   cursorChar?: string,
 ): React.ReactNode {
   const isCursorLine = lineIdx === cursorPos.line;
-  const cursorCol = isCursorLine ? cursorPos.column : -1;
+  const isMasked = mask != null;
 
-  // Simple case: no cursor on this line, no selection overlapping this line
-  if (!isCursorLine && (!selRange || selRange.end <= startOffset || selRange.start >= startOffset + length)) {
+  // Compute cursor display column for this line
+  let cursorDisplayCol = -1;
+  if (isCursorLine) {
+    if (isMasked) {
+      // Count graphemes before cursor, not code units
+      const localOffset = cursorOffset - startOffset;
+      const maskWidth = MeasuredText.displayWidth(mask);
+      cursorDisplayCol = graphemesBeforeOffset(originalText, localOffset) * maskWidth;
+    } else {
+      cursorDisplayCol = cursorPos.column;
+    }
+  }
+
+  // Early exit: no cursor on this line and no selection overlap
+  const lineEnd = startOffset + originalText.length;
+  if (!isCursorLine && (!selRange || selRange.end <= startOffset || selRange.start >= lineEnd)) {
     return displayText;
   }
 
-  // Calculate selection columns for this line (if any)
-  let selStart = -1;
-  let selEnd = -1;
+  // Selection bounds in display columns (non-masked only)
+  let selStartCol = -1;
+  let selEndCol = -1;
   if (selRange && !isMasked) {
-    const lineStart = startOffset;
-    const lineEnd = startOffset + length;
-    if (selRange.end > lineStart && selRange.start < lineEnd) {
-      selStart = Math.max(0, selRange.start - lineStart);
-      selEnd = Math.min(length, selRange.end - lineStart);
+    if (selRange.end > startOffset && selRange.start < lineEnd) {
+      const localSelStart = Math.max(0, selRange.start - startOffset);
+      const localSelEnd = Math.min(originalText.length, selRange.end - startOffset);
+      selStartCol = sourceOffsetToDisplayCol(originalText, localSelStart);
+      selEndCol = sourceOffsetToDisplayCol(originalText, localSelEnd);
     }
   }
 
   const segments: React.ReactNode[] = [];
 
-  // Build segments character by character grouping
-  const chars = [...displayText];
-
   let currentText = '';
   // Note: cursor and selected currently render identically (<Text inverse>).
   // Kept separate for future visual differentiation (e.g., cursor blink, different color).
   let currentMode: 'normal' | 'selected' | 'cursor' = 'normal';
+  let displayCol = 0;
 
   const flush = (key: string): void => {
     if (currentText === '') return;
-    if (currentMode === 'selected') {
-      segments.push(<Text key={key} inverse>{currentText}</Text>);
-    } else if (currentMode === 'cursor') {
+    if (currentMode === 'selected' || currentMode === 'cursor') {
       segments.push(<Text key={key} inverse>{currentText}</Text>);
     } else {
       segments.push(<Text key={key}>{currentText}</Text>);
@@ -593,35 +640,43 @@ function renderLine(
     currentText = '';
   };
 
-  for (let ci = 0; ci < chars.length; ci++) {
-    const ch = chars[ci];
+  let gi = 0;
+  for (const seg of GRAPHEME_SEGMENTER.segment(displayText)) {
+    const grapheme = seg.segment;
+    const gWidth = MeasuredText.displayWidth(grapheme);
+
     let mode: 'normal' | 'selected' | 'cursor' = 'normal';
 
-    if (isCursorLine && ci === cursorCol && hasFocus) {
+    if (isCursorLine && displayCol === cursorDisplayCol && hasFocus) {
       mode = 'cursor';
-    } else if (selStart >= 0 && ci >= selStart && ci < selEnd) {
+    } else if (selStartCol >= 0 && displayCol >= selStartCol && displayCol < selEndCol) {
       mode = 'selected';
     }
 
     if (mode !== currentMode) {
-      flush(`seg-${lineIdx}-${ci}`);
+      flush(`seg-${lineIdx}-${gi}`);
       currentMode = mode;
     }
 
     if (mode === 'cursor' && cursorChar) {
-      flush(`seg-${lineIdx}-${ci}`);
+      flush(`seg-${lineIdx}-${gi}`);
       segments.push(<Text key={`cur-${lineIdx}`} inverse>{cursorChar}</Text>);
       currentMode = 'normal';
+      // Advance by original grapheme width to stay in the same column space
+      // as selStartCol/selEndCol (computed from original text display widths).
+      displayCol += gWidth;
     } else {
-      currentText += ch;
+      currentText += grapheme;
+      displayCol += gWidth;
     }
+    gi++;
   }
 
   // Flush remaining
   flush(`seg-${lineIdx}-end`);
 
-  // Cursor at end of line (past last char)
-  if (isCursorLine && cursorCol >= chars.length && hasFocus) {
+  // Cursor at end of line (past last grapheme)
+  if (isCursorLine && cursorDisplayCol >= displayCol && hasFocus) {
     const curChar = cursorChar ?? ' ';
     segments.push(<Text key={`cur-${lineIdx}-end`} inverse>{curChar}</Text>);
   }
