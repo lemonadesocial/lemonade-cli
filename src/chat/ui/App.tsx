@@ -132,11 +132,11 @@ export function App({
   // lifecycle (via TurnCoordinator), provider-side session reset,
   // UI message list, and App-local showThinking state in one call.
   const performClear = useCallback(() => {
-    turnCoordinator.clearSession();
+    turnCoordinatorRef.current!.clearSession();
     setShowThinking(false);
     clearMessages();
     addSystemMessage('Session cleared.');
-  }, [turnCoordinator, clearMessages, addSystemMessage]);
+  }, [clearMessages, addSystemMessage]);
 
   const { recordSubmit, handleHistoryUp: historyUp, handleHistoryDown: historyDown, resetBrowsing } = history;
   const { showAutocomplete, filteredCommands, selectCurrent } = autocomplete;

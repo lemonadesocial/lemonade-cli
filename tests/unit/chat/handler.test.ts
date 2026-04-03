@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTurn } from '../../../src/chat/stream/handler';
 import { AIProvider, StreamEvent, Message, ToolDef, SystemMessage } from '../../../src/chat/providers/interface';
 import { createSessionState } from '../../../src/chat/session/state';
+import { ChatEngine } from '../../../src/chat/engine/ChatEngine';
 
 function createMockProvider(
   responses: StreamEvent[][],
@@ -246,6 +247,43 @@ describe('handleTurn', () => {
     expect(yieldCount).toBe(1);
     // Handler returned before pushing an assistant message
     expect(messages).toHaveLength(1);
+  });
+
+  it('suppresses engine error and emits turn_done when stream throws on abort', async () => {
+    const abort = new AbortController();
+    const engine = new ChatEngine();
+    const emitted: string[] = [];
+
+    engine.on('error', () => { emitted.push('error'); });
+    engine.on('turn_done', () => { emitted.push('turn_done'); });
+
+    const provider: AIProvider = {
+      name: 'abort-throw-test',
+      model: 'test',
+      capabilities: { supportsToolCalling: true },
+      formatTools: (tools) => tools,
+      async *stream() {
+        abort.abort();
+        throw new Error('The operation was aborted');
+      },
+    };
+
+    const messages: Message[] = [{ role: 'user', content: 'hi' }];
+    await handleTurn(
+      provider,
+      messages,
+      [],
+      systemPrompt,
+      session,
+      {},
+      null,
+      true,
+      engine,
+      abort.signal,
+    );
+
+    expect(emitted).not.toContain('error');
+    expect(emitted).toContain('turn_done');
   });
 
   it('handles token usage warning', async () => {
