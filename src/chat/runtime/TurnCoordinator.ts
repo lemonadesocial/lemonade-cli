@@ -55,8 +55,9 @@ export class TurnCoordinator {
   }
 
   // Synchronous accept/reject — acquires the entry lock before any async work.
-  // Caller commits user message only after checking `accepted`.
-  submitMainTurn(): TurnSubmitResult {
+  // Pushes the user message to provider history before handleTurn can read it,
+  // guaranteeing every provider sees the new message in params.messages.
+  submitMainTurn(input: string): TurnSubmitResult {
     if (this.mainTurnActive) {
       return { accepted: false, error: MAIN_TURN_BUSY };
     }
@@ -67,6 +68,11 @@ export class TurnCoordinator {
     this.mainTurnId = turnId;
     const abort = new AbortController();
     this.mainAbort = abort;
+
+    // Commit user message to provider history BEFORE any async work.
+    // Providers read params.messages synchronously — the message must be
+    // present before executeMainTurn reaches handleTurn.
+    this.deps.chatMessages.push({ role: 'user', content: input });
 
     const completion = this.executeMainTurn(turnId, abort);
     return { accepted: true, completion };
@@ -149,7 +155,7 @@ export class TurnCoordinator {
       // Emit error for failures that don't produce engine events (e.g. network
       // errors thrown before streaming begins).
       const msg = err instanceof Error ? err.message : 'Unknown error';
-      engine.emit('error', { message: `BTW error: ${msg}`, fatal: false, turnId: btwTurnId });
+      engine.emit('error', { message: msg, fatal: false, turnId: btwTurnId });
     }).finally(() => {
       this.btwAborts.delete(btwTurnId);
     });
@@ -178,8 +184,4 @@ export class TurnCoordinator {
     return true;
   }
 
-  cancelAll(): void {
-    this.cancelMainTurn();
-    this.cancelAllBtw();
-  }
 }

@@ -1045,15 +1045,15 @@ export function App({
     }
 
     // Regular messages: coordinator is the single authority for turn acceptance.
-    const submit = turnCoordinator.submitMainTurn();
+    // submitMainTurn commits the user message to provider history before handleTurn reads it.
+    const submit = turnCoordinator.submitMainTurn(input);
     if (!submit.accepted) {
       addSystemMessage(submit.error);
       return;
     }
 
-    // Commit only after coordinator has accepted the turn.
+    // UI-visible message committed after coordinator has accepted.
     addUserMessage(input);
-    chatMessages.push({ role: 'user', content: input });
     setShowThinking(true);
 
     const result = await submit.completion;
