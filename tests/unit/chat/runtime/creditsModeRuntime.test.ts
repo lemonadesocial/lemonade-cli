@@ -209,12 +209,13 @@ describe('Credits mode through TurnCoordinator', () => {
     const creditsTc = new TurnCoordinator(makeDeps(creditsProvider, { chatMessages: creditsMsgs }));
     const byokTc = new TurnCoordinator(makeDeps(byokProvider, { chatMessages: byokMsgs }));
 
-    const creditsResult = creditsTc.clearSession();
-    const byokResult = byokTc.clearSession();
+    creditsTc.clearSession();
+    byokTc.clearSession();
 
-    expect(creditsResult).toEqual(byokResult);
     expect(creditsMsgs).toHaveLength(0);
     expect(byokMsgs).toHaveLength(0);
+    expect(creditsTc.state.isMainTurnActive).toBe(false);
+    expect(byokTc.state.isMainTurnActive).toBe(false);
   });
 
   it('clearSession cancels active credits turn and empties history', async () => {
