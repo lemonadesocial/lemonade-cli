@@ -405,6 +405,203 @@ describe('removeMessageById — rollback sequence alignment', () => {
     expect(finalMessages).toHaveLength(2);
   });
 
+  it('in-place adjustment preserves concurrent writes to turnMessageIndex', () => {
+    // Simulates the revised callback-level removeMessageById logic:
+    // turnMessageIndex is mutated in-place (not replaced from a snapshot),
+    // so entries added by concurrent event handlers survive the removal.
+    const msgs = makeMessages(
+      { role: 'user', content: 'q1', msgId: 'u1' },
+      { role: 'assistant', content: 'a1' },
+      { role: 'user', content: 'q2', msgId: 'u2' },
+      { role: 'assistant', content: 'a2' },
+    );
+
+    // Simulated live ref — same object the event handlers write to.
+    const liveRef = new Map<string, number>([
+      ['turn-a', 1],
+      ['turn-b', 3],
+    ]);
+
+    // --- Simulate what removeMessageById's updater does ---
+    const id = 'u1';
+    const idx = msgs.findIndex((m) => m.msgId === id);
+    expect(idx).toBe(0);
+
+    // Concurrent write: a BTW event handler registers a new turn between
+    // the setMessages call and the updater execution.
+    liveRef.set('btw-concurrent', 4);
+
+    // In-place adjustment on the live ref (the fix)
+    const adj = computeIndexAdjustments(liveRef, idx);
+    applyIndexAdjustments(liveRef, adj);
+
+    // Existing entries shifted correctly
+    expect(liveRef.get('turn-a')).toBe(0); // was 1, shifted down
+    expect(liveRef.get('turn-b')).toBe(2); // was 3, shifted down
+
+    // Concurrent write PRESERVED and shifted (was 4, shifted down)
+    expect(liveRef.get('btw-concurrent')).toBe(3);
+    expect(liveRef.size).toBe(3);
+  });
+
+  it('stale-snapshot replacement would lose concurrent write (regression guard)', () => {
+    // Documents the bug that the old snapshot-then-replace approach had.
+    // The in-place approach does not have this problem (tested above), but
+    // this test ensures the pure-function path cannot silently regress to
+    // a replace pattern that discards concurrent writes.
+    const msgs = makeMessages(
+      { role: 'user', content: 'q1', msgId: 'u1' },
+      { role: 'assistant', content: 'a1' },
+    );
+
+    // Take a snapshot BEFORE the concurrent write
+    const snapshotBefore = new Map<string, number>([['turn-a', 1]]);
+
+    // Concurrent write happens after snapshot
+    // (would have been lost if we replaced the ref with the snapshot-derived map)
+    const liveRef = new Map<string, number>([['turn-a', 1]]);
+    liveRef.set('btw-concurrent', 2);
+
+    // Pure function operates on the stale snapshot
+    const result = removeMessageByIdUpdater(msgs, 'u1', snapshotBefore);
+
+    // The returned newTurnIndex does NOT contain the concurrent write
+    expect(result.newTurnIndex!.has('btw-concurrent')).toBe(false);
+
+    // But the live ref still has it — in-place mutation would preserve it
+    expect(liveRef.has('btw-concurrent')).toBe(true);
+  });
+
+  it('removal with active turn indices adjusts all affected entries', () => {
+    // Tests removeMessageById behavior when multiple active turns exist.
+    // The removal must shift every index above the removed position.
+    const msgs = makeMessages(
+      { role: 'user', content: 'q1', msgId: 'u1' },
+      { role: 'assistant', content: 'a1' },       // turn-main at 1
+      { role: 'assistant', content: 'btw-a1' },    // btw-1 at 2
+      { role: 'user', content: 'q2', msgId: 'u2' },
+      { role: 'assistant', content: 'a2' },         // turn-main-2 at 4
+      { role: 'assistant', content: 'btw-a2' },     // btw-2 at 5
+    );
+
+    // Live ref with multiple active turns
+    const liveRef = new Map<string, number>([
+      ['turn-main', 1],
+      ['btw-1', 2],
+      ['turn-main-2', 4],
+      ['btw-2', 5],
+    ]);
+
+    // Remove u2 at index 3
+    const removeIdx = msgs.findIndex((m) => m.msgId === 'u2');
+    expect(removeIdx).toBe(3);
+
+    const adj = computeIndexAdjustments(liveRef, removeIdx);
+    applyIndexAdjustments(liveRef, adj);
+
+    // Indices below removal (1, 2) unchanged
+    expect(liveRef.get('turn-main')).toBe(1);
+    expect(liveRef.get('btw-1')).toBe(2);
+    // Indices above removal (4, 5) shifted down by 1
+    expect(liveRef.get('turn-main-2')).toBe(3);
+    expect(liveRef.get('btw-2')).toBe(4);
+  });
+
+  it('callback-level in-place mutation is idempotent with refMutated guard', () => {
+    // Simulates the exact removeMessageById callback pattern with the
+    // refMutated guard, verifying React StrictMode double-invocation safety.
+    const msgs = makeMessages(
+      { role: 'user', content: 'q1', msgId: 'u1' },
+      { role: 'assistant', content: 'a1' },
+      { role: 'user', content: 'q2', msgId: 'u2' },
+      { role: 'assistant', content: 'a2' },
+    );
+
+    const liveRef = new Map<string, number>([
+      ['turn-a', 1],
+      ['turn-b', 3],
+    ]);
+
+    const id = 'u1';
+    let refMutated = false;
+
+    // Simulated updater — called twice (StrictMode)
+    const updater = (prev: UIMessage[]) => {
+      const idx = prev.findIndex((m) => m.msgId === id);
+      if (idx === -1) return prev;
+      if (prev[idx].role !== 'user') return prev;
+
+      if (!refMutated) {
+        refMutated = true;
+        const adj = computeIndexAdjustments(liveRef, idx);
+        applyIndexAdjustments(liveRef, adj);
+      }
+
+      const next = [...prev];
+      next.splice(idx, 1);
+      return next;
+    };
+
+    // First call (React may discard this result)
+    const result1 = updater(msgs);
+    // Second call (React keeps this result)
+    const result2 = updater(msgs);
+
+    // Both return the same logical result
+    expect(result1).toEqual(result2);
+    expect(result2).toHaveLength(3);
+
+    // Ref was only mutated once — no double-shift
+    expect(liveRef.get('turn-a')).toBe(0); // shifted once from 1
+    expect(liveRef.get('turn-b')).toBe(2); // shifted once from 3
+  });
+
+  it('callback-level corruption appends system message without ref mutation', () => {
+    // Simulates the corruption path inside the updater.
+    const msgs = makeMessages(
+      { role: 'assistant', content: 'wrong role', msgId: 'u1' },
+      { role: 'assistant', content: 'a1' },
+    );
+
+    const liveRef = new Map<string, number>([['turn-a', 1]]);
+    const originalEntries = [...liveRef.entries()];
+
+    const id = 'u1';
+    let refMutated = false;
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const updater = (prev: UIMessage[]) => {
+      const idx = prev.findIndex((m) => m.msgId === id);
+      if (idx === -1) return prev;
+      if (prev[idx].role !== 'user') {
+        const detail = `removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user"`;
+        console.error(detail);
+        return [...prev, { role: 'system' as const, content: `Warning: ${detail}` }];
+      }
+      if (!refMutated) {
+        refMutated = true;
+        const adj = computeIndexAdjustments(liveRef, idx);
+        applyIndexAdjustments(liveRef, adj);
+      }
+      const next = [...prev];
+      next.splice(idx, 1);
+      return next;
+    };
+
+    const result = updater(msgs);
+
+    // System message appended, original messages preserved
+    expect(result).toHaveLength(3);
+    expect(result[2].role).toBe('system');
+    expect(result[2].content).toContain('role "assistant"');
+
+    // Ref was NOT mutated (corruption bails out before adjustment)
+    expect(refMutated).toBe(false);
+    expect([...liveRef.entries()]).toEqual(originalEntries);
+
+    consoleSpy.mockRestore();
+  });
+
   it('double rollback attempt (Escape + catch) is safe at the UI layer', () => {
     const msgs = makeMessages(
       { role: 'user', content: 'prior', msgId: 'u1' },

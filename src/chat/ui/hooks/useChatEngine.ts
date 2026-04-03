@@ -262,34 +262,40 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
   /**
    * Remove a UI message by its stable msgId. UI-only: does NOT touch
    * ConversationStore — caller must ensure store rollback succeeded first.
+   *
+   * Index adjustment mutates turnMessageIndex.current in-place inside the
+   * updater so that concurrent writes from event handlers (e.g. onTextDelta
+   * registering a new BTW turn) are preserved — no snapshot-then-replace.
    */
   const removeMessageById = useCallback((id: string) => {
-    // Snapshot the current turn-index so the updater is pure / idempotent
-    // even if React invokes it more than once (StrictMode).
-    const snapshot = new Map(turnMessageIndex.current);
-    let computed: RemoveMessageResult | null = null;
+    // Guard ensures the ref mutation runs exactly once even if React
+    // double-invokes the updater (StrictMode). The second invocation sees the
+    // same `prev` but the live ref has already been adjusted.
+    let refMutated = false;
 
     setMessages((prev) => {
-      const result = removeMessageByIdUpdater(prev, id, snapshot);
-      computed = result;
-      return result.messages;
-    });
+      const idx = prev.findIndex((m) => m.msgId === id);
+      if (idx === -1) return prev;
 
-    // Apply the new turn-index map exactly once, outside the updater.
-    if (computed !== null) {
-      const { newTurnIndex, corruption } = computed as RemoveMessageResult;
-      if (newTurnIndex !== null) {
-        turnMessageIndex.current = newTurnIndex;
+      if (prev[idx].role !== 'user') {
+        const detail = `removeMessageById: message ${id} at index ${idx} has role "${prev[idx].role}", expected "user" — removal skipped (state corruption)`;
+        console.error(`[useChatEngine] ${detail}`);
+        return [...prev, { role: 'system', content: `Warning: UI state inconsistency detected — ${detail}` }];
       }
-      if (corruption !== null) {
-        console.error(`[useChatEngine] ${corruption}`);
-        // Surface to the user so corruption is diagnosable, not silent.
-        setMessages((prev) => [
-          ...prev,
-          { role: 'system', content: `Warning: UI state inconsistency detected — ${corruption}` },
-        ]);
+
+      // Adjust the live ref in-place — preserves any entries added by
+      // concurrent event handlers between the setMessages call and updater
+      // execution. Snapshot entries for safe iteration while mutating.
+      if (!refMutated) {
+        refMutated = true;
+        const adj = computeIndexAdjustments(turnMessageIndex.current, idx);
+        applyIndexAdjustments(turnMessageIndex.current, adj);
       }
-    }
+
+      const next = [...prev];
+      next.splice(idx, 1);
+      return next;
+    });
   }, []);
 
   const addSystemMessage = useCallback((text: string) => {
@@ -308,6 +314,10 @@ export function useChatEngine(engine: ChatEngine): UseChatEngineResult {
     setPendingConfirm(null);
   }, [engine]);
 
+  // Called on Escape before removeMessageById. Clearing turnMessageIndex here
+  // means the subsequent removal's index adjustment is a no-op (nothing to
+  // shift). In the catch-block error path resetStreaming is NOT called first,
+  // so removeMessageById's in-place adjustment is still load-bearing there.
   const resetStreaming = useCallback(() => {
     setIsStreaming(false);
     setIsThinking(false);
