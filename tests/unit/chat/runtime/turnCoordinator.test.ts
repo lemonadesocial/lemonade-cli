@@ -331,12 +331,9 @@ describe('TurnCoordinator', () => {
       if (!oldSubmit.accepted) throw new Error('expected accepted');
       tc.cancelMainTurn();
 
-      // Start turn B — it will await the settling promise internally
-      let newTurnStarted = false;
-      mockHandleTurn.mockImplementationOnce(() => {
-        newTurnStarted = true;
-        return new Promise<void>((resolve) => { setTimeout(resolve, 50); });
-      });
+      // Start turn B — it will await the settling promise internally.
+      // No handleTurn mock needed: turn B is cancelled before settling
+      // completes, so it exits early (abort check after settling gate).
       const newSubmit = tc.submitMainTurn('test');
       if (!newSubmit.accepted) throw new Error('expected accepted');
 
@@ -344,13 +341,15 @@ describe('TurnCoordinator', () => {
       expect(tc.cancelMainTurn()).toBe(true);
       expect(tc.state.isMainTurnActive).toBe(false);
 
-      // Let old turn settle so new turn can proceed (and immediately see abort)
+      // Let old turn settle so new turn can proceed past the gate and see abort
       resolveOldTurn();
       await oldSubmit.completion;
       await newSubmit.completion;
 
-      // State should be idle — the stale finally from B must not leave active=true
+      // State should be idle — turn B exited early, no stale state left
       expect(tc.state.isMainTurnActive).toBe(false);
+      // handleTurn was only called for turn A
+      expect(mockHandleTurn).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -659,6 +658,77 @@ describe('TurnCoordinator', () => {
         { role: 'user', content: 'old input' },
         { role: 'user', content: 'new input' },
       ]);
+    });
+  });
+
+  describe('cancelled during settling — early exit before provider call', () => {
+    it('executeMainTurn exits early when signal is aborted after settling wait', async () => {
+      let resolveOldTurn!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveOldTurn = resolve; }),
+      );
+
+      const tc = new TurnCoordinator(makeDeps());
+
+      // Start and cancel turn A to create a settling window
+      const oldSubmit = tc.submitMainTurn('old');
+      if (!oldSubmit.accepted) throw new Error('expected accepted');
+      tc.cancelMainTurn();
+
+      // Start turn B — no mock needed since it will exit before reaching handleTurn
+      const newSubmit = tc.submitMainTurn('new');
+      if (!newSubmit.accepted) throw new Error('expected accepted');
+
+      // Cancel turn B while it's still waiting for the settling gate
+      expect(tc.cancelMainTurn()).toBe(true);
+
+      // Let old turn settle so new turn can proceed past the gate
+      resolveOldTurn();
+      await oldSubmit.completion;
+      await newSubmit.completion;
+
+      // handleTurn should only have been called once (the old turn).
+      // Turn B should have exited early without calling handleTurn.
+      expect(mockHandleTurn).toHaveBeenCalledTimes(1);
+      expect(tc.state.isMainTurnActive).toBe(false);
+    });
+
+    it('provider/handleTurn is not called when signal is already aborted after settling wait', async () => {
+      let resolveOldTurn!: () => void;
+      mockHandleTurn.mockImplementationOnce(() =>
+        new Promise<void>((resolve) => { resolveOldTurn = resolve; }),
+      );
+
+      const tc = new TurnCoordinator(makeDeps());
+
+      // Start and cancel turn A
+      const oldSubmit = tc.submitMainTurn('old');
+      if (!oldSubmit.accepted) throw new Error('expected accepted');
+      tc.cancelMainTurn();
+
+      // Start turn B, then cancel it before settling completes
+      // No mock needed — turn B exits early before reaching handleTurn
+      const newSubmit = tc.submitMainTurn('new');
+      if (!newSubmit.accepted) throw new Error('expected accepted');
+      tc.cancelMainTurn();
+
+      // Settle old turn
+      resolveOldTurn();
+      await oldSubmit.completion;
+      await newSubmit.completion;
+
+      // buildSystemMessages should not have been called for turn B
+      // (it's called once for turn A before cancel)
+      expect(mockBuildSystemMessages).toHaveBeenCalledTimes(1);
+      // handleTurn called only for turn A
+      expect(mockHandleTurn).toHaveBeenCalledTimes(1);
+
+      // Coordinator is reusable — next turn should work
+      const retrySubmit = tc.submitMainTurn('retry');
+      expect(retrySubmit.accepted).toBe(true);
+      if (!retrySubmit.accepted) return;
+      await retrySubmit.completion;
+      expect(mockHandleTurn).toHaveBeenCalledTimes(2);
     });
   });
 

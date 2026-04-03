@@ -92,6 +92,12 @@ export class TurnCoordinator {
       await this.mainTurnSettling;
     }
 
+    // If the turn was cancelled while we were waiting for the settling gate,
+    // exit before doing any provider work.
+    if (abort.signal.aborted) {
+      return {};
+    }
+
     let resolveSettling!: () => void;
     const settling = new Promise<void>(r => { resolveSettling = r; });
     this.mainTurnSettling = settling;
