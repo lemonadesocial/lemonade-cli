@@ -793,7 +793,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async (args) => {
       // Backend schema accepts Float for count, but ticket quantities are whole numbers
-      const count = Math.floor((args.quantity as number) || 1);
+      const count = Math.floor(args.quantity != null ? (args.quantity as number) : 1);
       if (count < 1) throw new Error('Quantity must be a positive whole number.');
       const result = await graphqlRequest<{ aiCalculateTicketPrice: unknown }>(
         `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
