@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { MultilineInput } from './input/index.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
@@ -101,7 +101,7 @@ export function App({
     engine, provider: activeProvider, formattedTools: activeFormattedTools, session, registry, chatMessages,
   });
   const turnCoordinator = turnCoordinatorRef.current;
-  const runtimeDisplayOpts = { providerName, modelName };
+  const runtimeDisplayOpts = useMemo(() => ({ providerName, modelName }), [providerName, modelName]);
 
   // Reactive terminal width
   const [termColumns, setTermColumns] = useState(process.stdout.columns || 80);

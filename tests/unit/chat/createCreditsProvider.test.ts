@@ -133,14 +133,22 @@ describe('createCreditsProvider', () => {
       ).rejects.toThrow('free plan with no AI credits');
     });
 
-    it('throws when paid tier has 0 credits remaining', async () => {
-      mockGraphql.mockResolvedValueOnce({
-        getStandCredits: { credits: 0, subscription_tier: 'pro', subscription_renewal_date: '2026-05-01' },
-      });
+    it('warns but succeeds when paid tier has 0 credits remaining', async () => {
+      mockGraphql
+        .mockResolvedValueOnce({
+          getStandCredits: { credits: 0, subscription_tier: 'pro', subscription_renewal_date: '2026-05-01' },
+        })
+        .mockResolvedValueOnce({
+          getAvailableModels: [{ name: 'gpt-4o', is_default: true }],
+        });
 
-      await expect(
-        createCreditsProvider('space-1', { liveSwitch: true }),
-      ).rejects.toThrow('0 credits remaining');
+      const provider = await createCreditsProvider('space-1', { liveSwitch: true });
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('0 credits remaining'),
+      );
+      expect(provider.name).toBe('lemonade-ai');
     });
 
     it('succeeds when credits are available', async () => {

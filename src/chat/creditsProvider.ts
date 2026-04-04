@@ -37,10 +37,10 @@ export async function createCreditsProvider(spaceId: string, opts?: { liveSwitch
       console.error(chalk.dim('  Upgrade your plan or use your own API key (run with ai_mode: own_key).'));
       process.exit(2);
     } else if (credits.credits <= 0) {
-      if (opts?.liveSwitch) {
-        throw new Error(`Your community has 0 credits remaining. Credits renew on ${credits.subscription_renewal_date || 'next billing cycle'}. Buy more credits or use /mode own_key.`);
-      }
-      console.log(chalk.yellow(`  Your community has 0 credits remaining. Credits renew on ${credits.subscription_renewal_date || 'next billing cycle'}.`));
+      // Paid tier, 0 remaining — warn but allow (both startup and live-switch).
+      // Credits renew on the billing cycle; backend rejects if truly exhausted.
+      const renewal = credits.subscription_renewal_date ?? 'next billing cycle';
+      console.log(chalk.yellow(`  Your community has 0 credits remaining. Credits renew on ${renewal}.`));
       console.log(chalk.dim('  You can buy more credits with "credits buy" or switch to your own API key.'));
     }
   }
