@@ -231,7 +231,7 @@ export function App({
         }
 
         setAiModeConfig('own_key');
-        applyRuntimeSwitch(nextProvider, session.currentSpace?.title || spaceName);
+        applyRuntimeSwitch(nextProvider, 'none');
         return `Switched to BYOK mode using ${detected}. Session cleared.`;
       }
 

@@ -2,7 +2,7 @@ import { getConfig, setConfigValue } from '../auth/store.js';
 
 export type AiMode = 'credits' | 'own_key';
 
-// Initialized at startup; may be updated mid-session via /mode switch.
+// Initialized at startup; may be updated by startup recovery or mid-session /mode switch.
 let lockedMode: AiMode | null = null;
 
 export function initAiMode(): AiMode {

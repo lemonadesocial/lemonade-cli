@@ -3,6 +3,7 @@ import readline from 'readline';
 import { getDefaultSpace } from '../auth/store.js';
 import { setAiModeSession } from './aiMode.js';
 import { detectApiKey, detectProvider } from './onboarding.js';
+import { isValidProvider } from './providerFactory.js';
 import { getCreditsSpaceId, selectCreditsSpace } from './spaceSelection.js';
 
 export interface CreditsStartupResolution {
@@ -32,13 +33,15 @@ export async function resolveCreditsStartupMode(isTTY: boolean): Promise<Credits
   }
 
   const providerName = detectProvider();
-  const apiKey = detectApiKey(providerName);
-  if (apiKey) {
-    setAiModeSession('own_key');
-    return {
-      mode: 'own_key',
-      message: chalk.yellow('  No credits space selected. Starting in BYOK mode instead.'),
-    };
+  if (isValidProvider(providerName)) {
+    const apiKey = detectApiKey(providerName);
+    if (apiKey) {
+      setAiModeSession('own_key');
+      return {
+        mode: 'own_key',
+        message: chalk.yellow('  No credits space selected. Starting in BYOK mode instead.'),
+      };
+    }
   }
 
   return {
