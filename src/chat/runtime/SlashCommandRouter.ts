@@ -5,7 +5,7 @@ import { TurnCoordinator } from './TurnCoordinator.js';
 import { SlashCommandResult, getModelsForProvider } from '../ui/SlashCommands.js';
 import { VERSION } from '../version.js';
 import { getAgentName } from '../skills/loader.js';
-import { getAiModeDisplay } from '../aiMode.js';
+import { getAiMode, getAiModeDisplay } from '../aiMode.js';
 import { getCreditsSpaceId } from '../spaceSelection.js';
 import { graphqlRequest } from '../../api/graphql.js';
 import type { UIMessage } from '../ui/hooks/useChatEngine.js';
@@ -95,6 +95,14 @@ export async function executeSlashCommand(
   }
 
   if (slashResult.action === 'model') {
+    if (getAiMode() === 'credits') {
+      addSystemMessage(
+        `Current model: ${displayOpts.modelName}\n` +
+        'In Lemonade Credits mode, the model is determined by your community\'s backend configuration.\n' +
+        'Model switching is not available in credits mode. Use /mode own_key to switch to BYOK mode (requires restart).',
+      );
+      return;
+    }
     const available = getModelsForProvider(displayOpts.providerName);
     if (slashResult.args) {
       const requested = slashResult.args.trim().toLowerCase();
@@ -113,6 +121,13 @@ export async function executeSlashCommand(
   }
 
   if (slashResult.action === 'provider') {
+    if (getAiMode() === 'credits') {
+      addSystemMessage(
+        'In Lemonade Credits mode, the AI provider is managed by your community.\n' +
+        'Provider switching is not available in credits mode. Use /mode own_key to switch to BYOK mode (requires restart).',
+      );
+      return;
+    }
     if (slashResult.args) {
       addSystemMessage(`Provider switching requires a session restart. Current provider: ${displayOpts.providerName}`);
     } else {
@@ -131,12 +146,16 @@ export async function executeSlashCommand(
     if (slashResult.args === 'credits' || slashResult.args === 'own_key') {
       const { setAiModeConfig } = await import('../aiMode.js');
       setAiModeConfig(slashResult.args);
-      addSystemMessage(`Restart the session to use ${slashResult.args} mode.`);
+      const displayName = slashResult.args === 'credits' ? 'Lemonade Credits' : 'BYOK (Own API Key)';
+      addSystemMessage(`Restart the session to use ${displayName} mode.`);
     } else {
       let modeInfo = `Current AI mode: ${currentMode}`;
       const creditsSpace = getCreditsSpaceId();
       if (creditsSpace) modeInfo += `\nCredits space: ${creditsSpace}`;
-      modeInfo += '\nUsage: /mode credits  or  /mode own_key';
+      modeInfo += '\nAvailable modes:';
+      modeInfo += '\n  credits   — Lemonade Credits (uses community AI credits)';
+      modeInfo += '\n  own_key   — BYOK (bring your own API key)';
+      modeInfo += '\nUsage: /mode credits  or  /mode own_key (requires restart)';
       addSystemMessage(modeInfo);
     }
     return;
@@ -154,6 +173,14 @@ export async function executeSlashCommand(
   }
 
   if (slashResult.action === 'plan') {
+    if (getAiMode() === 'credits') {
+      addSystemMessage(
+        'Guided tool mode (/plan) is not available in Lemonade Credits mode.\n' +
+        'Credits mode does not currently support tool calling.\n' +
+        'Use /mode own_key to switch to BYOK mode (requires restart).',
+      );
+      return;
+    }
     if (slashResult.args) {
       const tool = registry[slashResult.args];
       if (tool) {
@@ -216,12 +243,16 @@ export async function executeSlashCommand(
   }
 
   if (slashResult.action === 'status') {
+    const mode = getAiMode();
     const lines: string[] = [
       `Model: ${displayOpts.modelName}`,
       `Provider: ${displayOpts.providerName}`,
       `Mode: ${getAiModeDisplay()}`,
       `Space: ${spaceName}`,
     ];
+    if (mode === 'credits') {
+      lines.push('Tool calling: not available (credits mode limitation)');
+    }
     if (session.currentEvent) {
       lines.push(`Event: ${session.currentEvent.title} (${session.currentEvent._id})`);
     }
@@ -330,10 +361,17 @@ export async function executeSlashCommand(
   }
 
   if (slashResult.action === 'credits') {
+    if (getAiMode() === 'own_key') {
+      addSystemMessage(
+        'You are in BYOK mode (Own API Key). Credits do not apply.\n' +
+        'To use community AI credits, switch with /mode credits (requires restart).',
+      );
+      return;
+    }
     try {
       const tool = registry['credits_balance'];
       if (!tool) {
-        addSystemMessage('Credits tool not available. Check your AI mode with /mode.');
+        addSystemMessage('Credits tool not available. Check your space selection with /spaces.');
         return;
       }
       const result = await tool.execute({}) as Record<string, unknown>;

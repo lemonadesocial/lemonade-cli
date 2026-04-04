@@ -8,14 +8,14 @@ export interface SlashCommandResult {
 export const SLASH_COMMANDS = [
   { name: '/help', description: 'Show commands and shortcuts' },
   { name: '/clear', description: 'Reset conversation' },
-  { name: '/model', description: 'List or switch models' },
-  { name: '/provider', description: 'Switch AI provider' },
+  { name: '/model', description: 'Show model info (BYOK: list/switch)' },
+  { name: '/provider', description: 'Show or switch AI provider (BYOK only)' },
   { name: '/space', description: 'Show current space' },
   { name: '/exit', description: 'Exit the app' },
   { name: '/quit', description: 'Exit the app' },
   { name: '/mode', description: 'Show or switch AI mode (credits / own_key)' },
   { name: '/name', description: 'Set agent name' },
-  { name: '/plan', description: 'Start guided mode for a tool' },
+  { name: '/plan', description: 'Start guided mode for a tool (BYOK only)' },
   { name: '/btw', description: 'Ask a side question (runs in parallel)' },
   { name: '/version', description: 'Check CLI version and update' },
   { name: '/status', description: 'Show session status' },
@@ -32,15 +32,15 @@ const HELP_TABLE = `
 Commands:
   /help              Show commands and shortcuts
   /clear             Reset conversation
-  /model             List available models
-  /model <name>      Switch to a model
-  /provider <name>   Switch AI provider
+  /model             Show model info (BYOK: list available)
+  /model <name>      Switch to a model (BYOK only)
+  /provider <name>   Switch AI provider (BYOK only)
   /space             Show current space
   /mode              Show current AI mode (credits / own_key)
   /mode <mode>       Switch AI mode (restarts session)
   /name              Show agent name
   /name <name>       Rename the agent
-  /plan <tool>       Start guided mode for a tool
+  /plan <tool>       Start guided mode for a tool (BYOK only)
   /btw <message>     Ask a side question (runs in parallel)
   /version           Check CLI version and update if available
   /status            Show session status (model, space, event, mode)
