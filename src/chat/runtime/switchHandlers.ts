@@ -4,7 +4,6 @@ import type { AiMode } from '../aiMode.js';
 import type { LemonadeConfig } from '../../auth/store.js';
 
 export interface SwitchState {
-  isSwitching: boolean;
   isMainTurnActive: boolean;
 }
 
@@ -21,9 +20,6 @@ export async function handleSwitchProvider(
   nextProviderName: ByokProviderName,
   deps: SwitchProviderDeps,
 ): Promise<string> {
-  if (deps.state.isSwitching) {
-    return 'A mode/provider switch is already in progress.';
-  }
   if (deps.state.isMainTurnActive) {
     return 'Cannot switch provider while a turn is active. Wait for it to finish or press Escape to cancel.';
   }
@@ -69,9 +65,6 @@ export async function handleSwitchMode(
   nextMode: 'credits' | 'own_key',
   deps: SwitchModeDeps,
 ): Promise<string> {
-  if (deps.state.isSwitching) {
-    return 'A mode/provider switch is already in progress.';
-  }
   if (deps.state.isMainTurnActive) {
     return 'Cannot switch mode while a turn is active. Wait for it to finish or press Escape to cancel.';
   }
@@ -94,6 +87,7 @@ export async function handleSwitchMode(
     }
 
     deps.setAiModeConfig('own_key');
+    deps.setConfigValue('ai_provider', detected);
     deps.applyRuntimeSwitch(nextProvider, 'none');
     return `Switched to BYOK mode using ${detected}. Session cleared.`;
   }

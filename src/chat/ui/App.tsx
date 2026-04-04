@@ -183,7 +183,7 @@ export function App({
     switchingRef.current = true;
     try {
       return await handleSwitchProvider(nextProviderName, {
-        state: { isSwitching: false, isMainTurnActive: turnCoordinatorRef.current!.state.isMainTurnActive },
+        state: { isMainTurnActive: turnCoordinatorRef.current!.state.isMainTurnActive },
         detectApiKey,
         createByokProvider,
         setAiModeConfig,
@@ -202,7 +202,7 @@ export function App({
     switchingRef.current = true;
     try {
       return await handleSwitchMode(nextMode, {
-        state: { isSwitching: false, isMainTurnActive: turnCoordinatorRef.current!.state.isMainTurnActive },
+        state: { isMainTurnActive: turnCoordinatorRef.current!.state.isMainTurnActive },
         detectProvider,
         detectApiKey,
         createByokProvider,

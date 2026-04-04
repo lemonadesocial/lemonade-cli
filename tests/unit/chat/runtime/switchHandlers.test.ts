@@ -16,7 +16,7 @@ const fakeProvider = (name = 'anthropic', model = 'claude-sonnet-4-6') => ({
 
 function makeProviderDeps(overrides: Partial<SwitchProviderDeps> = {}): SwitchProviderDeps {
   return {
-    state: { isSwitching: false, isMainTurnActive: false },
+    state: { isMainTurnActive: false },
     detectApiKey: vi.fn(() => 'sk-test-key'),
     createByokProvider: vi.fn(async () => fakeProvider() as any),
     setAiModeConfig: vi.fn(),
@@ -28,7 +28,7 @@ function makeProviderDeps(overrides: Partial<SwitchProviderDeps> = {}): SwitchPr
 
 function makeModeDeps(overrides: Partial<SwitchModeDeps> = {}): SwitchModeDeps {
   return {
-    state: { isSwitching: false, isMainTurnActive: false },
+    state: { isMainTurnActive: false },
     detectProvider: vi.fn(() => 'anthropic'),
     detectApiKey: vi.fn(() => 'sk-test-key'),
     createByokProvider: vi.fn(async () => fakeProvider() as any),
@@ -46,15 +46,8 @@ function makeModeDeps(overrides: Partial<SwitchModeDeps> = {}): SwitchModeDeps {
 }
 
 describe('handleSwitchProvider', () => {
-  it('blocks when a switch is already in progress', async () => {
-    const deps = makeProviderDeps({ state: { isSwitching: true, isMainTurnActive: false } });
-    const result = await handleSwitchProvider('openai', deps);
-    expect(result).toContain('already in progress');
-    expect(deps.applyRuntimeSwitch).not.toHaveBeenCalled();
-  });
-
   it('blocks when a turn is active', async () => {
-    const deps = makeProviderDeps({ state: { isSwitching: false, isMainTurnActive: true } });
+    const deps = makeProviderDeps({ state: { isMainTurnActive: true } });
     const result = await handleSwitchProvider('openai', deps);
     expect(result).toContain('turn is active');
     expect(deps.applyRuntimeSwitch).not.toHaveBeenCalled();
@@ -92,14 +85,8 @@ describe('handleSwitchProvider', () => {
 });
 
 describe('handleSwitchMode', () => {
-  it('blocks when a switch is already in progress', async () => {
-    const deps = makeModeDeps({ state: { isSwitching: true, isMainTurnActive: false } });
-    const result = await handleSwitchMode('own_key', deps);
-    expect(result).toContain('already in progress');
-  });
-
   it('blocks when a turn is active', async () => {
-    const deps = makeModeDeps({ state: { isSwitching: false, isMainTurnActive: true } });
+    const deps = makeModeDeps({ state: { isMainTurnActive: true } });
     const result = await handleSwitchMode('credits', deps);
     expect(result).toContain('turn is active');
   });
@@ -127,7 +114,7 @@ describe('handleSwitchMode', () => {
       expect(result).toContain('boom');
     });
 
-    it('succeeds: sets own_key config and applies switch with space=none', async () => {
+    it('succeeds: sets own_key config, persists provider, and applies switch with space=none', async () => {
       const provider = fakeProvider();
       const deps = makeModeDeps({
         createByokProvider: vi.fn(async () => provider as any),
@@ -136,6 +123,7 @@ describe('handleSwitchMode', () => {
 
       expect(result).toContain('Switched to BYOK mode');
       expect(deps.setAiModeConfig).toHaveBeenCalledWith('own_key');
+      expect(deps.setConfigValue).toHaveBeenCalledWith('ai_provider', 'anthropic');
       expect(deps.applyRuntimeSwitch).toHaveBeenCalledWith(provider, 'none');
     });
   });
