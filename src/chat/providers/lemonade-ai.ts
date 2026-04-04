@@ -113,9 +113,25 @@ export class LemonadeAIProvider implements AIProvider {
     const parts: string[] = [];
 
     for (const msg of history) {
-      const role = msg.role === 'user' ? 'User' : 'Assistant';
       const text = LemonadeAIProvider.extractText(msg);
-      if (text) parts.push(`${role}: ${text}`);
+      if (!text) continue;
+
+      let role: string;
+      if (msg.role === 'assistant') {
+        role = 'Assistant';
+      } else if (
+        Array.isArray(msg.content) &&
+        msg.content.length > 0 &&
+        (msg.content[0] as Record<string, unknown>).type === 'tool_result'
+      ) {
+        // Tool-result user messages are BYOK tool-loop artifacts.
+        // Label distinctly so the backend sees them as tool output,
+        // not as direct user input.
+        role = 'Tool Output';
+      } else {
+        role = 'User';
+      }
+      parts.push(`${role}: ${text}`);
     }
 
     parts.push('');
@@ -123,16 +139,28 @@ export class LemonadeAIProvider implements AIProvider {
     return parts.join('\n');
   }
 
-  static extractText(msg: Message): string {
+  private static extractText(msg: Message): string {
     if (typeof msg.content === 'string') return msg.content;
     if (Array.isArray(msg.content)) {
-      return (msg.content as Array<Record<string, unknown>>)
-        .filter(b => b.type === 'text' && typeof b.text === 'string')
-        .map(b => b.text as string)
-        .filter(Boolean)
-        .join('\n');
+      const parts: string[] = [];
+      for (const block of msg.content as Array<Record<string, unknown>>) {
+        if (block.type === 'text' && typeof block.text === 'string') {
+          parts.push(block.text as string);
+        } else if (block.type === 'tool_result' && typeof block.content === 'string') {
+          // Tool-result blocks are BYOK history artifacts. Extract their
+          // text content so it is not silently dropped from the prompt.
+          parts.push(block.content as string);
+        }
+        // Intentionally skip tool_use, images, and other non-text blocks.
+        // Credits mode has no tool support — these carry no meaningful
+        // text for the backend prompt.
+      }
+      return parts.join('\n');
     }
-    return JSON.stringify(msg.content);
+    // Non-string, non-array content should not occur per the Message type
+    // definition. Return empty rather than leaking internal structure via
+    // JSON.stringify.
+    return '';
   }
 
   async *stream(params: StreamParams): AsyncIterable<StreamEvent> {
@@ -163,6 +191,8 @@ export class LemonadeAIProvider implements AIProvider {
           config: null,
           message: messageText,
           data: null,
+          // Intentionally null: local runtime history is authoritative.
+          // Each request is self-contained — no server-side session continuity.
           session: null,
           standId: this.standId,
         },
