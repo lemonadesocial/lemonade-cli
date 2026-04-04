@@ -11,6 +11,12 @@ import { useChatEngine } from './hooks/useChatEngine.js';
 import { usePlanMode } from './hooks/usePlanMode.js';
 import { useCommandHistory } from './hooks/useCommandHistory.js';
 import { useAutocomplete, AC_MAX_VISIBLE } from './hooks/useAutocomplete.js';
+import { createCreditsProvider } from '../creditsProvider.js';
+import { setAiModeConfig } from '../aiMode.js';
+import { detectApiKey, detectProvider } from '../onboarding.js';
+import { createByokProvider, ByokProviderName, VALID_PROVIDERS } from '../providerFactory.js';
+import { getCreditsSpaceId } from '../spaceSelection.js';
+import { getDefaultSpace, setConfigValue } from '../../auth/store.js';
 import { PlanWizard } from './PlanWizard.js';
 import {
   ThinkingSpinner,
@@ -70,6 +76,10 @@ export function App({
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
+  const [activeProvider, setActiveProvider] = useState(provider);
+  const [activeFormattedTools, setActiveFormattedTools] = useState(formattedTools);
+  const [providerName, setProviderName] = useState(displayOpts.providerName);
+  const [modelName, setModelName] = useState(displayOpts.modelName);
 
   const autocomplete = useAutocomplete(inputValue);
 
@@ -77,14 +87,15 @@ export function App({
   const turnCoordinatorRef = useRef<TurnCoordinator | null>(null);
   if (!turnCoordinatorRef.current) {
     turnCoordinatorRef.current = new TurnCoordinator({
-      engine, provider, formattedTools, session, registry, chatMessages,
+      engine, provider: activeProvider, formattedTools: activeFormattedTools, session, registry, chatMessages,
     });
   }
   // Keep deps current after re-render / provider change
   turnCoordinatorRef.current.updateDeps({
-    engine, provider, formattedTools, session, registry, chatMessages,
+    engine, provider: activeProvider, formattedTools: activeFormattedTools, session, registry, chatMessages,
   });
   const turnCoordinator = turnCoordinatorRef.current;
+  const runtimeDisplayOpts = { providerName, modelName };
 
   // Reactive terminal width
   const [termColumns, setTermColumns] = useState(process.stdout.columns || 80);
@@ -138,6 +149,98 @@ export function App({
     addSystemMessage('Session cleared.');
   }, [clearMessages, addSystemMessage]);
 
+  // Batches all runtime state updates to reduce clear-to-message flicker (finding 6).
+  const applyRuntimeSwitch = useCallback((
+    nextProvider: AIProvider,
+    nextSpaceName?: string,
+  ) => {
+    turnCoordinatorRef.current!.clearSession();
+    setShowThinking(false);
+    resetStreaming();
+    setActiveProvider(nextProvider);
+    setActiveFormattedTools(nextProvider.formatTools(Object.values(registry)));
+    setProviderName(nextProvider.name);
+    setModelName(nextProvider.model);
+    if (nextSpaceName !== undefined) {
+      setSpaceName(nextSpaceName);
+    }
+    clearMessages();
+  }, [clearMessages, registry, resetStreaming]);
+
+  const switchProvider = useCallback(async (nextProviderName: ByokProviderName) => {
+    if (turnCoordinatorRef.current!.state.isMainTurnActive) {
+      return 'Cannot switch provider while a turn is active. Wait for it to finish or press Escape to cancel.';
+    }
+    const apiKey = detectApiKey(nextProviderName);
+    if (!apiKey) {
+      const label = nextProviderName === 'openai' ? 'OpenAI' : 'Anthropic';
+      return `No ${label} API key found. Configure it first, then try /provider ${nextProviderName} again.`;
+    }
+
+    // Build provider before committing config (finding 2/5)
+    let nextProvider: AIProvider;
+    try {
+      nextProvider = await createByokProvider(nextProviderName, apiKey);
+    } catch (err) {
+      return `Failed to create ${nextProviderName} provider: ${err instanceof Error ? err.message : 'Unknown error'}`;
+    }
+
+    // Ensure mode consistency — switching provider implies own_key (finding 4)
+    setAiModeConfig('own_key');
+    setConfigValue('ai_provider', nextProviderName);
+    applyRuntimeSwitch(nextProvider, 'none');
+    return `Switched provider to ${nextProviderName}. Session cleared.`;
+  }, [applyRuntimeSwitch]);
+
+  const switchMode = useCallback(async (nextMode: 'credits' | 'own_key') => {
+    if (turnCoordinatorRef.current!.state.isMainTurnActive) {
+      return 'Cannot switch mode while a turn is active. Wait for it to finish or press Escape to cancel.';
+    }
+    if (nextMode === 'own_key') {
+      const detected = detectProvider();
+      if (!VALID_PROVIDERS.includes(detected as ByokProviderName)) {
+        return `Unknown provider "${detected}". Supported: ${VALID_PROVIDERS.join(', ')}. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.`;
+      }
+      const nextProviderName = detected as ByokProviderName;
+      const apiKey = detectApiKey(nextProviderName);
+      if (!apiKey) {
+        return 'No AI API key found. Configure ANTHROPIC_API_KEY or OPENAI_API_KEY to use BYOK mode.';
+      }
+
+      // Build provider before committing config (finding 2/5)
+      let nextProvider: AIProvider;
+      try {
+        nextProvider = await createByokProvider(nextProviderName, apiKey);
+      } catch (err) {
+        return `Failed to create ${nextProviderName} provider: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      }
+
+      setAiModeConfig('own_key');
+      applyRuntimeSwitch(nextProvider, session.currentSpace?.title || spaceName);
+      return `Switched to BYOK mode using ${nextProviderName}. Session cleared.`;
+    }
+
+    let nextCreditsSpace = getCreditsSpaceId() || session.currentSpace?._id || getDefaultSpace();
+    if (!nextCreditsSpace) {
+      return 'No credits space configured. Use /spaces to select a space or run "lemonade space switch", then try /mode credits again.';
+    }
+
+    // Build provider before committing config; use liveSwitch to avoid process.exit (finding 2/3/5)
+    let nextProvider: AIProvider;
+    try {
+      nextProvider = await createCreditsProvider(nextCreditsSpace, { liveSwitch: true });
+    } catch (err) {
+      return `Failed to switch to credits mode: ${err instanceof Error ? err.message : 'Unknown error'}`;
+    }
+
+    if (!getCreditsSpaceId()) {
+      setConfigValue('ai_credits_space', nextCreditsSpace);
+    }
+    setAiModeConfig('credits');
+    applyRuntimeSwitch(nextProvider, session.currentSpace?.title || spaceName);
+    return `Switched to Lemonade Credits mode. Session cleared.`;
+  }, [applyRuntimeSwitch, session.currentSpace, spaceName]);
+
   const { recordSubmit, handleHistoryUp: historyUp, handleHistoryDown: historyDown, resetBrowsing } = history;
   const { showAutocomplete, filteredCommands, selectCurrent } = autocomplete;
 
@@ -180,11 +283,13 @@ export function App({
         session,
         chatMessages,
         turnCoordinator,
+        switchProvider,
+        switchMode,
         startManualPlan,
         setSpaceName,
         setApiKeyPrompt,
         uiMessages: messages,
-        displayOpts,
+        displayOpts: runtimeDisplayOpts,
         spaceName,
         cachedSpacesRef,
       });
@@ -217,7 +322,7 @@ export function App({
         setShowThinking(false);
       }
     }
-  }, [engine, session, registry, chatMessages, addUserMessage, addSystemMessage, performClear, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, recordSubmit]);
+  }, [engine, session, registry, chatMessages, addUserMessage, addSystemMessage, performClear, exit, turnCoordinator, switchProvider, switchMode, messages, runtimeDisplayOpts, spaceName, startManualPlan, recordSubmit]);
 
   // Input change with history reset
   const handleChange = useCallback((val: string) => {
@@ -339,8 +444,8 @@ export function App({
         <WelcomeBannerView
           firstName={firstName}
           agentName={agentName}
-          providerName={displayOpts.providerName}
-          modelName={displayOpts.modelName}
+          providerName={providerName}
+          modelName={modelName}
         />
       ) : null}
       {visibleMessages.map((msg, i) => (
@@ -443,7 +548,7 @@ export function App({
             <Box flexDirection="column" paddingLeft={1}>
               <Box justifyContent="space-between">
                 <Text dimColor>Space: {spaceName}</Text>
-                <Text dimColor>{displayOpts.modelName}</Text>
+                <Text dimColor>{modelName}</Text>
               </Box>
               <Box justifyContent="space-between">
                 <Text>{''}</Text>

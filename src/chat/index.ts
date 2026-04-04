@@ -3,7 +3,7 @@
 import chalk from 'chalk';
 import readline from 'readline';
 import { graphqlRequest } from '../api/graphql.js';
-import { getAuthHeader, getDefaultSpace } from '../auth/store.js';
+import { getAuthHeader, getDefaultSpace, setConfigValue } from '../auth/store.js';
 import { AIProvider } from './providers/interface.js';
 import { buildToolRegistry } from './tools/registry.js';
 import { createSessionState } from './session/state.js';
@@ -13,14 +13,15 @@ import { detectApiKey, detectProvider, onboardApiKey } from './onboarding.js';
 import { parseArgs } from './parseArgs.js';
 import { initAiMode } from './aiMode.js';
 import { getAgentName } from './skills/loader.js';
-import { selectCreditsSpace, getCreditsSpaceId } from './spaceSelection.js';
+import { getCreditsSpaceId } from './spaceSelection.js';
 import { VERSION } from './version.js';
 import { runTerminalUI } from './terminal.js';
 import { createCreditsProvider } from './creditsProvider.js';
+import { createByokProvider, VALID_PROVIDERS } from './providerFactory.js';
+import { resolveCreditsStartupMode } from './startupRecovery.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
-const VALID_PROVIDERS = ['anthropic', 'openai'];
 
 function safeErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -62,21 +63,6 @@ async function fetchUser(): Promise<{ _id: string; name: string; email: string; 
   return result.aiGetMe.user;
 }
 
-async function createProvider(providerName: string, apiKey: string, model?: string): Promise<AIProvider> {
-  const resolvedModel = model || process.env.MAKE_LEMONADE_MODEL;
-
-  if (providerName === 'openai') {
-    const { OpenAIProvider } = await import('./providers/openai.js');
-    return new OpenAIProvider(apiKey, resolvedModel);
-  }
-  if (providerName === 'anthropic') {
-    const { AnthropicProvider } = await import('./providers/anthropic.js');
-    return new AnthropicProvider(apiKey, resolvedModel);
-  }
-
-  throw new Error(`Unknown provider "${providerName}". Supported: ${VALID_PROVIDERS.join(', ')}`);
-}
-
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
@@ -101,17 +87,16 @@ async function main(): Promise<void> {
   }
 
   // Initialize AI mode (locked for entire session)
-  const aiMode = initAiMode();
-
-  // If switching to credits via --mode and no space configured, prompt for one
-  if (args.mode === 'credits' && !getCreditsSpaceId() && isTTY) {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    const spaceId = await selectCreditsSpace(rl);
-    rl.close();
-    if (!spaceId) {
-      console.error(chalk.red('  No space selected. Cannot use credits mode.'));
+  let aiMode = initAiMode();
+  if (aiMode === 'credits') {
+    const startupResolution = await resolveCreditsStartupMode(isTTY);
+    if (startupResolution.message) {
+      console.log(startupResolution.message);
+    }
+    if (startupResolution.failed) {
       process.exit(2);
     }
+    aiMode = startupResolution.mode;
   }
 
   let apiKey: string | null = null;
@@ -120,7 +105,7 @@ async function main(): Promise<void> {
   if (aiMode === 'own_key') {
     const providerName = args.provider || detectProvider();
 
-    if (!VALID_PROVIDERS.includes(providerName)) {
+    if (!VALID_PROVIDERS.includes(providerName as (typeof VALID_PROVIDERS)[number])) {
       console.error(chalk.red(`  Unknown provider "${providerName}". Supported: ${VALID_PROVIDERS.join(', ')}`));
       process.exit(2);
     }
@@ -162,20 +147,25 @@ async function main(): Promise<void> {
       process.exit(2);
     }
 
-    provider = await createProvider(providerName, apiKey!, args.model);
+    provider = await createByokProvider(providerName as (typeof VALID_PROVIDERS)[number], apiKey!, args.model);
   } else {
     // Lemonade Credits Mode — temporary migration adapter
     // Same runtime (TurnCoordinator, handleTurn, SlashCommandRouter) as BYOK,
     // but provider has supportsToolCalling: false. See lemonade-ai.ts.
-    const creditsSpace = getCreditsSpaceId();
-    const defaultSpace = creditsSpace || getDefaultSpace();
+    let creditsSpace = getCreditsSpaceId();
+    if (!creditsSpace) {
+      creditsSpace = getDefaultSpace();
+      if (creditsSpace) {
+        setConfigValue('ai_credits_space', creditsSpace);
+      }
+    }
 
-    if (!defaultSpace) {
+    if (!creditsSpace) {
       console.error(chalk.red('  No credits space configured. Run /mode credits to select a space, or "lemonade space switch".'));
       process.exit(2);
     }
 
-    provider = await createCreditsProvider(defaultSpace);
+    provider = await createCreditsProvider(creditsSpace);
   }
 
   let user: { _id: string; name: string; email: string; first_name: string };
