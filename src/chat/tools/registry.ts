@@ -596,7 +596,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         event: args.event_id,
         title: args.name,
       };
-      if (args.price) {
+      if (args.price !== undefined && args.price !== null) {
         input.prices = [{
           cost: String(Math.round((args.price as number) * 100)),
           currency: (args.currency as string) || 'USD',
