@@ -316,21 +316,21 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     description: 'List attendees for an event.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
-      { name: 'state', type: 'string', description: 'Filter: going|pending|declined|checked_in', required: false },
+      { name: 'search', type: 'string', description: 'Search guests by name or email', required: false },
       { name: 'limit', type: 'number', description: 'Max results', required: false, default: '50' },
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventGuests: unknown }>(
-        `query($event: MongoID!, $state: String, $limit: Int, $skip: Int) {
-          aiGetEventGuests(event: $event, state: $state, limit: $limit, skip: $skip) {
-            items { name email state ticket_type_name checked_in_at }
+        `query($event: MongoID!, $search: String, $limit: Int, $skip: Int) {
+          aiGetEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
+            items { name email status ticket_type_title checked_in }
           }
         }`,
         {
           event: args.event_id,
-          state: args.state as string | undefined,
+          search: args.search as string | undefined,
           limit: (args.limit as number) || 50,
           skip: (args.skip as number) || 0,
         },
@@ -424,9 +424,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ aiListEventFeedbacks: unknown }>(
-        `query($event: MongoID!, $rate_value: Int, $limit: Int, $skip: Int) {
+        `query($event: MongoID!, $rate_value: Float, $limit: Int, $skip: Int) {
           aiListEventFeedbacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
-            items { user_name rate_value comment created_at }
+            items { user_name rating comment created_at }
           }
         }`,
         {
@@ -454,7 +454,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiGetEventCheckins: unknown }>(
         `query($event: MongoID!, $limit: Int, $skip: Int) {
           aiGetEventCheckins(event: $event, limit: $limit, skip: $skip) {
-            items { user_name user_email ticket_type_name checked_in_at }
+            items { name email ticket_type_title checked_in_at }
           }
         }`,
         {
@@ -479,7 +479,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiGetEventPaymentStats: unknown }>(
         `query($event: MongoID!) {
           aiGetEventPaymentStats(event: $event) {
-            total_revenue currency payment_count
+            total_payments
+            total_revenue { currency amount_cents }
+            by_provider { provider count amount_cents }
           }
         }`,
         { event: args.event_id },
@@ -487,8 +489,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.aiGetEventPaymentStats;
     },
     formatResult: (result) => {
-      const r = result as { total_revenue: number; currency: string; payment_count: number };
-      return `Revenue: ${r.currency} ${r.total_revenue} from ${r.payment_count} payments.`;
+      const r = result as { total_payments: number; total_revenue: Array<{ currency: string; amount_cents: number }>; by_provider: Array<{ provider: string; count: number; amount_cents: number }> };
+      const revSummary = r.total_revenue.map((e) => `${e.currency} ${(e.amount_cents / 100).toFixed(2)}`).join(', ') || 'none';
+      return `${r.total_payments} payments. Revenue: ${revSummary}.`;
     },
   });
 
@@ -504,7 +507,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiGetEventApplicationAnswers: unknown }>(
         `query($event: MongoID!) {
           aiGetEventApplicationAnswers(event: $event) {
-            items { user_name answers { question answer } }
+            user_name email answers { question answer } submitted_at
           }
         }`,
         { event: args.event_id },
@@ -561,8 +564,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiListEventTicketTypes: unknown }>(
         `query($event: MongoID!) {
           aiListEventTicketTypes(event: $event) {
-            _id title default_price default_currency limit active
-            prices { cost currency network }
+            title active private limited description
           }
         }`,
         { event: args.event_id },
@@ -594,13 +596,13 @@ export function buildToolRegistry(): Record<string, ToolDef> {
           default: true,
         }] : [],
       };
-      if (args.limit !== undefined) input.limit = args.limit;
+      if (args.limit !== undefined) input.ticket_limit = args.limit;
       if (args.description) input.description = args.description;
 
       const result = await graphqlRequest<{ aiCreateEventTicketType: unknown }>(
         `mutation($input: EventTicketTypeInput!) {
           aiCreateEventTicketType(input: $input) {
-            _id title prices { cost currency default } limit active
+            title active limited description
           }
         }`,
         { input },
@@ -625,15 +627,17 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.name) input.title = args.name;
-      if (args.price !== undefined) input.default_price = Math.round((args.price as number) * 100);
-      if (args.currency) input.default_currency = args.currency;
-      if (args.limit !== undefined) input.limit = args.limit;
+      if (args.price !== undefined) {
+        const costCents = String(Math.round((args.price as number) * 100));
+        input.prices = [{ cost: costCents, currency: (args.currency as string) || 'USD', default: true }];
+      }
+      if (args.limit !== undefined) input.ticket_limit = args.limit;
       if (args.active !== undefined) input.active = args.active;
 
       const result = await graphqlRequest<{ aiUpdateEventTicketType: unknown }>(
         `mutation($_id: MongoID!, $input: EventTicketTypeInput!) {
           aiUpdateEventTicketType(_id: $_id, input: $input) {
-            _id title default_price default_currency limit active
+            title active limited description
           }
         }`,
         { _id: args.ticket_type_id, input },
@@ -782,7 +786,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ aiCalculateTicketPrice: unknown }>(
-        `query($event: MongoID!, $ticket_type: MongoID!, $count: Int!, $discount_code: String) {
+        `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
           aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
             subtotal_cents discount_cents total_cents currency
           }
@@ -1005,7 +1009,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiGetSpaceMembers: unknown }>(
         `query($space: MongoID!) {
           aiGetSpaceMembers(space: $space) {
-            items { _id name email role }
+            items { name email role joined_at }
           }
         }`,
         { space: args.space_id },
@@ -3807,7 +3811,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async () => {
       const result = await graphqlRequest<{ aiGetMyTickets: unknown }>(
-        'query { aiGetMyTickets { items { _id event_title ticket_type_name status } } }',
+        'query { aiGetMyTickets { items { event_id event_title ticket_type_title status event_start event_end } } }',
       );
       return result.aiGetMyTickets;
     },

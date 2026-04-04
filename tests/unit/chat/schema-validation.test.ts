@@ -43,8 +43,8 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiListEventFeedbacks: ['items', 'rating', 'comment', 'user_name', 'created_at', 'rate_value'],
   aiGetEventApplicationAnswers: ['items', 'user_name', 'email', 'answers', 'submitted_at', 'question', 'answer'],
   aiListEventTicketTypes: ['_id', 'title', 'description', 'private', 'limited', 'active', 'default_price', 'default_currency', 'limit', 'prices', 'category', 'cost', 'currency', 'default', 'network'],
-  aiCreateEventTicketType: ['_id', 'title', 'prices', 'cost', 'currency', 'default', 'limit', 'active'],
-  aiUpdateEventTicketType: ['_id', 'title', 'default_price', 'default_currency', 'limit', 'active'],
+  aiCreateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
+  aiUpdateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
   aiCreateEventTicketDiscount: ['_id', 'code', 'discount_type', 'value', 'limit', 'created_at'],
   aiCalculateTicketPrice: ['subtotal_cents', 'discount_cents', 'total_cents', 'currency'],
   aiInviteEvent: [], // no fields selected

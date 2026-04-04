@@ -32,7 +32,7 @@ export function registerTicketCommands(program: Command): void {
 
         const items = result.aiListEventTicketTypes;
         if (opts.json) {
-          console.log(jsonSuccess(items));
+          console.log(jsonSuccess({ items, _note: 'Ticket type IDs are not available from this query. Use "lemonade event analytics <event-id> --json" to get IDs from the sales breakdown.' }));
         } else {
           console.log(renderTable(
             ['Name', 'Active', 'Limited', 'Private', 'Description'],
@@ -111,7 +111,7 @@ export function registerTicketCommands(program: Command): void {
     .description('Update a ticket type')
     .option('--name <text>', 'New name')
     .option('--price <amount>', 'New price in dollars')
-    .option('--currency <code>', 'Currency code', 'USD')
+    .option('--currency <code>', 'Currency code (used with --price)')
     .option('--limit <n>', 'New ticket limit')
     .option('--active <bool>', 'Active status')
     .option('--json', 'Output as JSON')
@@ -123,7 +123,7 @@ export function registerTicketCommands(program: Command): void {
         if (opts.name) input.title = opts.name;
         if (opts.price) {
           const costCents = String(Math.round(parseFloat(opts.price) * 100));
-          input.prices = [{ cost: costCents, currency: opts.currency, default: true }];
+          input.prices = [{ cost: costCents, currency: opts.currency || 'USD', default: true }];
         }
         if (opts.limit) input.ticket_limit = parseInt(opts.limit, 10);
         if (opts.active !== undefined) input.active = opts.active === 'true';
@@ -278,7 +278,7 @@ export function registerTicketCommands(program: Command): void {
         if (opts.json) {
           console.log(jsonSuccess(price));
         } else {
-          const fmt = (cents: unknown) => (Number(cents) / 100).toFixed(2);
+          const fmt = (cents: unknown) => { const n = Number(cents); return Number.isFinite(n) ? (n / 100).toFixed(2) : '0.00'; };
           console.log(renderKeyValue([
             ['Subtotal', `${fmt(price.subtotal_cents)} ${price.currency}`],
             ['Discount', `${fmt(price.discount_cents)} ${price.currency}`],
