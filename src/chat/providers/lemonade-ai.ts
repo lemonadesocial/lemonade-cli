@@ -127,7 +127,7 @@ export class LemonadeAIProvider implements AIProvider {
     }
 
     // Explicit role on the current message so the backend never has to infer
-    // who is speaking (finding 3: implicit role made explicit).
+    // who is speaking.
     const currentRole = LemonadeAIProvider.classifyRole(current);
     const currentText = LemonadeAIProvider.extractText(current);
     parts.push('');
@@ -137,13 +137,18 @@ export class LemonadeAIProvider implements AIProvider {
     // string fits within MAX_FORMATTED_PROMPT_CHARS.  The current message
     // is never dropped — only prior history entries are trimmed.
     let formatted = parts.join('\n');
-    while (formatted.length > MAX_FORMATTED_PROMPT_CHARS && parts.length > 2) {
+    if (formatted.length > MAX_FORMATTED_PROMPT_CHARS) {
+      // Track total length to avoid re-joining on every removal.
       // parts layout: [history..., '', currentRole: currentText]
       //   indices 0..N-3  = history entries
       //   index   N-2     = blank separator between history and current
       //   index   N-1     = current message (never removed)
-      // Remove the oldest history entry (index 0).
-      parts.splice(0, 1);
+      let totalLen = formatted.length;
+      while (totalLen > MAX_FORMATTED_PROMPT_CHARS && parts.length > 2) {
+        // Subtract removed entry length + 1 for the '\n' separator.
+        totalLen -= parts[0].length + 1;
+        parts.splice(0, 1);
+      }
       formatted = parts.join('\n');
     }
 
@@ -164,10 +169,18 @@ export class LemonadeAIProvider implements AIProvider {
       for (const block of msg.content as Array<Record<string, unknown>>) {
         if (block.type === 'text' && typeof block.text === 'string') {
           parts.push(block.text as string);
-        } else if (block.type === 'tool_result' && typeof block.content === 'string') {
+        } else if (block.type === 'tool_result') {
           // Tool-result blocks are BYOK history artifacts. Extract their
           // text content so it is not silently dropped from the prompt.
-          parts.push(block.content as string);
+          if (typeof block.content === 'string') {
+            parts.push(block.content as string);
+          } else if (Array.isArray(block.content)) {
+            for (const sub of block.content as Array<Record<string, unknown>>) {
+              if (sub.type === 'text' && typeof sub.text === 'string') {
+                parts.push(sub.text as string);
+              }
+            }
+          }
         }
         // Intentionally skip tool_use, images, and other non-text blocks.
         // Credits mode has no tool support — these carry no meaningful

@@ -395,7 +395,7 @@ describe('Credits mode through handleTurn (integration)', () => {
 
 // Tests for formatMessages behavior via the public stream() method.
 // extractText is private — we test its effects through the formatted message
-// sent to the backend, not by calling it directly (finding 6).
+// sent to the backend, not by calling it directly.
 describe('LemonadeAIProvider formatMessages (via stream)', () => {
   let provider: LemonadeAIProvider;
   let capturedBody: string | undefined;
@@ -499,6 +499,21 @@ describe('LemonadeAIProvider formatMessages (via stream)', () => {
     expect(msg).toContain('User: now what?');
   });
 
+  it('tool-result with array content blocks extracts text', async () => {
+    await drain(streamWith([{
+      role: 'user',
+      content: [{
+        type: 'tool_result',
+        tool_use_id: 'tc1',
+        content: [
+          { type: 'text', text: 'line one' },
+          { type: 'text', text: 'line two' },
+        ],
+      }],
+    }]));
+    expect(getMessageVar()).toBe('line one\nline two');
+  });
+
   it('tool-result content is extracted, not JSON-stringified', async () => {
     await drain(streamWith([{
       role: 'user',
@@ -588,7 +603,7 @@ describe('LemonadeAIProvider formatMessages (via stream)', () => {
   });
 });
 
-describe('Credits-mode history formatting (provider receives full history)', () => {
+describe('Credits-mode handleTurn→provider message passing (integration)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
