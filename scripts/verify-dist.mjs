@@ -43,7 +43,13 @@ function collectFiles(dir) {
 
 function stripEmittedSuffix(filename) {
   for (const s of emittedSuffixes) {
-    if (filename.endsWith(s)) return filename.slice(0, -s.length);
+    if (filename.endsWith(s)) {
+      const stem = filename.slice(0, -s.length);
+      if (stem.length === 0) {
+        throw new Error(`Zero-length stem for file: ${filename} (suffix-only filename is not a valid artifact)`);
+      }
+      return stem;
+    }
   }
   throw new Error(`No known emitted suffix on file: ${filename}`);
 }

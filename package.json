@@ -24,7 +24,7 @@
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "build": "node scripts/clean.mjs && tsc",
+    "build": "yarn clean && tsc",
     "build:quick": "tsc",
     "verify-dist": "node scripts/verify-dist.mjs",
     "start": "node dist/index.js",
