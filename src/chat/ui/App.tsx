@@ -211,8 +211,17 @@ export function App({
         setConfigValue,
         getCreditsSpaceId,
         getDefaultSpace,
+        resolveSpaceTitle: async (spaceId: string) => {
+          if (session.currentSpace?._id === spaceId) return session.currentSpace.title;
+          try {
+            const { fetchMySpaces } = await import('../spaceSelection.js');
+            const spaces = await fetchMySpaces();
+            return spaces.find((s) => s._id === spaceId)?.title;
+          } catch {
+            return undefined;
+          }
+        },
         currentSpaceId: session.currentSpace?._id,
-        currentSpaceTitle: session.currentSpace?.title,
         spaceName,
         applyRuntimeSwitch,
       });

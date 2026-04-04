@@ -37,8 +37,8 @@ function makeModeDeps(overrides: Partial<SwitchModeDeps> = {}): SwitchModeDeps {
     setConfigValue: vi.fn(),
     getCreditsSpaceId: vi.fn(() => undefined),
     getDefaultSpace: vi.fn(() => undefined),
+    resolveSpaceTitle: vi.fn(async () => undefined),
     currentSpaceId: undefined,
-    currentSpaceTitle: undefined,
     spaceName: 'Test Space',
     applyRuntimeSwitch: vi.fn(),
     ...overrides,
@@ -175,18 +175,46 @@ describe('handleSwitchMode', () => {
       expect(deps.setConfigValue).not.toHaveBeenCalled();
     });
 
-    it('succeeds: sets credits config and applies switch with space title', async () => {
+    it('succeeds: sets credits config and applies switch with resolved space title', async () => {
       const provider = fakeProvider('lemonade-ai', 'Lemonade AI');
       const deps = makeModeDeps({
         getCreditsSpaceId: vi.fn(() => 'space-1'),
         createCreditsProvider: vi.fn(async () => provider as any),
-        currentSpaceTitle: 'My Community',
+        resolveSpaceTitle: vi.fn(async () => 'My Community'),
       });
       const result = await handleSwitchMode('credits', deps);
 
       expect(result).toContain('Switched to Lemonade Credits mode');
       expect(deps.setAiModeConfig).toHaveBeenCalledWith('credits');
+      expect(deps.resolveSpaceTitle).toHaveBeenCalledWith('space-1');
       expect(deps.applyRuntimeSwitch).toHaveBeenCalledWith(provider, 'My Community');
+    });
+
+    it('falls back to spaceName when resolveSpaceTitle returns undefined', async () => {
+      const provider = fakeProvider('lemonade-ai', 'Lemonade AI');
+      const deps = makeModeDeps({
+        getCreditsSpaceId: vi.fn(() => 'space-1'),
+        createCreditsProvider: vi.fn(async () => provider as any),
+        resolveSpaceTitle: vi.fn(async () => undefined),
+        spaceName: 'Fallback Space',
+      });
+      await handleSwitchMode('credits', deps);
+
+      expect(deps.applyRuntimeSwitch).toHaveBeenCalledWith(provider, 'Fallback Space');
+    });
+
+    it('uses resolved title for the actual credits space, not stale session state', async () => {
+      const provider = fakeProvider('lemonade-ai', 'Lemonade AI');
+      const deps = makeModeDeps({
+        getCreditsSpaceId: vi.fn(() => 'credits-space-id'),
+        createCreditsProvider: vi.fn(async () => provider as any),
+        resolveSpaceTitle: vi.fn(async () => 'Credits Space Title'),
+        spaceName: 'Stale Session Space',
+      });
+      await handleSwitchMode('credits', deps);
+
+      expect(deps.resolveSpaceTitle).toHaveBeenCalledWith('credits-space-id');
+      expect(deps.applyRuntimeSwitch).toHaveBeenCalledWith(provider, 'Credits Space Title');
     });
   });
 });

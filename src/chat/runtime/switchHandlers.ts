@@ -23,9 +23,6 @@ export async function handleSwitchProvider(
   if (deps.state.isMainTurnActive) {
     return 'Cannot switch provider while a turn is active. Wait for it to finish or press Escape to cancel.';
   }
-  if (!isValidProvider(nextProviderName)) {
-    return `Unknown provider "${nextProviderName}". Supported: anthropic, openai`;
-  }
   const apiKey = deps.detectApiKey(nextProviderName);
   if (!apiKey) {
     const label = nextProviderName === 'openai' ? 'OpenAI' : 'Anthropic';
@@ -55,8 +52,8 @@ export interface SwitchModeDeps {
   setConfigValue: (key: keyof LemonadeConfig, value: string) => void;
   getCreditsSpaceId: () => string | undefined;
   getDefaultSpace: () => string | undefined;
+  resolveSpaceTitle: (spaceId: string) => Promise<string | undefined>;
   currentSpaceId: string | undefined;
-  currentSpaceTitle: string | undefined;
   spaceName: string;
   applyRuntimeSwitch: (provider: AIProvider, spaceName?: string) => void;
 }
@@ -108,6 +105,7 @@ export async function handleSwitchMode(
     deps.setConfigValue('ai_credits_space', nextCreditsSpace);
   }
   deps.setAiModeConfig('credits');
-  deps.applyRuntimeSwitch(nextProvider, deps.currentSpaceTitle || deps.spaceName);
+  const resolvedTitle = await deps.resolveSpaceTitle(nextCreditsSpace) || deps.spaceName;
+  deps.applyRuntimeSwitch(nextProvider, resolvedTitle);
   return `Switched to Lemonade Credits mode. Session cleared.`;
 }
