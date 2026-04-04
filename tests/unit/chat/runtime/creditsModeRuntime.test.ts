@@ -399,7 +399,6 @@ describe('Credits mode through handleTurn (integration)', () => {
 describe('LemonadeAIProvider formatMessages (via stream)', () => {
   let provider: LemonadeAIProvider;
   let capturedBody: string | undefined;
-  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     provider = new LemonadeAIProvider('test-model', 'test-stand');
