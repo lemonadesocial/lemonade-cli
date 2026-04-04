@@ -130,7 +130,10 @@ for (const name of binNames) {
 
   // Verify the import target in dist/ actually exists
   const importMatch = contents.match(/import\(resolve\(__dirname,\s*([^)]+)\)\)/);
-  if (importMatch) {
+  if (!importMatch) {
+    console.error(`${rel} — could not extract import target (regex did not match). Cannot verify dist/ target.`);
+    failed = true;
+  } else {
     const segments = importMatch[1].split(',').map((s) => s.trim().replace(/['"]/g, ''));
     const target = resolve(dirname(binPath), ...segments);
     if (!existsSync(target)) {
