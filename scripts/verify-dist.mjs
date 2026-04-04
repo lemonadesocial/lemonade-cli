@@ -45,6 +45,7 @@ function stripEmittedSuffix(filename) {
   for (const s of emittedSuffixes) {
     if (filename.endsWith(s)) return filename.slice(0, -s.length);
   }
+  throw new Error(`No known emitted suffix on file: ${filename}`);
 }
 
 const { emitted: distFiles, unexpected } = collectFiles(distDir);
