@@ -91,8 +91,43 @@ if (stale.length > 0) {
   failed = true;
 }
 
+// --- Verify bin wrappers are executable and loadable ---
+
+import { statSync, readFileSync } from 'node:fs';
+
+const binDir = resolve(root, 'bin');
+const binEntries = [
+  { name: 'lemonade', file: 'lemonade' },
+  { name: 'make-lemonade', file: 'make-lemonade' },
+];
+
+for (const { name, file } of binEntries) {
+  const binPath = resolve(binDir, file);
+
+  if (!existsSync(binPath)) {
+    console.error(`bin/${file} does not exist`);
+    failed = true;
+    continue;
+  }
+
+  // Check shebang
+  const contents = readFileSync(binPath, 'utf8');
+  if (!contents.startsWith('#!/usr/bin/env node')) {
+    console.error(`bin/${file} missing shebang`);
+    failed = true;
+  }
+
+  // Check executable permission (owner execute bit)
+  const mode = statSync(binPath).mode;
+  if ((mode & 0o111) === 0) {
+    console.error(`bin/${file} is not executable (mode: ${mode.toString(8)})`);
+    failed = true;
+  }
+}
+
 if (failed) {
   process.exit(1);
 } else {
   console.log(`dist/ verified: ${distFiles.length} emitted file(s) — all have source counterparts, no unexpected files.`);
+  console.log(`bin/ verified: ${binEntries.length} wrapper(s) — all present, executable, with shebangs.`);
 }
