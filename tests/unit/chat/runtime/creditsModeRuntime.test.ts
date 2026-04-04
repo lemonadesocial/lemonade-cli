@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TurnCoordinator, TurnDeps, MAIN_TURN_BUSY } from '../../../../src/chat/runtime/TurnCoordinator';
 import { ChatEngine } from '../../../../src/chat/engine/ChatEngine';
-import { AIProvider, Message, StreamEvent, SystemMessage, ToolDef } from '../../../../src/chat/providers/interface';
+import { AIProvider, Message, StreamEvent, StreamParams, SystemMessage, ToolDef } from '../../../../src/chat/providers/interface';
 import { handleTurn } from '../../../../src/chat/stream/handler';
 import { createSessionState } from '../../../../src/chat/session/state';
+import { LemonadeAIProvider } from '../../../../src/chat/providers/lemonade-ai';
 
 // Mock handleTurn for TurnCoordinator tests
 vi.mock('../../../../src/chat/stream/handler', () => ({
@@ -14,23 +15,31 @@ vi.mock('../../../../src/chat/session/cache', () => ({
   buildSystemMessages: vi.fn(() => [{ type: 'text', text: 'system prompt' }]),
 }));
 
+vi.mock('../../../../src/auth/store', () => ({
+  getAuthHeader: vi.fn(() => 'Bearer test-token'),
+}));
+
 const mockHandleTurn = vi.mocked(handleTurn);
 
-// Simulates the LemonadeAIProvider contract: no tool calling, text-only responses.
-function createCreditsProvider(): AIProvider & { resetSession: () => void } {
-  return {
+// Simulates the LemonadeAIProvider contract: no tool calling, text-only responses,
+// full local history formatted in the message (aligned with real provider behavior).
+function createCreditsProvider(): AIProvider & { resetSession: () => void; lastStreamParams?: StreamParams } {
+  const provider: AIProvider & { resetSession: () => void; lastStreamParams?: StreamParams } = {
     name: 'lemonade-ai',
     model: 'Lemonade AI',
     capabilities: { supportsToolCalling: false },
     formatTools: () => [],
     resetSession: vi.fn(),
+    lastStreamParams: undefined,
     async *stream(params) {
+      provider.lastStreamParams = params;
       const lastMsg = params.messages[params.messages.length - 1];
       const text = typeof lastMsg.content === 'string' ? lastMsg.content : 'response';
       yield { type: 'text_delta', text: `Echo: ${text}` };
       yield { type: 'done', stopReason: 'end_turn' };
     },
   };
+  return provider;
 }
 
 function createBYOKProvider(): AIProvider {
@@ -381,5 +390,352 @@ describe('Credits mode through handleTurn (integration)', () => {
 
     // No assistant message appended when aborted
     expect(messages).toHaveLength(1);
+  });
+});
+
+// Tests for formatMessages behavior via the public stream() method.
+// extractText is private — we test its effects through the formatted message
+// sent to the backend, not by calling it directly.
+describe('LemonadeAIProvider formatMessages (via stream)', () => {
+  let provider: LemonadeAIProvider;
+  let capturedBody: string | undefined;
+
+  beforeEach(() => {
+    provider = new LemonadeAIProvider('test-model', 'test-stand');
+    capturedBody = undefined;
+
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      capturedBody = init.body as string;
+      return new Response(JSON.stringify({
+        data: { run: { message: 'ok' } },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function getMessageVar(): string {
+    expect(capturedBody).toBeDefined();
+    const parsed = JSON.parse(capturedBody!);
+    return parsed.variables.message;
+  }
+
+  async function drain(iter: AsyncIterable<StreamEvent>) {
+    for await (const _event of iter) { /* consume */ }
+  }
+
+  function streamWith(messages: Message[]) {
+    return provider.stream({
+      systemPrompt: [],
+      messages,
+      tools: [],
+      maxTokens: 4096,
+    });
+  }
+
+  it('single message sends string content as-is', async () => {
+    await drain(streamWith([{ role: 'user', content: 'hello' }]));
+    expect(getMessageVar()).toBe('hello');
+  });
+
+  it('single message with content block array extracts text', async () => {
+    await drain(streamWith([{
+      role: 'user',
+      content: [
+        { type: 'text', text: 'first' },
+        { type: 'text', text: 'second' },
+      ],
+    }]));
+    expect(getMessageVar()).toBe('first\nsecond');
+  });
+
+  it('single message filters out non-text blocks', async () => {
+    await drain(streamWith([{
+      role: 'assistant',
+      content: [
+        { type: 'text', text: 'visible' },
+        { type: 'tool_use', id: 'tc1', name: 'test', input: {} },
+      ],
+    }]));
+    expect(getMessageVar()).toBe('visible');
+  });
+
+  it('single message with empty content blocks sends empty string', async () => {
+    await drain(streamWith([{ role: 'assistant', content: [] }]));
+    expect(getMessageVar()).toBe('');
+  });
+
+  it('multi-turn formats with role labels and trailing newline separator', async () => {
+    await drain(streamWith([
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: 'hi there' },
+      { role: 'user', content: 'what is 2+2?' },
+    ]));
+    expect(getMessageVar()).toBe('User: hello\nAssistant: hi there\n\nUser: what is 2+2?');
+  });
+
+  it('multi-turn skips history entries with empty text', async () => {
+    await drain(streamWith([
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: [] },
+      { role: 'user', content: 'follow up' },
+    ]));
+    expect(getMessageVar()).toBe('User: hello\n\nUser: follow up');
+  });
+
+  it('tool-result user messages are labelled "Tool Output"', async () => {
+    await drain(streamWith([
+      { role: 'user', content: 'use the tool' },
+      { role: 'assistant', content: [{ type: 'text', text: 'calling tool...' }, { type: 'tool_use', id: 'tc1', name: 'foo', input: {} }] },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tc1', content: 'tool output here' }] },
+      { role: 'user', content: 'now what?' },
+    ]));
+    const msg = getMessageVar();
+    expect(msg).toContain('Tool Output: tool output here');
+    expect(msg).not.toMatch(/^User: tool output here/m);
+    expect(msg).toContain('User: use the tool');
+    expect(msg).toContain('User: now what?');
+  });
+
+  it('tool-result with array content blocks extracts text', async () => {
+    await drain(streamWith([{
+      role: 'user',
+      content: [{
+        type: 'tool_result',
+        tool_use_id: 'tc1',
+        content: [
+          { type: 'text', text: 'line one' },
+          { type: 'text', text: 'line two' },
+        ],
+      }],
+    }]));
+    expect(getMessageVar()).toBe('line one\nline two');
+  });
+
+  it('tool-result content is extracted, not JSON-stringified', async () => {
+    await drain(streamWith([{
+      role: 'user',
+      content: [{ type: 'tool_result', tool_use_id: 'tc1', content: 'result text' }],
+    }]));
+    expect(getMessageVar()).toBe('result text');
+    expect(getMessageVar()).not.toContain('tool_result');
+  });
+
+  it('tool-result detection finds tool_result in any content block (not just first)', async () => {
+    await drain(streamWith([
+      { role: 'user', content: 'setup' },
+      // Mixed content: text block first, tool_result second — should still be "Tool Output"
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'preamble' },
+          { type: 'tool_result', tool_use_id: 'tc1', content: 'result data' },
+        ],
+      },
+      { role: 'user', content: 'follow up' },
+    ]));
+    const msg = getMessageVar();
+    expect(msg).toContain('Tool Output: preamble\nresult data');
+    expect(msg).not.toMatch(/^User: preamble/m);
+  });
+
+  it('current message gets explicit role label', async () => {
+    await drain(streamWith([
+      { role: 'user', content: 'first' },
+      { role: 'assistant', content: 'reply' },
+      { role: 'user', content: 'second' },
+    ]));
+    const msg = getMessageVar();
+    // Current message (last) must have explicit "User:" prefix
+    expect(msg).toMatch(/\nUser: second$/);
+  });
+
+  it('truncates oldest history when formatted prompt exceeds size limit', async () => {
+    // Build a history that exceeds 100k chars
+    const longText = 'x'.repeat(60_000);
+    const messages: Message[] = [
+      { role: 'user', content: longText },
+      { role: 'assistant', content: longText },
+      { role: 'user', content: 'current question' },
+    ];
+    await drain(streamWith(messages));
+    const msg = getMessageVar();
+    // The formatted prompt must be ≤100k chars
+    expect(msg.length).toBeLessThanOrEqual(100_000);
+    // The current message must always be preserved
+    expect(msg).toContain('User: current question');
+  });
+
+  it('prompt-size guard preserves current message even when all history is dropped', async () => {
+    // Each entry must exceed 100k on its own so the loop drops both.
+    const hugeText = 'y'.repeat(110_000);
+    const messages: Message[] = [
+      { role: 'user', content: hugeText },
+      { role: 'assistant', content: hugeText },
+      { role: 'user', content: 'still here' },
+    ];
+    await drain(streamWith(messages));
+    const msg = getMessageVar();
+    expect(msg).toContain('User: still here');
+    // No leading newline when all history entries are truncated
+    expect(msg).not.toMatch(/^\n/);
+    expect(msg).toBe('User: still here');
+  });
+
+  it('prompt-size guard is a no-op when history fits', async () => {
+    await drain(streamWith([
+      { role: 'user', content: 'short' },
+      { role: 'assistant', content: 'also short' },
+      { role: 'user', content: 'question' },
+    ]));
+    const msg = getMessageVar();
+    // All history preserved — no truncation
+    expect(msg).toBe('User: short\nAssistant: also short\n\nUser: question');
+  });
+
+  it('session variable is null (local history authoritative)', async () => {
+    await drain(streamWith([{ role: 'user', content: 'test' }]));
+    expect(capturedBody).toBeDefined();
+    const parsed = JSON.parse(capturedBody!);
+    expect(parsed.variables.session).toBeNull();
+  });
+});
+
+describe('Credits-mode handleTurn→provider message passing (integration)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  });
+
+  it('single-turn sends message as-is (no history prefix)', async () => {
+    const { handleTurn: realHandleTurn } = await vi.importActual<typeof import('../../../../src/chat/stream/handler')>('../../../../src/chat/stream/handler');
+
+    const provider = createCreditsProvider();
+    const messages: Message[] = [{ role: 'user', content: 'hello' }];
+    const engine = new ChatEngine();
+
+    await realHandleTurn(
+      provider,
+      messages,
+      [],
+      [{ type: 'text', text: 'system' }],
+      { user: { _id: '1', name: 'T', email: 't@t.com' } } as ReturnType<typeof createSessionState>,
+      {},
+      null,
+      true,
+      engine,
+    );
+
+    // The provider should have received 'hello' as the first user message
+    expect(provider.lastStreamParams).toBeDefined();
+    expect(provider.lastStreamParams!.messages[0]).toEqual({ role: 'user', content: 'hello' });
+  });
+
+  it('multi-turn sends all messages to provider (handleTurn passes full chatMessages)', async () => {
+    const { handleTurn: realHandleTurn } = await vi.importActual<typeof import('../../../../src/chat/stream/handler')>('../../../../src/chat/stream/handler');
+
+    const provider = createCreditsProvider();
+    const messages: Message[] = [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: 'hi there!' },
+      { role: 'user', content: 'what is 2+2?' },
+    ];
+    const engine = new ChatEngine();
+
+    await realHandleTurn(
+      provider,
+      messages,
+      [],
+      [{ type: 'text', text: 'system' }],
+      { user: { _id: '1', name: 'T', email: 't@t.com' } } as ReturnType<typeof createSessionState>,
+      {},
+      null,
+      true,
+      engine,
+    );
+
+    // Provider receives ALL prior messages. Note: handleTurn may have appended
+    // an assistant message from the first turn, so we check the first 3 entries.
+    expect(provider.lastStreamParams).toBeDefined();
+    expect(provider.lastStreamParams!.messages.length).toBeGreaterThanOrEqual(3);
+    expect(provider.lastStreamParams!.messages[0]).toEqual({ role: 'user', content: 'hello' });
+    expect(provider.lastStreamParams!.messages[1]).toEqual({ role: 'assistant', content: 'hi there!' });
+    expect(provider.lastStreamParams!.messages[2]).toEqual({ role: 'user', content: 'what is 2+2?' });
+  });
+
+  it('after clearSession, provider receives only new messages (no stale history)', async () => {
+    const { handleTurn: realHandleTurn } = await vi.importActual<typeof import('../../../../src/chat/stream/handler')>('../../../../src/chat/stream/handler');
+
+    const provider = createCreditsProvider();
+    const chatMessages: Message[] = [
+      { role: 'user', content: 'old message' },
+      { role: 'assistant', content: 'old response' },
+    ];
+    const engine = new ChatEngine();
+
+    // Simulate /clear via TurnCoordinator
+    const tc = new TurnCoordinator(makeDeps(provider, { chatMessages, engine }));
+    tc.clearSession();
+
+    expect(chatMessages).toHaveLength(0);
+
+    // New turn after clear
+    chatMessages.push({ role: 'user', content: 'fresh start' });
+
+    await realHandleTurn(
+      provider,
+      chatMessages,
+      [],
+      [{ type: 'text', text: 'system' }],
+      { user: { _id: '1', name: 'T', email: 't@t.com' } } as ReturnType<typeof createSessionState>,
+      {},
+      null,
+      true,
+      engine,
+    );
+
+    // Provider should see only the fresh message, not old history
+    expect(provider.lastStreamParams).toBeDefined();
+    expect(provider.lastStreamParams!.messages[0]).toEqual({ role: 'user', content: 'fresh start' });
+    expect(provider.lastStreamParams!.messages.every(m =>
+      typeof m.content === 'string' ? !m.content.includes('old') : true
+    )).toBe(true);
+  });
+
+  it('btw snapshot carries correct conversation context (real TurnCoordinator path)', () => {
+    // Exercise the real submitBtwTurn instead of reimplementing its clone logic.
+    // handleTurn is module-mocked — capture the messages array it receives.
+    let capturedMessages: Message[] | undefined;
+    mockHandleTurn.mockImplementationOnce((_p, msgs) => {
+      capturedMessages = [...msgs];
+      return Promise.resolve();
+    });
+
+    const provider = createCreditsProvider();
+    const chatMessages: Message[] = [
+      { role: 'user', content: 'main question' },
+      { role: 'assistant', content: 'main response' },
+    ];
+
+    const tc = new TurnCoordinator(makeDeps(provider, { chatMessages }));
+    tc.submitBtwTurn('btw side question');
+
+    // mockHandleTurn runs synchronously — capturedMessages is set immediately
+    expect(capturedMessages).toBeDefined();
+    expect(capturedMessages).toHaveLength(3);
+    expect(capturedMessages![0]).toEqual({ role: 'user', content: 'main question' });
+    expect(capturedMessages![1]).toEqual({ role: 'assistant', content: 'main response' });
+    expect(capturedMessages![2]).toEqual({ role: 'user', content: 'btw side question' });
+
+    // Original chatMessages unchanged (submitBtwTurn clones before appending)
+    expect(chatMessages).toHaveLength(2);
+  });
+
+  it('resetSession is a no-op on the aligned provider', () => {
+    const provider = createCreditsProvider();
+    // resetSession should not throw
+    expect(() => provider.resetSession()).not.toThrow();
   });
 });
