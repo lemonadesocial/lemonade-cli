@@ -6,9 +6,10 @@
  * Exit 0 = clean, Exit 1 = stale files found.
  */
 
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, statSync, readFileSync } from 'node:fs';
 import { resolve, relative, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const root = resolve(scriptDir, '..');
@@ -91,8 +92,62 @@ if (stale.length > 0) {
   failed = true;
 }
 
+// --- Verify bin wrappers are executable, loadable, and point to real dist/ targets ---
+
+const require = createRequire(import.meta.url);
+const pkg = require(resolve(root, 'package.json'));
+const binMap = pkg.bin || {};
+const binNames = Object.keys(binMap);
+
+if (binNames.length === 0) {
+  console.error('package.json has no "bin" entries — nothing to verify');
+  failed = true;
+}
+
+for (const name of binNames) {
+  const binPath = resolve(root, binMap[name]);
+  const rel = relative(root, binPath);
+
+  if (!existsSync(binPath)) {
+    console.error(`${rel} does not exist`);
+    failed = true;
+    continue;
+  }
+
+  // Check shebang
+  const contents = readFileSync(binPath, 'utf8');
+  if (!contents.startsWith('#!/usr/bin/env node')) {
+    console.error(`${rel} missing shebang`);
+    failed = true;
+  }
+
+  // Check executable permission (owner execute bit)
+  const mode = statSync(binPath).mode;
+  if ((mode & 0o111) === 0) {
+    console.error(`${rel} is not executable (mode: ${mode.toString(8)})`);
+    failed = true;
+  }
+
+  // Verify the import target in dist/ actually exists.
+  // This regex expects the current bin wrapper pattern: import(resolve(__dirname, ...segments)).
+  // If the wrapper structure changes materially, update this regex to match.
+  const importMatch = contents.match(/import\(resolve\(__dirname,\s*([^)]+)\)\)/);
+  if (!importMatch) {
+    console.error(`${rel} — could not extract import target (regex did not match). Cannot verify dist/ target.`);
+    failed = true;
+  } else {
+    const segments = importMatch[1].split(',').map((s) => s.trim().replace(/['"]/g, ''));
+    const target = resolve(dirname(binPath), ...segments);
+    if (!existsSync(target)) {
+      console.error(`${rel} imports ${relative(root, target)} but that file does not exist`);
+      failed = true;
+    }
+  }
+}
+
 if (failed) {
   process.exit(1);
 } else {
   console.log(`dist/ verified: ${distFiles.length} emitted file(s) — all have source counterparts, no unexpected files.`);
+  console.log(`bin/ verified: ${binNames.length} wrapper(s) — all present, executable, with shebangs, import targets exist.`);
 }

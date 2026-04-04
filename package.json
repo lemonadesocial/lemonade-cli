@@ -16,8 +16,8 @@
     "ticketing"
   ],
   "bin": {
-    "lemonade": "./dist/index.js",
-    "make-lemonade": "./dist/chat/index.js"
+    "lemonade": "./bin/lemonade",
+    "make-lemonade": "./bin/make-lemonade"
   },
   "engines": {
     "node": ">=18"
@@ -38,6 +38,7 @@
     "prepublishOnly": "npm run build && npm run verify-dist"
   },
   "files": [
+    "bin/",
     "dist/",
     "src/chat/skills/*.md",
     "README.md",
