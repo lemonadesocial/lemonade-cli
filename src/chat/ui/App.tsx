@@ -14,9 +14,11 @@ import { useAutocomplete, AC_MAX_VISIBLE } from './hooks/useAutocomplete.js';
 import { createCreditsProvider } from '../creditsProvider.js';
 import { setAiModeConfig } from '../aiMode.js';
 import { detectApiKey, detectProvider } from '../onboarding.js';
-import { createByokProvider, ByokProviderName, isValidProvider } from '../providerFactory.js';
+import { createByokProvider } from '../providerFactory.js';
+import type { ByokProviderName } from '../providerFactory.js';
 import { getCreditsSpaceId } from '../spaceSelection.js';
 import { getDefaultSpace, setConfigValue } from '../../auth/store.js';
+import { handleSwitchProvider, handleSwitchMode } from '../runtime/switchHandlers.js';
 import { PlanWizard } from './PlanWizard.js';
 import {
   ThinkingSpinner,
@@ -76,10 +78,13 @@ export function App({
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
-  const [activeProvider, setActiveProvider] = useState(provider);
-  const [activeFormattedTools, setActiveFormattedTools] = useState(formattedTools);
-  const [providerName, setProviderName] = useState(displayOpts.providerName);
-  const [modelName, setModelName] = useState(displayOpts.modelName);
+  const [providerState, setProviderState] = useState({
+    provider: provider,
+    formattedTools: formattedTools,
+    providerName: displayOpts.providerName,
+    modelName: displayOpts.modelName,
+  });
+  const { provider: activeProvider, formattedTools: activeFormattedTools, providerName, modelName } = providerState;
 
   const autocomplete = useAutocomplete(inputValue);
 
@@ -157,10 +162,12 @@ export function App({
     turnCoordinatorRef.current!.clearSession();
     setShowThinking(false);
     resetStreaming();
-    setActiveProvider(nextProvider);
-    setActiveFormattedTools(nextProvider.formatTools(Object.values(registry)));
-    setProviderName(nextProvider.name);
-    setModelName(nextProvider.model);
+    setProviderState({
+      provider: nextProvider,
+      formattedTools: nextProvider.formatTools(Object.values(registry)),
+      providerName: nextProvider.name,
+      modelName: nextProvider.model,
+    });
     if (nextSpaceName !== undefined) {
       setSpaceName(nextSpaceName);
     }
@@ -173,31 +180,16 @@ export function App({
     if (switchingRef.current) {
       return 'A mode/provider switch is already in progress.';
     }
-    if (turnCoordinatorRef.current!.state.isMainTurnActive) {
-      return 'Cannot switch provider while a turn is active. Wait for it to finish or press Escape to cancel.';
-    }
-    if (!isValidProvider(nextProviderName)) {
-      return `Unknown provider "${nextProviderName}". Supported: anthropic, openai`;
-    }
-    const apiKey = detectApiKey(nextProviderName);
-    if (!apiKey) {
-      const label = nextProviderName === 'openai' ? 'OpenAI' : 'Anthropic';
-      return `No ${label} API key found. Configure it first, then try /provider ${nextProviderName} again.`;
-    }
-
     switchingRef.current = true;
     try {
-      let nextProvider: AIProvider;
-      try {
-        nextProvider = await createByokProvider(nextProviderName, apiKey);
-      } catch (err) {
-        return `Failed to create ${nextProviderName} provider: ${err instanceof Error ? err.message : 'Unknown error'}`;
-      }
-
-      setAiModeConfig('own_key');
-      setConfigValue('ai_provider', nextProviderName);
-      applyRuntimeSwitch(nextProvider, 'none');
-      return `Switched provider to ${nextProviderName}. Session cleared.`;
+      return await handleSwitchProvider(nextProviderName, {
+        state: { isSwitching: false, isMainTurnActive: turnCoordinatorRef.current!.state.isMainTurnActive },
+        detectApiKey,
+        createByokProvider,
+        setAiModeConfig,
+        setConfigValue,
+        applyRuntimeSwitch,
+      });
     } finally {
       switchingRef.current = false;
     }
@@ -207,52 +199,23 @@ export function App({
     if (switchingRef.current) {
       return 'A mode/provider switch is already in progress.';
     }
-    if (turnCoordinatorRef.current!.state.isMainTurnActive) {
-      return 'Cannot switch mode while a turn is active. Wait for it to finish or press Escape to cancel.';
-    }
-
     switchingRef.current = true;
     try {
-      if (nextMode === 'own_key') {
-        const detected = detectProvider();
-        if (!isValidProvider(detected)) {
-          return `Unknown provider "${detected}". Supported: anthropic, openai. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.`;
-        }
-        const apiKey = detectApiKey(detected);
-        if (!apiKey) {
-          return 'No AI API key found. Configure ANTHROPIC_API_KEY or OPENAI_API_KEY to use BYOK mode.';
-        }
-
-        let nextProvider: AIProvider;
-        try {
-          nextProvider = await createByokProvider(detected, apiKey);
-        } catch (err) {
-          return `Failed to create ${detected} provider: ${err instanceof Error ? err.message : 'Unknown error'}`;
-        }
-
-        setAiModeConfig('own_key');
-        applyRuntimeSwitch(nextProvider, 'none');
-        return `Switched to BYOK mode using ${detected}. Session cleared.`;
-      }
-
-      const nextCreditsSpace = getCreditsSpaceId() || session.currentSpace?._id || getDefaultSpace();
-      if (!nextCreditsSpace) {
-        return 'No credits space configured. Use /spaces to select a space or run "lemonade space switch", then try /mode credits again.';
-      }
-
-      let nextProvider: AIProvider;
-      try {
-        nextProvider = await createCreditsProvider(nextCreditsSpace, { liveSwitch: true });
-      } catch (err) {
-        return `Failed to switch to credits mode: ${err instanceof Error ? err.message : 'Unknown error'}`;
-      }
-
-      if (!getCreditsSpaceId()) {
-        setConfigValue('ai_credits_space', nextCreditsSpace);
-      }
-      setAiModeConfig('credits');
-      applyRuntimeSwitch(nextProvider, session.currentSpace?.title || spaceName);
-      return `Switched to Lemonade Credits mode. Session cleared.`;
+      return await handleSwitchMode(nextMode, {
+        state: { isSwitching: false, isMainTurnActive: turnCoordinatorRef.current!.state.isMainTurnActive },
+        detectProvider,
+        detectApiKey,
+        createByokProvider,
+        createCreditsProvider,
+        setAiModeConfig,
+        setConfigValue,
+        getCreditsSpaceId,
+        getDefaultSpace,
+        currentSpaceId: session.currentSpace?._id,
+        currentSpaceTitle: session.currentSpace?.title,
+        spaceName,
+        applyRuntimeSwitch,
+      });
     } finally {
       switchingRef.current = false;
     }

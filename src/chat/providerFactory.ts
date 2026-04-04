@@ -12,10 +12,6 @@ export async function createByokProvider(
   apiKey: string,
   model?: string,
 ): Promise<AIProvider> {
-  if (!isValidProvider(providerName)) {
-    throw new Error(`Unknown provider "${providerName}". Supported: ${VALID_PROVIDERS.join(', ')}`);
-  }
-
   const resolvedModel = model || process.env.MAKE_LEMONADE_MODEL;
 
   if (providerName === 'openai') {
