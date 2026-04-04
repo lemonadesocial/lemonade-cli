@@ -138,8 +138,18 @@ export class LemonadeAIProvider implements AIProvider {
     // is never dropped — only prior history entries are trimmed.
     let formatted = parts.join('\n');
     while (formatted.length > MAX_FORMATTED_PROMPT_CHARS && parts.length > 2) {
-      // parts[0..n-2] are history, parts[n-1] is blank separator, parts[n] is current.
+      // parts layout: [history..., '', currentRole: currentText]
+      //   indices 0..N-3  = history entries
+      //   index   N-2     = blank separator between history and current
+      //   index   N-1     = current message (never removed)
       // Remove the oldest history entry (index 0).
+      parts.splice(0, 1);
+      formatted = parts.join('\n');
+    }
+
+    // If all history entries were dropped, the blank separator is now the
+    // first element — remove it so the prompt doesn't start with a newline.
+    if (parts.length > 0 && parts[0] === '') {
       parts.splice(0, 1);
       formatted = parts.join('\n');
     }

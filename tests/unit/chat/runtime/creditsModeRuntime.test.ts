@@ -554,7 +554,8 @@ describe('LemonadeAIProvider formatMessages (via stream)', () => {
   });
 
   it('prompt-size guard preserves current message even when all history is dropped', async () => {
-    const hugeText = 'y'.repeat(80_000);
+    // Each entry must exceed 100k on its own so the loop drops both.
+    const hugeText = 'y'.repeat(110_000);
     const messages: Message[] = [
       { role: 'user', content: hugeText },
       { role: 'assistant', content: hugeText },
@@ -563,6 +564,9 @@ describe('LemonadeAIProvider formatMessages (via stream)', () => {
     await drain(streamWith(messages));
     const msg = getMessageVar();
     expect(msg).toContain('User: still here');
+    // No leading newline when all history entries are truncated
+    expect(msg).not.toMatch(/^\n/);
+    expect(msg).toBe('User: still here');
   });
 
   it('prompt-size guard is a no-op when history fits', async () => {
