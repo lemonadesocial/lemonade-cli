@@ -64,16 +64,15 @@ describe('Space Selection for Credits Mode', () => {
     expect(content).toContain('selectCreditsSpace');
   });
 
-  it('/mode credits triggers space selection in terminal UI', async () => {
+  it('/mode credits remains routed through the shared slash-command flow', async () => {
     const fs = await import('fs');
     const path = await import('path');
     // Slash command execution moved from App.tsx to SlashCommandRouter
     const routerPath = path.join(process.cwd(), 'src/chat/runtime/SlashCommandRouter.ts');
     const content = fs.readFileSync(routerPath, 'utf-8');
 
-    // When /mode credits is used, setAiModeConfig must be called
     expect(content).toContain("slashResult.args === 'credits'");
-    expect(content).toContain('setAiModeConfig');
+    expect(content).toContain('switchMode');
   });
 
   it('Mode 2 uses ai_credits_space as standId', async () => {
