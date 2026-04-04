@@ -44,7 +44,7 @@ export function registerTicketCommands(program: Command): void {
               String(t.description || ''),
             ]),
           ));
-          console.log('\nNote: Ticket type IDs and pricing are not available from this API. Use --json with "event get" or the dashboard for full details.');
+          console.log('\nNote: Ticket type IDs are not exposed by this query. Use "lemonade event analytics <id> --json" to get IDs from the sales breakdown.');
         }
       } catch (error) {
         setFlagApiKey(undefined);
@@ -260,9 +260,9 @@ export function registerTicketCommands(program: Command): void {
       try {
         setFlagApiKey(opts.apiKey);
         const result = await graphqlRequest<{ aiCalculateTicketPrice: Record<string, unknown> }>(
-          `query($event: MongoID!, $ticket_type: MongoID!, $count: Int!, $discount_code: String) {
+          `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
             aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
-              subtotal discount_amount total currency
+              subtotal_cents discount_cents total_cents currency
             }
           }`,
           {
@@ -278,10 +278,11 @@ export function registerTicketCommands(program: Command): void {
         if (opts.json) {
           console.log(jsonSuccess(price));
         } else {
+          const fmt = (cents: unknown) => (Number(cents) / 100).toFixed(2);
           console.log(renderKeyValue([
-            ['Subtotal', `${price.subtotal} ${price.currency}`],
-            ['Discount', `${price.discount_amount} ${price.currency}`],
-            ['Total', `${price.total} ${price.currency}`],
+            ['Subtotal', `${fmt(price.subtotal_cents)} ${price.currency}`],
+            ['Discount', `${fmt(price.discount_cents)} ${price.currency}`],
+            ['Total', `${fmt(price.total_cents)} ${price.currency}`],
           ]));
         }
       } catch (error) {

@@ -546,9 +546,9 @@ export function registerEventCommands(program: Command): void {
         let feedbacks: Array<Record<string, unknown>> = [];
         if (!opts.summary) {
           const feedbackResult = await graphqlRequest<{ aiListEventFeedbacks: { items: Array<Record<string, unknown>> } }>(
-            `query($event: MongoID!, $rate_value: Int, $limit: Int, $skip: Int) {
+            `query($event: MongoID!, $rate_value: Float, $limit: Int, $skip: Int) {
               aiListEventFeedbacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
-                items { user_name rate_value comment created_at }
+                items { user_name rating comment created_at }
               }
             }`,
             {
@@ -576,7 +576,7 @@ export function registerEventCommands(program: Command): void {
               ['User', 'Rating', 'Comment', 'Date'],
               feedbacks.map((f) => [
                 String(f.user_name || ''),
-                String(f.rate_value),
+                String(f.rating),
                 String(f.comment || ''),
                 String(f.created_at || ''),
               ]),

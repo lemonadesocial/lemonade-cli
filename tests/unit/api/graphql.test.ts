@@ -33,8 +33,6 @@ describe('GraphQL Client', () => {
 
       const { graphqlRequest } = await import('../../../src/api/graphql.js');
       await expect(graphqlRequest('query { test }')).rejects.toThrow('Not authenticated');
-
-      vi.restoreAllMocks();
     });
 
     it('surfaces GraphQL validation errors on HTTP 400', async () => {
