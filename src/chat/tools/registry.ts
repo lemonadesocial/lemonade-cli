@@ -609,7 +609,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiCreateEventTicketType: unknown }>(
         `mutation($input: EventTicketTypeInput!) {
           aiCreateEventTicketType(input: $input) {
-            title active limited description
+            title active private limited description
           }
         }`,
         { input },
@@ -644,7 +644,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ aiUpdateEventTicketType: unknown }>(
         `mutation($_id: MongoID!, $input: EventTicketTypeInput!) {
           aiUpdateEventTicketType(_id: $_id, input: $input) {
-            title active limited description
+            title active private limited description
           }
         }`,
         { _id: args.ticket_type_id, input },

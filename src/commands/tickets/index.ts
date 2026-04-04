@@ -82,7 +82,7 @@ export function registerTicketCommands(program: Command): void {
         const result = await graphqlRequest<{ aiCreateEventTicketType: Record<string, unknown> }>(
           `mutation($input: EventTicketTypeInput!) {
             aiCreateEventTicketType(input: $input) {
-              title active limited description
+              title active private limited description
             }
           }`,
           { input },
@@ -96,6 +96,7 @@ export function registerTicketCommands(program: Command): void {
           const pairs: Array<[string, string]> = [
             ['Name', String(tt.title)],
             ['Active', tt.active ? 'Yes' : 'No'],
+            ['Private', tt.private ? 'Yes' : 'No'],
             ['Limited', tt.limited ? 'Yes' : 'No'],
           ];
           if (tt.description) pairs.push(['Description', String(tt.description)]);
@@ -138,7 +139,7 @@ export function registerTicketCommands(program: Command): void {
         const result = await graphqlRequest<{ aiUpdateEventTicketType: Record<string, unknown> }>(
           `mutation($_id: MongoID!, $input: EventTicketTypeInput!) {
             aiUpdateEventTicketType(_id: $_id, input: $input) {
-              title active limited description
+              title active private limited description
             }
           }`,
           { _id: ticketTypeId, input },
@@ -152,6 +153,7 @@ export function registerTicketCommands(program: Command): void {
           const pairs: Array<[string, string]> = [
             ['Name', String(tt.title)],
             ['Active', tt.active ? 'Yes' : 'No'],
+            ['Private', tt.private ? 'Yes' : 'No'],
             ['Limited', tt.limited ? 'Yes' : 'No'],
           ];
           if (tt.description) pairs.push(['Description', String(tt.description)]);
