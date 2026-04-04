@@ -8,20 +8,20 @@ export interface SlashCommandResult {
 export const SLASH_COMMANDS = [
   { name: '/help', description: 'Show commands and shortcuts' },
   { name: '/clear', description: 'Reset conversation' },
-  { name: '/model', description: 'List or switch models' },
-  { name: '/provider', description: 'Switch AI provider' },
+  { name: '/model', description: 'Show model info (BYOK: list/switch)' },
+  { name: '/provider', description: 'Show or switch AI provider (BYOK only)' },
   { name: '/space', description: 'Show current space' },
   { name: '/exit', description: 'Exit the app' },
   { name: '/quit', description: 'Exit the app' },
   { name: '/mode', description: 'Show or switch AI mode (credits / own_key)' },
   { name: '/name', description: 'Set agent name' },
-  { name: '/plan', description: 'Start guided mode for a tool' },
+  { name: '/plan', description: 'Start guided mode for a tool (BYOK only)' },
   { name: '/btw', description: 'Ask a side question (runs in parallel)' },
   { name: '/version', description: 'Check CLI version and update' },
   { name: '/status', description: 'Show session status' },
   { name: '/events', description: 'List your events' },
   { name: '/spaces', description: 'List or switch spaces' },
-  { name: '/credits', description: 'Check credits balance' },
+  { name: '/credits', description: 'Check credits balance (credits mode only)' },
   { name: '/history', description: 'Show recent conversation' },
   { name: '/export', description: 'Export data as CSV file' },
   { name: '/connectors', description: 'Manage space integrations' },
@@ -32,15 +32,15 @@ const HELP_TABLE = `
 Commands:
   /help              Show commands and shortcuts
   /clear             Reset conversation
-  /model             List available models
-  /model <name>      Switch to a model
-  /provider <name>   Switch AI provider
+  /model             Show model info (BYOK: list available)
+  /model <name>      Switch to a model (BYOK only)
+  /provider <name>   Switch AI provider (BYOK only)
   /space             Show current space
   /mode              Show current AI mode (credits / own_key)
   /mode <mode>       Switch AI mode (restarts session)
   /name              Show agent name
   /name <name>       Rename the agent
-  /plan <tool>       Start guided mode for a tool
+  /plan <tool>       Start guided mode for a tool (BYOK only)
   /btw <message>     Ask a side question (runs in parallel)
   /version           Check CLI version and update if available
   /status            Show session status (model, space, event, mode)
@@ -48,7 +48,7 @@ Commands:
   /spaces            List your spaces
   /spaces <n>        Switch to space by number
   /spaces <name>     Switch to space by name
-  /credits           Check credits balance
+  /credits           Check credits balance (credits mode only)
   /history [n]       Show last n conversation turns (default 10)
   /export guests <event_id>   Export guest list as CSV
   /export apps <event_id>     Export applications as CSV
@@ -70,7 +70,7 @@ Keyboard shortcuts:
   Ctrl+C             Cancel / exit on empty input
   Ctrl+L             Clear screen
   Ctrl+U             Clear input line
-  Tab (empty input)  Cycle to next model
+  Tab                Show slash command completions
 `.trim();
 
 export const ANTHROPIC_MODELS = [

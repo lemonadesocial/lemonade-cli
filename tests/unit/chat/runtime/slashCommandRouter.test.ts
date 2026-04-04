@@ -2,6 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { executeSlashCommand, SlashCommandDeps } from '../../../../src/chat/runtime/SlashCommandRouter';
 import { parseSlashCommand, SLASH_COMMANDS } from '../../../../src/chat/ui/SlashCommands';
 
+// Mock aiMode so tests can control credits vs own_key behavior
+vi.mock('../../../../src/chat/aiMode', () => ({
+  getAiMode: vi.fn(() => 'own_key'),
+  getAiModeDisplay: vi.fn(() => 'Own API Key'),
+  setAiModeConfig: vi.fn(),
+}));
+
+import { getAiMode, getAiModeDisplay, setAiModeConfig } from '../../../../src/chat/aiMode';
+const mockGetAiMode = vi.mocked(getAiMode);
+const mockGetAiModeDisplay = vi.mocked(getAiModeDisplay);
+const mockSetAiModeConfig = vi.mocked(setAiModeConfig);
+
 function makeDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
   return {
     addSystemMessage: vi.fn(),
@@ -28,6 +40,11 @@ function makeDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
 }
 
 describe('SlashCommandRouter', () => {
+  beforeEach(() => {
+    mockGetAiMode.mockReturnValue('own_key');
+    mockGetAiModeDisplay.mockReturnValue('Own API Key');
+  });
+
   describe('/clear', () => {
     it('delegates to onClear callback', async () => {
       const chatMessages = [{ role: 'user' as const, content: 'hello' }];
@@ -274,13 +291,14 @@ describe('SlashCommandRouter', () => {
       expect(calls.some((msg: string) => msg.includes('not available'))).toBe(true);
     });
 
-    it('does not crash when credits tool is missing', async () => {
+    it('does not crash when credits tool is missing (credits mode)', async () => {
+      mockGetAiMode.mockReturnValue('credits');
       const deps = makeDeps({ registry: {} });
 
       await executeSlashCommand(parseSlashCommand('/credits'), deps);
 
       const calls = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls.map((c: unknown[]) => c[0]);
-      expect(calls.some((msg: string) => msg.includes('not available') || msg.includes('Credits tool'))).toBe(true);
+      expect(calls.some((msg: string) => msg.includes('not available'))).toBe(true);
     });
 
     it('does not crash when connectors_list tool is missing', async () => {
@@ -345,6 +363,214 @@ describe('SlashCommandRouter', () => {
         const result = parseSlashCommand(cmd.name);
         expect(result.handled).toBe(true);
       }
+    });
+  });
+
+  describe('credits-mode slash command UX parity', () => {
+    beforeEach(() => {
+      mockGetAiMode.mockReturnValue('credits');
+      mockGetAiModeDisplay.mockReturnValue('Community AI Credits');
+    });
+
+    it('/model in credits mode shows backend-managed model info', async () => {
+      const deps = makeDeps({
+        displayOpts: { providerName: 'lemonade-ai', modelName: 'Lemonade AI' },
+      });
+
+      await executeSlashCommand(parseSlashCommand('/model'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Current model: Lemonade AI');
+      expect(msg).toContain('credits mode');
+      expect(msg).toContain('Model switching is not available');
+    });
+
+    it('/model <name> in credits mode does not list BYOK models', async () => {
+      const deps = makeDeps({
+        displayOpts: { providerName: 'lemonade-ai', modelName: 'Lemonade AI' },
+      });
+
+      await executeSlashCommand(parseSlashCommand('/model claude-sonnet-4-6'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('credits mode');
+      expect(msg).not.toContain('claude-sonnet');
+    });
+
+    it('/provider in credits mode explains provider is community-managed', async () => {
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/provider'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Credits mode');
+      expect(msg).toContain('managed by your community');
+      expect(msg).not.toContain('Available: anthropic, openai');
+    });
+
+    it('/provider <name> in credits mode does not offer switching', async () => {
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/provider openai'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Credits mode');
+      expect(msg).not.toContain('requires a session restart. Current provider');
+    });
+
+    it('/status in credits mode shows tool-calling limitation', async () => {
+      const deps = makeDeps({
+        displayOpts: { providerName: 'lemonade-ai', modelName: 'Lemonade AI' },
+        spaceName: 'My Community',
+      });
+
+      await executeSlashCommand(parseSlashCommand('/status'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Tool calling: not available');
+      expect(msg).toContain('Mode: Community AI Credits');
+    });
+
+    it('/status in BYOK mode does not show tool-calling limitation', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
+      mockGetAiModeDisplay.mockReturnValue('Own API Key');
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/status'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).not.toContain('Tool calling');
+    });
+
+    it('/credits in BYOK mode explains credits do not apply', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/credits'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('BYOK mode');
+      expect(msg).toContain('Credits do not apply');
+    });
+
+    it('/credits in credits mode with missing tool shows space-related guidance', async () => {
+      const deps = makeDeps({ registry: {} });
+
+      await executeSlashCommand(parseSlashCommand('/credits'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('not available');
+      expect(msg).toContain('/spaces');
+    });
+
+    it('/plan in credits mode warns about tool-calling limitation', async () => {
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/plan event_create'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('not available');
+      expect(msg).toContain('Credits mode');
+      expect(msg).toContain('tool calling');
+      expect(deps.startManualPlan).not.toHaveBeenCalled();
+    });
+
+    it('/plan in BYOK mode still works normally', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
+      const mockTool = { name: 'event_create', displayName: 'Create Event', execute: vi.fn() };
+      const deps = makeDeps({ registry: { event_create: mockTool as any } });
+
+      await executeSlashCommand(parseSlashCommand('/plan event_create'), deps);
+
+      expect(deps.startManualPlan).toHaveBeenCalledWith(mockTool);
+    });
+
+    it('/mode shows approved display names in mode listing', async () => {
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Lemonade Credits');
+      expect(msg).toContain('BYOK');
+      expect(msg).toContain('requires restart');
+    });
+
+    it('/mode credits shows approved display name in restart message when switching', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Lemonade Credits');
+      expect(msg).toContain('Restart');
+    });
+
+    it('/mode own_key shows approved display name in restart message when switching', async () => {
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('BYOK');
+      expect(msg).toContain('Restart');
+    });
+
+    it('/mode credits calls setAiModeConfig with "credits" when switching from own_key', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
+      mockSetAiModeConfig.mockClear();
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
+
+      expect(mockSetAiModeConfig).toHaveBeenCalledWith('credits');
+    });
+
+    it('/mode own_key calls setAiModeConfig with "own_key" when switching from credits', async () => {
+      mockSetAiModeConfig.mockClear();
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
+
+      expect(mockSetAiModeConfig).toHaveBeenCalledWith('own_key');
+    });
+
+    it('/mode credits when already in credits mode says already in that mode', async () => {
+      mockSetAiModeConfig.mockClear();
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Already in');
+      expect(msg).toContain('Lemonade Credits');
+      expect(mockSetAiModeConfig).not.toHaveBeenCalled();
+    });
+
+    it('/mode own_key when already in own_key mode says already in that mode', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
+      mockSetAiModeConfig.mockClear();
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Already in');
+      expect(msg).toContain('BYOK');
+      expect(mockSetAiModeConfig).not.toHaveBeenCalled();
+    });
+
+    it('/mode with invalid arg shows error with valid options', async () => {
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode banana'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Unknown mode');
+      expect(msg).toContain('banana');
+      expect(msg).toContain('credits');
+      expect(msg).toContain('own_key');
     });
   });
 });
