@@ -103,6 +103,21 @@ describe('GraphQL Client', () => {
       delete process.env.LEMONADE_API_KEY;
     });
 
+    it('falls back to generic message on 400 with empty errors array', async () => {
+      global.fetch = vi.fn().mockImplementation(async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({ errors: [] }),
+      }));
+
+      process.env.LEMONADE_API_KEY = 'test-key-123';
+      const { graphqlRequest } = await import('../../../src/api/graphql.js');
+
+      await expect(graphqlRequest('query { test }')).rejects.toThrow('Backend returned 400');
+
+      delete process.env.LEMONADE_API_KEY;
+    });
+
     it('sends correct headers when auth is present', async () => {
       let capturedHeaders: Record<string, string> = {};
 

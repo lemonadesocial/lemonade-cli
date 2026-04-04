@@ -36,13 +36,13 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetEventGuestStats: ['going', 'pending_approval', 'pending_invite', 'declined', 'checked_in', 'total'],
   aiGetEventTicketSoldInsight: ['total_sold', 'total_revenue_cents', 'currency', 'by_type', 'ticket_type_id', 'title', 'sold', 'revenue_cents'],
   aiGetEventViewInsight: ['total_views', 'unique_visitors', 'top_sources', 'top_cities', 'source', 'count', 'city'],
-  aiGetEventGuests: ['items', 'name', 'email', 'status', 'state', 'ticket_type_title', 'ticket_type_name', 'checked_in', 'checked_in_at'],
-  aiGetEventCheckins: ['items', 'name', 'email', 'user_name', 'user_email', 'ticket_type_name', 'ticket_type_title', 'checked_in_at'],
-  aiGetEventPaymentStats: ['total_payments', 'total_revenue', 'by_provider', 'currency', 'amount_cents', 'provider', 'count', 'payment_count'],
+  aiGetEventGuests: ['items', 'name', 'email', 'status', 'ticket_type_title', 'checked_in'],
+  aiGetEventCheckins: ['items', 'name', 'email', 'ticket_type_title', 'checked_in_at'],
+  aiGetEventPaymentStats: ['total_payments', 'total_revenue', 'by_provider', 'currency', 'amount_cents', 'provider', 'count'],
   aiGetEventFeedbackSummary: ['average_rating', 'total_reviews', 'rating_distribution', 'rating', 'count'],
-  aiListEventFeedbacks: ['items', 'rating', 'comment', 'user_name', 'created_at', 'rate_value'],
+  aiListEventFeedbacks: ['items', 'rating', 'comment', 'user_name', 'created_at'],
   aiGetEventApplicationAnswers: ['user_name', 'email', 'answers', 'submitted_at', 'question', 'answer'],
-  aiListEventTicketTypes: ['_id', 'title', 'description', 'private', 'limited', 'active', 'default_price', 'default_currency', 'limit', 'prices', 'category', 'cost', 'currency', 'default', 'network'],
+  aiListEventTicketTypes: ['title', 'active', 'private', 'limited', 'description'],
   aiCreateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
   aiUpdateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
   aiCreateEventTicketDiscount: ['_id', 'code', 'discount_type', 'value', 'limit', 'created_at'],
@@ -51,11 +51,11 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiDecideEventJoinRequests: ['processed_count', 'decision'],
   aiAcceptEvent: [], // scalar
   aiDeclineEvent: [], // scalar
-  aiGetMyTickets: ['items', '_id', 'event_title', 'ticket_type_name', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],
+  aiGetMyTickets: ['items', 'event_title', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],
   aiListMySpaces: ['items', '_id', 'title', 'slug', 'description', 'private', 'personal', 'image_avatar_url', 'member_count', 'event_count'],
   aiCreateSpace: ['_id', 'title', 'slug', 'description'],
   aiUpdateSpace: ['_id', 'title', 'slug'],
-  aiGetSpaceMembers: ['items', '_id', 'name', 'email', 'role', 'joined_at'],
+  aiGetSpaceMembers: ['items', 'name', 'email', 'role', 'joined_at'],
   aiGetSpaceStats: ['total_members', 'admins', 'ambassadors', 'subscribers', 'total_events', 'total_attendees', 'average_event_rating'],
   aiAddSpaceMember: [], // scalar
   aiRemoveSpaceMember: [], // scalar

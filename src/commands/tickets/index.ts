@@ -56,7 +56,7 @@ export function registerTicketCommands(program: Command): void {
     .command('create-type <event-id>')
     .description('Create a ticket type')
     .requiredOption('--name <text>', 'Ticket type name')
-    .option('--price <amount>', 'Price in dollars (e.g. 25.00)')
+    .option('--price <amount>', 'Price in dollars (e.g. 25.00, omit for free)')
     .option('--currency <code>', 'Currency code', 'USD')
     .option('--limit <n>', 'Max tickets')
     .option('--description <text>', 'Description')
@@ -89,14 +89,14 @@ export function registerTicketCommands(program: Command): void {
 
         const tt = result.aiCreateEventTicketType;
         if (opts.json) {
-          console.log(jsonSuccess({ ...tt, ...(opts.price ? { price: opts.price, currency: opts.currency } : {}) }));
+          console.log(jsonSuccess(tt));
         } else {
           const pairs: Array<[string, string]> = [
             ['Name', String(tt.title)],
             ['Active', tt.active ? 'Yes' : 'No'],
           ];
           if (opts.price) {
-            pairs.push(['Price', `${opts.price} ${opts.currency}`]);
+            pairs.push(['Price (requested)', `${opts.price} ${opts.currency}`]);
           }
           console.log(renderKeyValue(pairs));
         }
@@ -140,14 +140,14 @@ export function registerTicketCommands(program: Command): void {
 
         const tt = result.aiUpdateEventTicketType;
         if (opts.json) {
-          console.log(jsonSuccess({ ...tt, ...(opts.price ? { price: opts.price, currency: opts.currency } : {}) }));
+          console.log(jsonSuccess(tt));
         } else {
           const pairs: Array<[string, string]> = [
             ['Name', String(tt.title)],
             ['Active', tt.active ? 'Yes' : 'No'],
           ];
           if (opts.price) {
-            pairs.push(['Price', `${opts.price} ${opts.currency}`]);
+            pairs.push(['Price (requested)', `${opts.price} ${opts.currency || 'USD'}`]);
           }
           console.log(renderKeyValue(pairs));
         }
@@ -259,6 +259,7 @@ export function registerTicketCommands(program: Command): void {
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
+        // Backend schema accepts Float for count, but ticket quantities are whole numbers
         const count = parseInt(opts.quantity, 10);
         if (!Number.isInteger(count) || count < 1) {
           throw new Error('Quantity must be a positive whole number.');
