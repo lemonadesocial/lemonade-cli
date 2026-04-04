@@ -14,7 +14,7 @@ import { useAutocomplete, AC_MAX_VISIBLE } from './hooks/useAutocomplete.js';
 import { createCreditsProvider } from '../creditsProvider.js';
 import { setAiModeConfig } from '../aiMode.js';
 import { detectApiKey, detectProvider } from '../onboarding.js';
-import { createByokProvider, ByokProviderName, VALID_PROVIDERS } from '../providerFactory.js';
+import { createByokProvider, ByokProviderName, isValidProvider } from '../providerFactory.js';
 import { getCreditsSpaceId } from '../spaceSelection.js';
 import { getDefaultSpace, setConfigValue } from '../../auth/store.js';
 import { PlanWizard } from './PlanWizard.js';
@@ -84,6 +84,7 @@ export function App({
   const autocomplete = useAutocomplete(inputValue);
 
   const submitTurnIdRef = useRef(0);
+  const switchingRef = useRef(false);
   const turnCoordinatorRef = useRef<TurnCoordinator | null>(null);
   if (!turnCoordinatorRef.current) {
     turnCoordinatorRef.current = new TurnCoordinator({
@@ -149,7 +150,6 @@ export function App({
     addSystemMessage('Session cleared.');
   }, [clearMessages, addSystemMessage]);
 
-  // Batches all runtime state updates to reduce clear-to-message flicker (finding 6).
   const applyRuntimeSwitch = useCallback((
     nextProvider: AIProvider,
     nextSpaceName?: string,
@@ -164,12 +164,20 @@ export function App({
     if (nextSpaceName !== undefined) {
       setSpaceName(nextSpaceName);
     }
+    // Reset stale event context so the UI doesn't show previous-session data.
+    session.currentEvent = undefined;
     clearMessages();
-  }, [clearMessages, registry, resetStreaming]);
+  }, [clearMessages, registry, resetStreaming, session]);
 
   const switchProvider = useCallback(async (nextProviderName: ByokProviderName) => {
+    if (switchingRef.current) {
+      return 'A mode/provider switch is already in progress.';
+    }
     if (turnCoordinatorRef.current!.state.isMainTurnActive) {
       return 'Cannot switch provider while a turn is active. Wait for it to finish or press Escape to cancel.';
+    }
+    if (!isValidProvider(nextProviderName)) {
+      return `Unknown provider "${nextProviderName}". Supported: anthropic, openai`;
     }
     const apiKey = detectApiKey(nextProviderName);
     if (!apiKey) {
@@ -177,37 +185,8 @@ export function App({
       return `No ${label} API key found. Configure it first, then try /provider ${nextProviderName} again.`;
     }
 
-    // Build provider before committing config (finding 2/5)
-    let nextProvider: AIProvider;
+    switchingRef.current = true;
     try {
-      nextProvider = await createByokProvider(nextProviderName, apiKey);
-    } catch (err) {
-      return `Failed to create ${nextProviderName} provider: ${err instanceof Error ? err.message : 'Unknown error'}`;
-    }
-
-    // Ensure mode consistency — switching provider implies own_key (finding 4)
-    setAiModeConfig('own_key');
-    setConfigValue('ai_provider', nextProviderName);
-    applyRuntimeSwitch(nextProvider, 'none');
-    return `Switched provider to ${nextProviderName}. Session cleared.`;
-  }, [applyRuntimeSwitch]);
-
-  const switchMode = useCallback(async (nextMode: 'credits' | 'own_key') => {
-    if (turnCoordinatorRef.current!.state.isMainTurnActive) {
-      return 'Cannot switch mode while a turn is active. Wait for it to finish or press Escape to cancel.';
-    }
-    if (nextMode === 'own_key') {
-      const detected = detectProvider();
-      if (!VALID_PROVIDERS.includes(detected as ByokProviderName)) {
-        return `Unknown provider "${detected}". Supported: ${VALID_PROVIDERS.join(', ')}. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.`;
-      }
-      const nextProviderName = detected as ByokProviderName;
-      const apiKey = detectApiKey(nextProviderName);
-      if (!apiKey) {
-        return 'No AI API key found. Configure ANTHROPIC_API_KEY or OPENAI_API_KEY to use BYOK mode.';
-      }
-
-      // Build provider before committing config (finding 2/5)
       let nextProvider: AIProvider;
       try {
         nextProvider = await createByokProvider(nextProviderName, apiKey);
@@ -216,29 +195,67 @@ export function App({
       }
 
       setAiModeConfig('own_key');
-      applyRuntimeSwitch(nextProvider, session.currentSpace?.title || spaceName);
-      return `Switched to BYOK mode using ${nextProviderName}. Session cleared.`;
+      setConfigValue('ai_provider', nextProviderName);
+      applyRuntimeSwitch(nextProvider, 'none');
+      return `Switched provider to ${nextProviderName}. Session cleared.`;
+    } finally {
+      switchingRef.current = false;
+    }
+  }, [applyRuntimeSwitch]);
+
+  const switchMode = useCallback(async (nextMode: 'credits' | 'own_key') => {
+    if (switchingRef.current) {
+      return 'A mode/provider switch is already in progress.';
+    }
+    if (turnCoordinatorRef.current!.state.isMainTurnActive) {
+      return 'Cannot switch mode while a turn is active. Wait for it to finish or press Escape to cancel.';
     }
 
-    let nextCreditsSpace = getCreditsSpaceId() || session.currentSpace?._id || getDefaultSpace();
-    if (!nextCreditsSpace) {
-      return 'No credits space configured. Use /spaces to select a space or run "lemonade space switch", then try /mode credits again.';
-    }
-
-    // Build provider before committing config; use liveSwitch to avoid process.exit (finding 2/3/5)
-    let nextProvider: AIProvider;
+    switchingRef.current = true;
     try {
-      nextProvider = await createCreditsProvider(nextCreditsSpace, { liveSwitch: true });
-    } catch (err) {
-      return `Failed to switch to credits mode: ${err instanceof Error ? err.message : 'Unknown error'}`;
-    }
+      if (nextMode === 'own_key') {
+        const detected = detectProvider();
+        if (!isValidProvider(detected)) {
+          return `Unknown provider "${detected}". Supported: anthropic, openai. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.`;
+        }
+        const apiKey = detectApiKey(detected);
+        if (!apiKey) {
+          return 'No AI API key found. Configure ANTHROPIC_API_KEY or OPENAI_API_KEY to use BYOK mode.';
+        }
 
-    if (!getCreditsSpaceId()) {
-      setConfigValue('ai_credits_space', nextCreditsSpace);
+        let nextProvider: AIProvider;
+        try {
+          nextProvider = await createByokProvider(detected, apiKey);
+        } catch (err) {
+          return `Failed to create ${detected} provider: ${err instanceof Error ? err.message : 'Unknown error'}`;
+        }
+
+        setAiModeConfig('own_key');
+        applyRuntimeSwitch(nextProvider, session.currentSpace?.title || spaceName);
+        return `Switched to BYOK mode using ${detected}. Session cleared.`;
+      }
+
+      const nextCreditsSpace = getCreditsSpaceId() || session.currentSpace?._id || getDefaultSpace();
+      if (!nextCreditsSpace) {
+        return 'No credits space configured. Use /spaces to select a space or run "lemonade space switch", then try /mode credits again.';
+      }
+
+      let nextProvider: AIProvider;
+      try {
+        nextProvider = await createCreditsProvider(nextCreditsSpace, { liveSwitch: true });
+      } catch (err) {
+        return `Failed to switch to credits mode: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      }
+
+      if (!getCreditsSpaceId()) {
+        setConfigValue('ai_credits_space', nextCreditsSpace);
+      }
+      setAiModeConfig('credits');
+      applyRuntimeSwitch(nextProvider, session.currentSpace?.title || spaceName);
+      return `Switched to Lemonade Credits mode. Session cleared.`;
+    } finally {
+      switchingRef.current = false;
     }
-    setAiModeConfig('credits');
-    applyRuntimeSwitch(nextProvider, session.currentSpace?.title || spaceName);
-    return `Switched to Lemonade Credits mode. Session cleared.`;
   }, [applyRuntimeSwitch, session.currentSpace, spaceName]);
 
   const { recordSubmit, handleHistoryUp: historyUp, handleHistoryDown: historyDown, resetBrowsing } = history;
@@ -296,10 +313,12 @@ export function App({
       return;
     }
 
-    // Regular messages: coordinator is the single authority for turn acceptance.
-    // ORDERING CONSTRAINT: submitMainTurn must be called before addUserMessage.
-    // The coordinator must accept the turn before the UI commits the message,
-    // otherwise a rejected turn would leave a dangling user message in the UI.
+    if (switchingRef.current) {
+      addSystemMessage('A mode/provider switch is in progress. Please wait.');
+      return;
+    }
+
+    // Coordinator is the single authority for turn acceptance.
     const submit = turnCoordinator.submitMainTurn(input);
     if (!submit.accepted) {
       addSystemMessage(submit.error);

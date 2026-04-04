@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import readline from 'readline';
 import { getDefaultSpace } from '../auth/store.js';
-import { setAiModeConfig } from './aiMode.js';
+import { setAiModeSession } from './aiMode.js';
 import { detectApiKey, detectProvider } from './onboarding.js';
 import { getCreditsSpaceId, selectCreditsSpace } from './spaceSelection.js';
 
@@ -34,7 +34,7 @@ export async function resolveCreditsStartupMode(isTTY: boolean): Promise<Credits
   const providerName = detectProvider();
   const apiKey = detectApiKey(providerName);
   if (apiKey) {
-    setAiModeConfig('own_key');
+    setAiModeSession('own_key');
     return {
       mode: 'own_key',
       message: chalk.yellow('  No credits space selected. Starting in BYOK mode instead.'),

@@ -113,4 +113,48 @@ describe('createCreditsProvider', () => {
     expect(provider.model).toBe('Lemonade AI');
     expect(provider.name).toBe('lemonade-ai');
   });
+
+  describe('liveSwitch mode', () => {
+    it('throws on network failure during balance check', async () => {
+      mockGraphql.mockRejectedValueOnce(new Error('network timeout'));
+
+      await expect(
+        createCreditsProvider('space-1', { liveSwitch: true }),
+      ).rejects.toThrow('Could not verify credits eligibility');
+    });
+
+    it('throws when free tier has no credits', async () => {
+      mockGraphql.mockResolvedValueOnce({
+        getStandCredits: { credits: 0, subscription_tier: 'free' },
+      });
+
+      await expect(
+        createCreditsProvider('space-1', { liveSwitch: true }),
+      ).rejects.toThrow('free plan with no AI credits');
+    });
+
+    it('throws when paid tier has 0 credits remaining', async () => {
+      mockGraphql.mockResolvedValueOnce({
+        getStandCredits: { credits: 0, subscription_tier: 'pro', subscription_renewal_date: '2026-05-01' },
+      });
+
+      await expect(
+        createCreditsProvider('space-1', { liveSwitch: true }),
+      ).rejects.toThrow('0 credits remaining');
+    });
+
+    it('succeeds when credits are available', async () => {
+      mockGraphql
+        .mockResolvedValueOnce({
+          getStandCredits: { credits: 100, subscription_tier: 'pro' },
+        })
+        .mockResolvedValueOnce({
+          getAvailableModels: [{ name: 'gpt-4o', is_default: true }],
+        });
+
+      const provider = await createCreditsProvider('space-1', { liveSwitch: true });
+      expect(provider.name).toBe('lemonade-ai');
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+  });
 });

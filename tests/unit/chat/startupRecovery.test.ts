@@ -5,7 +5,7 @@ vi.mock('../../../src/auth/store', () => ({
 }));
 
 vi.mock('../../../src/chat/aiMode', () => ({
-  setAiModeConfig: vi.fn(),
+  setAiModeSession: vi.fn(),
 }));
 
 vi.mock('../../../src/chat/onboarding', () => ({
@@ -59,7 +59,7 @@ describe('resolveCreditsStartupMode', () => {
     const { getCreditsSpaceId, selectCreditsSpace } = await import('../../../src/chat/spaceSelection');
     const { getDefaultSpace } = await import('../../../src/auth/store');
     const { detectApiKey, detectProvider } = await import('../../../src/chat/onboarding');
-    const { setAiModeConfig } = await import('../../../src/chat/aiMode');
+    const { setAiModeSession } = await import('../../../src/chat/aiMode');
     vi.mocked(getCreditsSpaceId).mockReturnValue(undefined);
     vi.mocked(getDefaultSpace).mockReturnValue(undefined);
     vi.mocked(selectCreditsSpace).mockResolvedValue(null);
@@ -71,7 +71,7 @@ describe('resolveCreditsStartupMode', () => {
 
     expect(result.mode).toBe('own_key');
     expect(result.message).toContain('Starting in BYOK mode');
-    expect(setAiModeConfig).toHaveBeenCalledWith('own_key');
+    expect(setAiModeSession).toHaveBeenCalledWith('own_key');
   });
 
   it('returns a blocking message when no space or api key is available (non-interactive)', async () => {
@@ -101,6 +101,24 @@ describe('resolveCreditsStartupMode', () => {
       mode: 'credits',
       spaceId: 'default-space-456',
     });
+  });
+
+  it('startup fallback to own_key does NOT persist to disk config', async () => {
+    const { getCreditsSpaceId, selectCreditsSpace } = await import('../../../src/chat/spaceSelection');
+    const { getDefaultSpace } = await import('../../../src/auth/store');
+    const { detectApiKey, detectProvider } = await import('../../../src/chat/onboarding');
+    const { setAiModeSession } = await import('../../../src/chat/aiMode');
+    vi.mocked(getCreditsSpaceId).mockReturnValue(undefined);
+    vi.mocked(getDefaultSpace).mockReturnValue(undefined);
+    vi.mocked(selectCreditsSpace).mockResolvedValue(null);
+    vi.mocked(detectProvider).mockReturnValue('anthropic');
+    vi.mocked(detectApiKey).mockReturnValue('sk-live');
+
+    const { resolveCreditsStartupMode } = await import('../../../src/chat/startupRecovery');
+    await resolveCreditsStartupMode(true);
+
+    // Session-only setter must be used, not the persisting one
+    expect(setAiModeSession).toHaveBeenCalledWith('own_key');
   });
 
   it('returns failed when interactive space selection returns null and no API key exists', async () => {

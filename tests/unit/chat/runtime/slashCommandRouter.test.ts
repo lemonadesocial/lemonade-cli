@@ -351,6 +351,55 @@ describe('SlashCommandRouter', () => {
     }
   });
 
+  describe('switching blocked during active turn', () => {
+    it('/provider rejects when turn is active', async () => {
+      const deps = makeDeps({
+        switchProvider: vi.fn(async () => 'Cannot switch provider while a turn is active. Wait for it to finish or press Escape to cancel.'),
+      });
+
+      await executeSlashCommand(parseSlashCommand('/provider openai'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Cannot switch');
+      expect(msg).toContain('turn is active');
+    });
+
+    it('/mode rejects when turn is active', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
+      const deps = makeDeps({
+        switchMode: vi.fn(async () => 'Cannot switch mode while a turn is active. Wait for it to finish or press Escape to cancel.'),
+      });
+
+      await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Cannot switch');
+    });
+
+    it('/provider rejects when a switch is already in progress', async () => {
+      const deps = makeDeps({
+        switchProvider: vi.fn(async () => 'A mode/provider switch is already in progress.'),
+      });
+
+      await executeSlashCommand(parseSlashCommand('/provider openai'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('already in progress');
+    });
+
+    it('/mode rejects when a switch is already in progress', async () => {
+      mockGetAiMode.mockReturnValue('credits');
+      const deps = makeDeps({
+        switchMode: vi.fn(async () => 'A mode/provider switch is already in progress.'),
+      });
+
+      await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('already in progress');
+    });
+  });
+
   describe('routing preserves parse→execute separation', () => {
     it('parseSlashCommand returns handled:false for non-slash input', () => {
       const result = parseSlashCommand('hello world');

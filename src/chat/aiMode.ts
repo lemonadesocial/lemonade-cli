@@ -33,6 +33,11 @@ export function setAiModeConfig(mode: AiMode): void {
   setConfigValue('ai_mode', mode);
 }
 
+/** Session-only override — does NOT persist to disk config. */
+export function setAiModeSession(mode: AiMode): void {
+  lockedMode = mode;
+}
+
 export function getAiModeDisplay(): string {
   const mode = getAiMode();
   return mode === 'credits' ? 'Community AI Credits' : 'Own API Key';

@@ -88,6 +88,7 @@ async function main(): Promise<void> {
 
   // Initialize AI mode (locked for entire session)
   let aiMode = initAiMode();
+  let resolvedCreditsSpace: string | undefined;
   if (aiMode === 'credits') {
     const startupResolution = await resolveCreditsStartupMode(isTTY);
     if (startupResolution.message) {
@@ -97,6 +98,7 @@ async function main(): Promise<void> {
       process.exit(2);
     }
     aiMode = startupResolution.mode;
+    resolvedCreditsSpace = startupResolution.spaceId;
   }
 
   let apiKey: string | null = null;
@@ -149,20 +151,17 @@ async function main(): Promise<void> {
 
     provider = await createByokProvider(providerName as (typeof VALID_PROVIDERS)[number], apiKey!, args.model);
   } else {
-    // Lemonade Credits Mode — temporary migration adapter
-    // Same runtime (TurnCoordinator, handleTurn, SlashCommandRouter) as BYOK,
-    // but provider has supportsToolCalling: false. See lemonade-ai.ts.
-    let creditsSpace = getCreditsSpaceId();
-    if (!creditsSpace) {
-      creditsSpace = getDefaultSpace();
-      if (creditsSpace) {
-        setConfigValue('ai_credits_space', creditsSpace);
-      }
-    }
+    // Use the space resolved by startup recovery; fall back to config only if needed.
+    const creditsSpace = resolvedCreditsSpace || getCreditsSpaceId() || getDefaultSpace();
 
     if (!creditsSpace) {
       console.error(chalk.red('  No credits space configured. Run /mode credits to select a space, or "lemonade space switch".'));
       process.exit(2);
+    }
+
+    // Persist so downstream code (live-switch, /credits) can find it.
+    if (!getCreditsSpaceId()) {
+      setConfigValue('ai_credits_space', creditsSpace);
     }
 
     provider = await createCreditsProvider(creditsSpace);

@@ -22,7 +22,10 @@ export async function createCreditsProvider(spaceId: string, opts?: { liveSwitch
     credits = balanceResult.getStandCredits;
     creditsChecked = true;
   } catch {
-    // Non-fatal: continue even if balance check fails
+    if (opts?.liveSwitch) {
+      throw new Error('Could not verify credits eligibility. Check your network and try again.');
+    }
+    // Startup: non-fatal — continue even if balance check fails
   }
 
   if (creditsChecked) {
