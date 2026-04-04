@@ -256,6 +256,29 @@ describe('SlashCommandRouter', () => {
 
       expect(deps.switchProvider).toHaveBeenCalledWith('openai');
     });
+
+    it('rejects unknown provider names without calling switchProvider', async () => {
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/provider gemini'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Unknown provider');
+      expect(msg).toContain('gemini');
+      expect(deps.switchProvider).not.toHaveBeenCalled();
+    });
+
+    it('short-circuits when provider is already active', async () => {
+      const deps = makeDeps({
+        displayOpts: { providerName: 'anthropic', modelName: 'claude-sonnet-4-6' },
+      });
+
+      await executeSlashCommand(parseSlashCommand('/provider anthropic'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Already using provider');
+      expect(deps.switchProvider).not.toHaveBeenCalled();
+    });
   });
 
   describe('/space', () => {
