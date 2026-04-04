@@ -473,7 +473,7 @@ describe('LemonadeAIProvider formatMessages (via stream)', () => {
       { role: 'assistant', content: 'hi there' },
       { role: 'user', content: 'what is 2+2?' },
     ]));
-    expect(getMessageVar()).toBe('User: hello\nAssistant: hi there\n\nwhat is 2+2?');
+    expect(getMessageVar()).toBe('User: hello\nAssistant: hi there\n\nUser: what is 2+2?');
   });
 
   it('multi-turn skips history entries with empty text', async () => {
@@ -482,7 +482,7 @@ describe('LemonadeAIProvider formatMessages (via stream)', () => {
       { role: 'assistant', content: [] },
       { role: 'user', content: 'follow up' },
     ]));
-    expect(getMessageVar()).toBe('User: hello\n\nfollow up');
+    expect(getMessageVar()).toBe('User: hello\n\nUser: follow up');
   });
 
   it('tool-result user messages are labelled "Tool Output"', async () => {
@@ -496,7 +496,7 @@ describe('LemonadeAIProvider formatMessages (via stream)', () => {
     expect(msg).toContain('Tool Output: tool output here');
     expect(msg).not.toMatch(/^User: tool output here/m);
     expect(msg).toContain('User: use the tool');
-    expect(msg).toContain('now what?');
+    expect(msg).toContain('User: now what?');
   });
 
   it('tool-result content is extracted, not JSON-stringified', async () => {
@@ -506,6 +506,74 @@ describe('LemonadeAIProvider formatMessages (via stream)', () => {
     }]));
     expect(getMessageVar()).toBe('result text');
     expect(getMessageVar()).not.toContain('tool_result');
+  });
+
+  it('tool-result detection finds tool_result in any content block (not just first)', async () => {
+    await drain(streamWith([
+      { role: 'user', content: 'setup' },
+      // Mixed content: text block first, tool_result second — should still be "Tool Output"
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'preamble' },
+          { type: 'tool_result', tool_use_id: 'tc1', content: 'result data' },
+        ],
+      },
+      { role: 'user', content: 'follow up' },
+    ]));
+    const msg = getMessageVar();
+    expect(msg).toContain('Tool Output: preamble\nresult data');
+    expect(msg).not.toMatch(/^User: preamble/m);
+  });
+
+  it('current message gets explicit role label', async () => {
+    await drain(streamWith([
+      { role: 'user', content: 'first' },
+      { role: 'assistant', content: 'reply' },
+      { role: 'user', content: 'second' },
+    ]));
+    const msg = getMessageVar();
+    // Current message (last) must have explicit "User:" prefix
+    expect(msg).toMatch(/\nUser: second$/);
+  });
+
+  it('truncates oldest history when formatted prompt exceeds size limit', async () => {
+    // Build a history that exceeds 100k chars
+    const longText = 'x'.repeat(60_000);
+    const messages: Message[] = [
+      { role: 'user', content: longText },
+      { role: 'assistant', content: longText },
+      { role: 'user', content: 'current question' },
+    ];
+    await drain(streamWith(messages));
+    const msg = getMessageVar();
+    // The formatted prompt must be ≤100k chars
+    expect(msg.length).toBeLessThanOrEqual(100_000);
+    // The current message must always be preserved
+    expect(msg).toContain('User: current question');
+  });
+
+  it('prompt-size guard preserves current message even when all history is dropped', async () => {
+    const hugeText = 'y'.repeat(80_000);
+    const messages: Message[] = [
+      { role: 'user', content: hugeText },
+      { role: 'assistant', content: hugeText },
+      { role: 'user', content: 'still here' },
+    ];
+    await drain(streamWith(messages));
+    const msg = getMessageVar();
+    expect(msg).toContain('User: still here');
+  });
+
+  it('prompt-size guard is a no-op when history fits', async () => {
+    await drain(streamWith([
+      { role: 'user', content: 'short' },
+      { role: 'assistant', content: 'also short' },
+      { role: 'user', content: 'question' },
+    ]));
+    const msg = getMessageVar();
+    // All history preserved — no truncation
+    expect(msg).toBe('User: short\nAssistant: also short\n\nUser: question');
   });
 
   it('session variable is null (local history authoritative)', async () => {

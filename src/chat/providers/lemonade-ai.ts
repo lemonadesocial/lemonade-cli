@@ -73,6 +73,12 @@ function combinedSignal(callerSignal?: AbortSignal): AbortSignal {
   return ac.signal;
 }
 
+// Ceiling for the formatted prompt string sent to the backend (in characters).
+// ~100k chars ≈ ~25k tokens — keeps us well within typical model context limits
+// while leaving room for the backend's own system prompt.  When history exceeds
+// this, the oldest entries are dropped until the formatted string fits.
+const MAX_FORMATTED_PROMPT_CHARS = 100_000;
+
 export class LemonadeAIProvider implements AIProvider {
   name = 'lemonade-ai';
   capabilities: ProviderCapabilities = {
@@ -116,27 +122,29 @@ export class LemonadeAIProvider implements AIProvider {
       const text = LemonadeAIProvider.extractText(msg);
       if (!text) continue;
 
-      let role: string;
-      if (msg.role === 'assistant') {
-        role = 'Assistant';
-      } else if (
-        Array.isArray(msg.content) &&
-        msg.content.length > 0 &&
-        (msg.content[0] as Record<string, unknown>).type === 'tool_result'
-      ) {
-        // Tool-result user messages are BYOK tool-loop artifacts.
-        // Label distinctly so the backend sees them as tool output,
-        // not as direct user input.
-        role = 'Tool Output';
-      } else {
-        role = 'User';
-      }
+      const role = LemonadeAIProvider.classifyRole(msg);
       parts.push(`${role}: ${text}`);
     }
 
+    // Explicit role on the current message so the backend never has to infer
+    // who is speaking (finding 3: implicit role made explicit).
+    const currentRole = LemonadeAIProvider.classifyRole(current);
+    const currentText = LemonadeAIProvider.extractText(current);
     parts.push('');
-    parts.push(LemonadeAIProvider.extractText(current));
-    return parts.join('\n');
+    parts.push(`${currentRole}: ${currentText}`);
+
+    // Prompt-size guard: drop oldest history entries until the formatted
+    // string fits within MAX_FORMATTED_PROMPT_CHARS.  The current message
+    // is never dropped — only prior history entries are trimmed.
+    let formatted = parts.join('\n');
+    while (formatted.length > MAX_FORMATTED_PROMPT_CHARS && parts.length > 2) {
+      // parts[0..n-2] are history, parts[n-1] is blank separator, parts[n] is current.
+      // Remove the oldest history entry (index 0).
+      parts.splice(0, 1);
+      formatted = parts.join('\n');
+    }
+
+    return formatted;
   }
 
   private static extractText(msg: Message): string {
@@ -161,6 +169,22 @@ export class LemonadeAIProvider implements AIProvider {
     // definition. Return empty rather than leaking internal structure via
     // JSON.stringify.
     return '';
+  }
+
+  // Determine the display role for a message.  Tool-result detection scans
+  // ALL content blocks (not just the first) so mixed-content messages are
+  // classified correctly.
+  private static classifyRole(msg: Message): string {
+    if (msg.role === 'assistant') return 'Assistant';
+
+    if (Array.isArray(msg.content)) {
+      const hasToolResult = (msg.content as Array<Record<string, unknown>>).some(
+        (block) => block.type === 'tool_result',
+      );
+      if (hasToolResult) return 'Tool Output';
+    }
+
+    return 'User';
   }
 
   async *stream(params: StreamParams): AsyncIterable<StreamEvent> {
