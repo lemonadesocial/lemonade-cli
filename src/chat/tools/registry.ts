@@ -508,6 +508,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
+      // Returns [AIEventApplicationAnswerEntry!]! — flat list, no items wrapper
       const result = await graphqlRequest<{ aiGetEventApplicationAnswers: unknown }>(
         `query($event: MongoID!) {
           aiGetEventApplicationAnswers(event: $event) {
@@ -594,12 +595,14 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const input: Record<string, unknown> = {
         event: args.event_id,
         title: args.name,
-        prices: args.price ? [{
+      };
+      if (args.price) {
+        input.prices = [{
           cost: String(Math.round((args.price as number) * 100)),
           currency: (args.currency as string) || 'USD',
           default: true,
-        }] : [],
-      };
+        }];
+      }
       if (args.limit !== undefined) input.ticket_limit = args.limit;
       if (args.description) input.description = args.description;
 
