@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { GraphQLError } from '../../../src/api/graphql';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { GraphQLError } from '../../../src/api/graphql.js';
 
 describe('GraphQL Client', () => {
   describe('GraphQLError', () => {
@@ -28,7 +28,6 @@ describe('GraphQL Client', () => {
     it('throws UNAUTHENTICATED when no auth available', async () => {
       delete process.env.LEMONADE_API_KEY;
 
-      // Mock getAuthHeader to return undefined (no auth)
       const store = await import('../../../src/auth/store.js');
       vi.spyOn(store, 'getAuthHeader').mockReturnValue(undefined);
 
@@ -36,6 +35,74 @@ describe('GraphQL Client', () => {
       await expect(graphqlRequest('query { test }')).rejects.toThrow('Not authenticated');
 
       vi.restoreAllMocks();
+    });
+
+    it('surfaces GraphQL validation errors on HTTP 400', async () => {
+      global.fetch = vi.fn().mockImplementation(async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          errors: [
+            {
+              message: 'Cannot query field "state" on type "AIEventGuest". Did you mean "status"?',
+              extensions: { code: 'GRAPHQL_VALIDATION_FAILED' },
+            },
+          ],
+        }),
+      }));
+
+      process.env.LEMONADE_API_KEY = 'test-key-123';
+      const { graphqlRequest } = await import('../../../src/api/graphql.js');
+
+      try {
+        await graphqlRequest('query { test }');
+        expect.unreachable('should have thrown');
+      } catch (err: unknown) {
+        const gqlErr = err as GraphQLError;
+        expect(gqlErr.message).toContain('Cannot query field "state"');
+        expect(gqlErr.code).toBe('GRAPHQL_VALIDATION_FAILED');
+        expect(gqlErr.statusCode).toBe(400);
+      }
+
+      delete process.env.LEMONADE_API_KEY;
+    });
+
+    it('falls back to generic message on 400 without errors body', async () => {
+      global.fetch = vi.fn().mockImplementation(async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({}),
+      }));
+
+      process.env.LEMONADE_API_KEY = 'test-key-123';
+      const { graphqlRequest } = await import('../../../src/api/graphql.js');
+
+      await expect(graphqlRequest('query { test }')).rejects.toThrow('Backend returned 400');
+
+      delete process.env.LEMONADE_API_KEY;
+    });
+
+    it('falls back gracefully on non-JSON HTTP error body', async () => {
+      global.fetch = vi.fn().mockImplementation(async () => ({
+        ok: false,
+        status: 502,
+        json: async () => { throw new SyntaxError('Unexpected token'); },
+      }));
+
+      process.env.LEMONADE_API_KEY = 'test-key-123';
+      const { graphqlRequest } = await import('../../../src/api/graphql.js');
+
+      try {
+        await graphqlRequest('query { test }');
+        expect.unreachable('should have thrown');
+      } catch (err: unknown) {
+        const gqlErr = err as GraphQLError;
+        expect(gqlErr.message).toBe('Backend returned 502');
+        expect(gqlErr.code).toBe('INTERNAL');
+        expect(gqlErr.statusCode).toBe(502);
+      }
+
+      delete process.env.LEMONADE_API_KEY;
     });
 
     it('sends correct headers when auth is present', async () => {
@@ -50,7 +117,7 @@ describe('GraphQL Client', () => {
       });
 
       process.env.LEMONADE_API_KEY = 'test-key-123';
-      const { graphqlRequest } = await import('../../../src/api/graphql');
+      const { graphqlRequest } = await import('../../../src/api/graphql.js');
 
       await graphqlRequest('query { test }');
       expect(capturedHeaders['Authorization']).toBe('Bearer test-key-123');

@@ -23,8 +23,7 @@ export function registerTicketCommands(program: Command): void {
         const result = await graphqlRequest<{ aiListEventTicketTypes: Array<Record<string, unknown>> }>(
           `query($event: MongoID!) {
             aiListEventTicketTypes(event: $event) {
-              _id title default_price default_currency limit active
-              prices { cost currency network }
+              title active private limited description
             }
           }`,
           { event: eventId },
@@ -36,15 +35,16 @@ export function registerTicketCommands(program: Command): void {
           console.log(jsonSuccess(items));
         } else {
           console.log(renderTable(
-            ['ID', 'Name', 'Price', 'Limit', 'Active'],
+            ['Name', 'Active', 'Limited', 'Private', 'Description'],
             items.map((t) => [
-              String(t._id),
               String(t.title),
-              t.default_price ? `${Number(t.default_price) / 100} ${t.default_currency}` : 'Free',
-              t.limit ? String(t.limit) : 'Unlimited',
               t.active ? 'Yes' : 'No',
+              t.limited ? 'Yes' : 'No',
+              t.private ? 'Yes' : 'No',
+              String(t.description || ''),
             ]),
           ));
+          console.log('\nNote: Ticket type IDs and pricing are not available from this API. Use --json with "event get" or the dashboard for full details.');
         }
       } catch (error) {
         setFlagApiKey(undefined);
@@ -56,7 +56,7 @@ export function registerTicketCommands(program: Command): void {
     .command('create-type <event-id>')
     .description('Create a ticket type')
     .requiredOption('--name <text>', 'Ticket type name')
-    .requiredOption('--price <amount>', 'Price in dollars (e.g. 25.00)')
+    .option('--price <amount>', 'Price in dollars (e.g. 25.00)')
     .option('--currency <code>', 'Currency code', 'USD')
     .option('--limit <n>', 'Max tickets')
     .option('--description <text>', 'Description')
@@ -65,21 +65,22 @@ export function registerTicketCommands(program: Command): void {
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
-        const priceInCents = Math.round(parseFloat(opts.price) * 100);
 
         const input: Record<string, unknown> = {
           event: eventId,
           title: opts.name,
-          default_price: priceInCents,
-          default_currency: opts.currency,
         };
-        if (opts.limit) input.limit = parseInt(opts.limit, 10);
+        if (opts.price) {
+          const costCents = String(Math.round(parseFloat(opts.price) * 100));
+          input.prices = [{ cost: costCents, currency: opts.currency, default: true }];
+        }
+        if (opts.limit) input.ticket_limit = parseInt(opts.limit, 10);
         if (opts.description) input.description = opts.description;
 
         const result = await graphqlRequest<{ aiCreateEventTicketType: Record<string, unknown> }>(
           `mutation($input: EventTicketTypeInput!) {
             aiCreateEventTicketType(input: $input) {
-              _id title default_price default_currency limit active
+              title active limited description
             }
           }`,
           { input },
@@ -88,13 +89,16 @@ export function registerTicketCommands(program: Command): void {
 
         const tt = result.aiCreateEventTicketType;
         if (opts.json) {
-          console.log(jsonSuccess(tt));
+          console.log(jsonSuccess({ ...tt, ...(opts.price ? { price: opts.price, currency: opts.currency } : {}) }));
         } else {
-          console.log(renderKeyValue([
-            ['ID', String(tt._id)],
+          const pairs: Array<[string, string]> = [
             ['Name', String(tt.title)],
-            ['Price', `${Number(tt.default_price) / 100} ${tt.default_currency}`],
-          ]));
+            ['Active', tt.active ? 'Yes' : 'No'],
+          ];
+          if (opts.price) {
+            pairs.push(['Price', `${opts.price} ${opts.currency}`]);
+          }
+          console.log(renderKeyValue(pairs));
         }
       } catch (error) {
         setFlagApiKey(undefined);
@@ -107,8 +111,8 @@ export function registerTicketCommands(program: Command): void {
     .description('Update a ticket type')
     .option('--name <text>', 'New name')
     .option('--price <amount>', 'New price in dollars')
-    .option('--currency <code>', 'New currency')
-    .option('--limit <n>', 'New limit')
+    .option('--currency <code>', 'Currency code', 'USD')
+    .option('--limit <n>', 'New ticket limit')
     .option('--active <bool>', 'Active status')
     .option('--json', 'Output as JSON')
     .option('--api-key <key>', 'API key override')
@@ -117,15 +121,17 @@ export function registerTicketCommands(program: Command): void {
         setFlagApiKey(opts.apiKey);
         const input: Record<string, unknown> = {};
         if (opts.name) input.title = opts.name;
-        if (opts.price) input.default_price = Math.round(parseFloat(opts.price) * 100);
-        if (opts.currency) input.default_currency = opts.currency;
-        if (opts.limit) input.limit = parseInt(opts.limit, 10);
+        if (opts.price) {
+          const costCents = String(Math.round(parseFloat(opts.price) * 100));
+          input.prices = [{ cost: costCents, currency: opts.currency, default: true }];
+        }
+        if (opts.limit) input.ticket_limit = parseInt(opts.limit, 10);
         if (opts.active !== undefined) input.active = opts.active === 'true';
 
         const result = await graphqlRequest<{ aiUpdateEventTicketType: Record<string, unknown> }>(
           `mutation($_id: MongoID!, $input: EventTicketTypeInput!) {
             aiUpdateEventTicketType(_id: $_id, input: $input) {
-              _id title default_price default_currency limit active
+              title active limited description
             }
           }`,
           { _id: ticketTypeId, input },
@@ -134,14 +140,16 @@ export function registerTicketCommands(program: Command): void {
 
         const tt = result.aiUpdateEventTicketType;
         if (opts.json) {
-          console.log(jsonSuccess(tt));
+          console.log(jsonSuccess({ ...tt, ...(opts.price ? { price: opts.price, currency: opts.currency } : {}) }));
         } else {
-          console.log(renderKeyValue([
-            ['ID', String(tt._id)],
+          const pairs: Array<[string, string]> = [
             ['Name', String(tt.title)],
-            ['Price', `${Number(tt.default_price) / 100} ${tt.default_currency}`],
             ['Active', tt.active ? 'Yes' : 'No'],
-          ]));
+          ];
+          if (opts.price) {
+            pairs.push(['Price', `${opts.price} ${opts.currency}`]);
+          }
+          console.log(renderKeyValue(pairs));
         }
       } catch (error) {
         setFlagApiKey(undefined);

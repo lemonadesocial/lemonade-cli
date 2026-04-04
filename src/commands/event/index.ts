@@ -343,8 +343,8 @@ export function registerEventCommands(program: Command): void {
           graphqlRequest<{ aiGetEventTicketSoldInsight: Record<string, unknown> }>(
             `query($event: MongoID!) {
               aiGetEventTicketSoldInsight(event: $event) {
-                total_tickets_sold total_revenue currency
-                breakdown { ticket_type_name sold revenue }
+                total_sold total_revenue_cents currency
+                by_type { ticket_type_id title sold revenue_cents }
               }
             }`,
             { event: eventId },
@@ -353,8 +353,8 @@ export function registerEventCommands(program: Command): void {
             `query($event: MongoID!) {
               aiGetEventViewInsight(event: $event) {
                 total_views unique_visitors
-                top_sources { source views }
-                top_cities { city views }
+                top_sources { source count }
+                top_cities { city count }
               }
             }`,
             { event: eventId },
@@ -362,7 +362,7 @@ export function registerEventCommands(program: Command): void {
           graphqlRequest<{ aiGetEventGuestStats: Record<string, unknown> }>(
             `query($event: MongoID!) {
               aiGetEventGuestStats(event: $event) {
-                going pending declined checked_in
+                going pending_approval pending_invite declined checked_in total
               }
             }`,
             { event: eventId },
@@ -377,15 +377,19 @@ export function registerEventCommands(program: Command): void {
         if (opts.json) {
           console.log(jsonSuccess({ sales, views, guests }));
         } else {
+          const rawRevenue = Number(sales.total_revenue_cents);
+          const revenueDollars = Number.isFinite(rawRevenue) ? (rawRevenue / 100).toFixed(2) : '0.00';
           console.log(renderKeyValue([
-            ['Tickets Sold', String(sales.total_tickets_sold)],
-            ['Revenue', `${sales.total_revenue} ${sales.currency}`],
+            ['Tickets Sold', String(sales.total_sold)],
+            ['Revenue', `${revenueDollars} ${sales.currency}`],
             ['Page Views', String(views.total_views)],
             ['Unique Visitors', String(views.unique_visitors)],
             ['Going', String(guests.going)],
-            ['Pending', String(guests.pending)],
+            ['Pending Approval', String(guests.pending_approval)],
+            ['Pending Invite', String(guests.pending_invite)],
             ['Declined', String(guests.declined)],
             ['Checked In', String(guests.checked_in)],
+            ['Total Guests', String(guests.total)],
           ]));
         }
       } catch (error) {
@@ -397,7 +401,7 @@ export function registerEventCommands(program: Command): void {
   event
     .command('guests <event-id>')
     .description('List event guests')
-    .option('--status <status>', 'Filter: going|pending|declined|checked_in')
+    .option('--search <text>', 'Search guests by name or email')
     .option('--limit <n>', 'Max results', '50')
     .option('--cursor <str>', 'Pagination cursor (skip)')
     .option('--json', 'Output as JSON')
@@ -409,12 +413,12 @@ export function registerEventCommands(program: Command): void {
         const skip = opts.cursor ? parseInt(opts.cursor, 10) : 0;
 
         const result = await graphqlRequest<{ aiGetEventGuests: { items: Array<Record<string, unknown>> } }>(
-          `query($event: MongoID!, $state: String, $limit: Int, $skip: Int) {
-            aiGetEventGuests(event: $event, state: $state, limit: $limit, skip: $skip) {
-              items { name email state ticket_type_name checked_in_at }
+          `query($event: MongoID!, $search: String, $limit: Int, $skip: Int) {
+            aiGetEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
+              items { name email status ticket_type_title checked_in }
             }
           }`,
-          { event: eventId, state: opts.status, limit, skip },
+          { event: eventId, search: opts.search, limit, skip },
         );
         setFlagApiKey(undefined);
 
@@ -428,9 +432,9 @@ export function registerEventCommands(program: Command): void {
             items.map((g) => [
               String(g.name || ''),
               String(g.email || ''),
-              String(g.state || ''),
-              String(g.ticket_type_name || ''),
-              g.checked_in_at ? String(g.checked_in_at) : '-',
+              String(g.status || ''),
+              String(g.ticket_type_title || ''),
+              g.checked_in ? 'Yes' : 'No',
             ]),
           ));
         }
@@ -601,7 +605,7 @@ export function registerEventCommands(program: Command): void {
         const result = await graphqlRequest<{ aiGetEventCheckins: { items: Array<Record<string, unknown>> } }>(
           `query($event: MongoID!, $limit: Int, $skip: Int) {
             aiGetEventCheckins(event: $event, limit: $limit, skip: $skip) {
-              items { user_name user_email ticket_type_name checked_in_at }
+              items { name email ticket_type_title checked_in_at }
             }
           }`,
           { event: eventId, limit, skip: offset },
@@ -615,9 +619,9 @@ export function registerEventCommands(program: Command): void {
           console.log(renderTable(
             ['Name', 'Email', 'Ticket Type', 'Checked In At'],
             items.map((c) => [
-              String(c.user_name || ''),
-              String(c.user_email || ''),
-              String(c.ticket_type_name || ''),
+              String(c.name || ''),
+              String(c.email || ''),
+              String(c.ticket_type_title || ''),
               String(c.checked_in_at || ''),
             ]),
           ));
