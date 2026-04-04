@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
 import { rmSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const distDir = resolve(process.cwd(), 'dist');
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const distDir = resolve(scriptDir, '..', 'dist');
 
 if (existsSync(distDir)) {
   rmSync(distDir, { recursive: true, force: true });
