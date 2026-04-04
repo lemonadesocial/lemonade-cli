@@ -112,5 +112,5 @@ export async function handleSwitchMode(
     // Fall through to spaceName fallback — don't strand config/runtime split.
   }
   deps.applyRuntimeSwitch(nextProvider, resolvedTitle || deps.spaceName);
-  return `Switched to Lemonade Credits mode. Session cleared.`;
+  return 'Switched to Lemonade Credits mode. Session cleared.';
 }
