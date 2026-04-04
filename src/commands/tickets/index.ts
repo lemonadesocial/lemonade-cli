@@ -32,7 +32,7 @@ export function registerTicketCommands(program: Command): void {
 
         const items = result.aiListEventTicketTypes;
         if (opts.json) {
-          console.log(jsonSuccess({ items, _note: 'Ticket type IDs are not available from this query. Use "lemonade event analytics <event-id> --json" to get IDs from the sales breakdown.' }));
+          console.log(jsonSuccess(items));
         } else {
           console.log(renderTable(
             ['Name', 'Active', 'Limited', 'Private', 'Description'],
@@ -259,6 +259,10 @@ export function registerTicketCommands(program: Command): void {
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
+        const count = parseInt(opts.quantity, 10);
+        if (!Number.isInteger(count) || count < 1) {
+          throw new Error('Quantity must be a positive whole number.');
+        }
         const result = await graphqlRequest<{ aiCalculateTicketPrice: Record<string, unknown> }>(
           `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
             aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
@@ -268,7 +272,7 @@ export function registerTicketCommands(program: Command): void {
           {
             event: eventId,
             ticket_type: opts.ticketType,
-            count: parseInt(opts.quantity, 10),
+            count,
             discount_code: opts.discount,
           },
         );

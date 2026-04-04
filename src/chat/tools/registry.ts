@@ -489,9 +489,13 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.aiGetEventPaymentStats;
     },
     formatResult: (result) => {
-      const r = result as { total_payments: number; total_revenue: Array<{ currency: string; amount_cents: number }>; by_provider: Array<{ provider: string; count: number; amount_cents: number }> };
-      const revSummary = r.total_revenue.map((e) => `${e.currency} ${(e.amount_cents / 100).toFixed(2)}`).join(', ') || 'none';
-      return `${r.total_payments} payments. Revenue: ${revSummary}.`;
+      const r = result as { total_payments?: number; total_revenue?: Array<{ currency: string; amount_cents: number }>; by_provider?: Array<{ provider: string; count: number; amount_cents: number }> };
+      const payments = r.total_payments ?? 0;
+      const revenue = r.total_revenue ?? [];
+      const revSummary = revenue.length > 0
+        ? revenue.map((e) => `${e.currency} ${(e.amount_cents / 100).toFixed(2)}`).join(', ')
+        : 'none';
+      return `${payments} payments. Revenue: ${revSummary}.`;
     },
   });
 
@@ -785,6 +789,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
+      const count = Math.floor((args.quantity as number) || 1);
+      if (count < 1) throw new Error('Quantity must be a positive whole number.');
       const result = await graphqlRequest<{ aiCalculateTicketPrice: unknown }>(
         `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
           aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
@@ -794,7 +800,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         {
           event: args.event_id,
           ticket_type: args.ticket_type,
-          count: (args.quantity as number) || 1,
+          count,
           discount_code: args.discount_code as string | undefined,
         },
       );

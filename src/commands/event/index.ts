@@ -553,7 +553,7 @@ export function registerEventCommands(program: Command): void {
             }`,
             {
               event: eventId,
-              rate_value: opts.rating ? parseInt(opts.rating, 10) : undefined,
+              rate_value: opts.rating ? parseFloat(opts.rating) : undefined,
               limit,
               skip: offset,
             },

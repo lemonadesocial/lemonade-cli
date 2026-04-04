@@ -41,7 +41,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetEventPaymentStats: ['total_payments', 'total_revenue', 'by_provider', 'currency', 'amount_cents', 'provider', 'count', 'payment_count'],
   aiGetEventFeedbackSummary: ['average_rating', 'total_reviews', 'rating_distribution', 'rating', 'count'],
   aiListEventFeedbacks: ['items', 'rating', 'comment', 'user_name', 'created_at', 'rate_value'],
-  aiGetEventApplicationAnswers: ['items', 'user_name', 'email', 'answers', 'submitted_at', 'question', 'answer'],
+  aiGetEventApplicationAnswers: ['user_name', 'email', 'answers', 'submitted_at', 'question', 'answer'],
   aiListEventTicketTypes: ['_id', 'title', 'description', 'private', 'limited', 'active', 'default_price', 'default_currency', 'limit', 'prices', 'category', 'cost', 'currency', 'default', 'network'],
   aiCreateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
   aiUpdateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
