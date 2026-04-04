@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * Verifies that every emitted file in dist/ has a corresponding source file in src/.
  * Checks .js, .d.ts, .js.map, and .d.ts.map artifacts.
@@ -47,7 +45,6 @@ function stripEmittedSuffix(filename) {
   for (const s of emittedSuffixes) {
     if (filename.endsWith(s)) return filename.slice(0, -s.length);
   }
-  return null;
 }
 
 const { emitted: distFiles, unexpected } = collectFiles(distDir);
@@ -56,7 +53,6 @@ const stale = [];
 for (const distFile of distFiles) {
   const rel = relative(distDir, distFile);
   const stem = stripEmittedSuffix(rel);
-  if (stem === null) continue;
 
   const tsPath = resolve(srcDir, stem + '.ts');
   const tsxPath = resolve(srcDir, stem + '.tsx');
