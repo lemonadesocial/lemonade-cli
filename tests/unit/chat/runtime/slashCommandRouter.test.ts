@@ -6,13 +6,11 @@ import { parseSlashCommand, SLASH_COMMANDS } from '../../../../src/chat/ui/Slash
 vi.mock('../../../../src/chat/aiMode', () => ({
   getAiMode: vi.fn(() => 'own_key'),
   getAiModeDisplay: vi.fn(() => 'Own API Key'),
-  setAiModeConfig: vi.fn(),
 }));
 
-import { getAiMode, getAiModeDisplay, setAiModeConfig } from '../../../../src/chat/aiMode';
+import { getAiMode, getAiModeDisplay } from '../../../../src/chat/aiMode';
 const mockGetAiMode = vi.mocked(getAiMode);
 const mockGetAiModeDisplay = vi.mocked(getAiModeDisplay);
-const mockSetAiModeConfig = vi.mocked(setAiModeConfig);
 
 function makeDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
   return {
@@ -20,6 +18,8 @@ function makeDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
     addUserMessage: vi.fn(),
     onClear: vi.fn(),
     exit: vi.fn(),
+    switchProvider: vi.fn(async (providerName: 'anthropic' | 'openai') => `Switched provider to ${providerName}. Session cleared.`),
+    switchMode: vi.fn(async (mode: 'credits' | 'own_key') => `Switched to ${mode} mode. Session cleared.`),
     engine: { requestConfirmation: vi.fn() } as unknown as SlashCommandDeps['engine'],
     registry: {},
     session: {} as SlashCommandDeps['session'],
@@ -214,7 +214,7 @@ describe('SlashCommandRouter', () => {
       expect(msg).toContain('anthropic');
     });
 
-    it('informs user that model switching requires restart', async () => {
+    it('explains that live model switching is not available yet', async () => {
       const deps = makeDeps({
         displayOpts: { providerName: 'anthropic', modelName: 'claude-sonnet-4-6' },
       });
@@ -222,7 +222,7 @@ describe('SlashCommandRouter', () => {
       await executeSlashCommand(parseSlashCommand('/model claude-haiku-4-5-20251001'), deps);
 
       const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(msg).toContain('requires a session restart');
+      expect(msg).toContain('Switching models live is not available yet');
     });
 
     it('shows error for unknown model', async () => {
@@ -249,13 +249,35 @@ describe('SlashCommandRouter', () => {
       expect(msg).toContain('Current provider: anthropic');
     });
 
-    it('informs user that provider switching requires restart', async () => {
+    it('switches provider live when given a valid provider name', async () => {
       const deps = makeDeps();
 
       await executeSlashCommand(parseSlashCommand('/provider openai'), deps);
 
+      expect(deps.switchProvider).toHaveBeenCalledWith('openai');
+    });
+
+    it('rejects unknown provider names without calling switchProvider', async () => {
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/provider gemini'), deps);
+
       const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(msg).toContain('requires a session restart');
+      expect(msg).toContain('Unknown provider');
+      expect(msg).toContain('gemini');
+      expect(deps.switchProvider).not.toHaveBeenCalled();
+    });
+
+    it('short-circuits when provider is already active', async () => {
+      const deps = makeDeps({
+        displayOpts: { providerName: 'anthropic', modelName: 'claude-sonnet-4-6' },
+      });
+
+      await executeSlashCommand(parseSlashCommand('/provider anthropic'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Already using provider');
+      expect(deps.switchProvider).not.toHaveBeenCalled();
     });
   });
 
@@ -350,6 +372,55 @@ describe('SlashCommandRouter', () => {
         }
       });
     }
+  });
+
+  describe('switching blocked during active turn', () => {
+    it('/provider rejects when turn is active', async () => {
+      const deps = makeDeps({
+        switchProvider: vi.fn(async () => 'Cannot switch provider while a turn is active. Wait for it to finish or press Escape to cancel.'),
+      });
+
+      await executeSlashCommand(parseSlashCommand('/provider openai'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Cannot switch');
+      expect(msg).toContain('turn is active');
+    });
+
+    it('/mode rejects when turn is active', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
+      const deps = makeDeps({
+        switchMode: vi.fn(async () => 'Cannot switch mode while a turn is active. Wait for it to finish or press Escape to cancel.'),
+      });
+
+      await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Cannot switch');
+    });
+
+    it('/provider rejects when a switch is already in progress', async () => {
+      const deps = makeDeps({
+        switchProvider: vi.fn(async () => 'A mode/provider switch is already in progress.'),
+      });
+
+      await executeSlashCommand(parseSlashCommand('/provider openai'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('already in progress');
+    });
+
+    it('/mode rejects when a switch is already in progress', async () => {
+      mockGetAiMode.mockReturnValue('credits');
+      const deps = makeDeps({
+        switchMode: vi.fn(async () => 'A mode/provider switch is already in progress.'),
+      });
+
+      await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('already in progress');
+    });
   });
 
   describe('routing preserves parse→execute separation', () => {
@@ -493,51 +564,27 @@ describe('SlashCommandRouter', () => {
       const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
       expect(msg).toContain('Lemonade Credits');
       expect(msg).toContain('BYOK');
-      expect(msg).toContain('requires restart');
+      expect(msg).not.toContain('requires restart');
     });
 
-    it('/mode credits shows approved display name in restart message when switching', async () => {
+    it('/mode credits switches immediately when switching from own_key', async () => {
       mockGetAiMode.mockReturnValue('own_key');
       const deps = makeDeps();
 
       await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
 
-      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(msg).toContain('Lemonade Credits');
-      expect(msg).toContain('Restart');
+      expect(deps.switchMode).toHaveBeenCalledWith('credits');
     });
 
-    it('/mode own_key shows approved display name in restart message when switching', async () => {
+    it('/mode own_key switches immediately when switching from credits', async () => {
       const deps = makeDeps();
 
       await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
 
-      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-      expect(msg).toContain('BYOK');
-      expect(msg).toContain('Restart');
-    });
-
-    it('/mode credits calls setAiModeConfig with "credits" when switching from own_key', async () => {
-      mockGetAiMode.mockReturnValue('own_key');
-      mockSetAiModeConfig.mockClear();
-      const deps = makeDeps();
-
-      await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
-
-      expect(mockSetAiModeConfig).toHaveBeenCalledWith('credits');
-    });
-
-    it('/mode own_key calls setAiModeConfig with "own_key" when switching from credits', async () => {
-      mockSetAiModeConfig.mockClear();
-      const deps = makeDeps();
-
-      await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
-
-      expect(mockSetAiModeConfig).toHaveBeenCalledWith('own_key');
+      expect(deps.switchMode).toHaveBeenCalledWith('own_key');
     });
 
     it('/mode credits when already in credits mode says already in that mode', async () => {
-      mockSetAiModeConfig.mockClear();
       const deps = makeDeps();
 
       await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
@@ -545,12 +592,11 @@ describe('SlashCommandRouter', () => {
       const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
       expect(msg).toContain('Already in');
       expect(msg).toContain('Lemonade Credits');
-      expect(mockSetAiModeConfig).not.toHaveBeenCalled();
+      expect(deps.switchMode).not.toHaveBeenCalled();
     });
 
     it('/mode own_key when already in own_key mode says already in that mode', async () => {
       mockGetAiMode.mockReturnValue('own_key');
-      mockSetAiModeConfig.mockClear();
       const deps = makeDeps();
 
       await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
@@ -558,7 +604,7 @@ describe('SlashCommandRouter', () => {
       const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
       expect(msg).toContain('Already in');
       expect(msg).toContain('BYOK');
-      expect(mockSetAiModeConfig).not.toHaveBeenCalled();
+      expect(deps.switchMode).not.toHaveBeenCalled();
     });
 
     it('/mode with invalid arg shows error with valid options', async () => {

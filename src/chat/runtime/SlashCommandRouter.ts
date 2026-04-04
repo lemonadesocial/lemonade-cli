@@ -29,6 +29,8 @@ export interface SlashCommandUIDeps {
   /** Full clear: turn lifecycle + provider reset + UI reset + system message. */
   onClear: () => void;
   exit: () => void;
+  switchProvider: (providerName: 'anthropic' | 'openai') => Promise<string>;
+  switchMode: (mode: 'credits' | 'own_key') => Promise<string>;
   startManualPlan: (tool: ToolDef) => void;
   setSpaceName: (name: string) => void;
   setApiKeyPrompt: (prompt: { connectionId: string; connectorType: string } | null) => void;
@@ -59,6 +61,8 @@ export async function executeSlashCommand(
     addUserMessage,
     onClear,
     exit,
+    switchProvider,
+    switchMode,
     engine,
     registry,
     session,
@@ -99,7 +103,7 @@ export async function executeSlashCommand(
       addSystemMessage(
         `Current model: ${displayOpts.modelName}\n` +
         'In Lemonade Credits mode, the model is determined by your community\'s backend configuration.\n' +
-        'Model switching is not available in credits mode. Use /mode own_key to switch to BYOK mode (requires restart).',
+        'Model switching is not available in credits mode. Use /mode own_key to switch to BYOK mode.',
       );
       return;
     }
@@ -108,7 +112,7 @@ export async function executeSlashCommand(
       const requested = slashResult.args.trim().toLowerCase();
       const match = available.find(m => m.toLowerCase() === requested || m.toLowerCase().includes(requested));
       if (match) {
-        addSystemMessage(`Model switching requires a session restart. Current model: ${displayOpts.modelName}`);
+        addSystemMessage(`Switching models live is not available yet. Current model: ${displayOpts.modelName}`);
       } else {
         addSystemMessage(`Unknown model: "${slashResult.args}". Available for ${displayOpts.providerName}:\n${available.map(m => `  ${m}`).join('\n')}`);
       }
@@ -124,14 +128,23 @@ export async function executeSlashCommand(
     if (getAiMode() === 'credits') {
       addSystemMessage(
         'In Lemonade Credits mode, the AI provider is managed by your community.\n' +
-        'Provider switching is not available in credits mode. Use /mode own_key to switch to BYOK mode (requires restart).',
+        'Provider switching is not available in credits mode. Use /mode own_key to switch to BYOK mode.',
       );
       return;
     }
     if (slashResult.args) {
-      addSystemMessage(`Provider switching requires a session restart. Current provider: ${displayOpts.providerName}`);
+      const requested = slashResult.args.trim().toLowerCase();
+      if (requested !== 'anthropic' && requested !== 'openai') {
+        addSystemMessage(`Unknown provider: "${slashResult.args}". Available: anthropic, openai`);
+        return;
+      }
+      if (requested === displayOpts.providerName) {
+        addSystemMessage(`Already using provider: ${displayOpts.providerName}.`);
+        return;
+      }
+      addSystemMessage(await switchProvider(requested));
     } else {
-      addSystemMessage(`Current provider: ${displayOpts.providerName}\nAvailable: anthropic, openai\nUsage: /provider <name> (requires restart)`);
+      addSystemMessage(`Current provider: ${displayOpts.providerName}\nAvailable: anthropic, openai\nUsage: /provider <name>`);
     }
     return;
   }
@@ -149,9 +162,7 @@ export async function executeSlashCommand(
       if (slashResult.args === currentRaw) {
         addSystemMessage(`Already in ${displayName} mode.`);
       } else {
-        const { setAiModeConfig } = await import('../aiMode.js');
-        setAiModeConfig(slashResult.args);
-        addSystemMessage(`Restart the session to use ${displayName} mode.`);
+        addSystemMessage(await switchMode(slashResult.args));
       }
     } else if (slashResult.args) {
       addSystemMessage(`Unknown mode: "${slashResult.args}". Valid modes: credits, own_key`);
@@ -162,7 +173,7 @@ export async function executeSlashCommand(
       modeInfo += '\nAvailable modes:';
       modeInfo += '\n  credits   — Lemonade Credits (uses community AI credits)';
       modeInfo += '\n  own_key   — BYOK (bring your own API key)';
-      modeInfo += '\nUsage: /mode credits  or  /mode own_key (requires restart)';
+      modeInfo += '\nUsage: /mode credits  or  /mode own_key';
       addSystemMessage(modeInfo);
     }
     return;
@@ -184,7 +195,7 @@ export async function executeSlashCommand(
       addSystemMessage(
         'Guided tool mode (/plan) is not available in Lemonade Credits mode.\n' +
         'Credits mode does not currently support tool calling.\n' +
-        'Use /mode own_key to switch to BYOK mode (requires restart).',
+        'Use /mode own_key to switch to BYOK mode.',
       );
       return;
     }
@@ -371,7 +382,7 @@ export async function executeSlashCommand(
     if (getAiMode() === 'own_key') {
       addSystemMessage(
         'You are in BYOK mode (Own API Key). Credits do not apply.\n' +
-        'To use community AI credits, switch with /mode credits (requires restart).',
+        'To use community AI credits, switch with /mode credits.',
       );
       return;
     }

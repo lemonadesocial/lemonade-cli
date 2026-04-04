@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { MultilineInput } from './input/index.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
@@ -11,6 +11,14 @@ import { useChatEngine } from './hooks/useChatEngine.js';
 import { usePlanMode } from './hooks/usePlanMode.js';
 import { useCommandHistory } from './hooks/useCommandHistory.js';
 import { useAutocomplete, AC_MAX_VISIBLE } from './hooks/useAutocomplete.js';
+import { createCreditsProvider } from '../creditsProvider.js';
+import { setAiModeConfig } from '../aiMode.js';
+import { detectApiKey, detectProvider } from '../onboarding.js';
+import { createByokProvider } from '../providerFactory.js';
+import type { ByokProviderName } from '../providerFactory.js';
+import { getCreditsSpaceId } from '../spaceSelection.js';
+import { getDefaultSpace, setConfigValue } from '../../auth/store.js';
+import { handleSwitchProvider, handleSwitchMode } from '../runtime/switchHandlers.js';
 import { PlanWizard } from './PlanWizard.js';
 import {
   ThinkingSpinner,
@@ -70,21 +78,32 @@ export function App({
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
+  const spaceNameRef = useRef(spaceName);
+  spaceNameRef.current = spaceName;
+  const [providerState, setProviderState] = useState({
+    provider: provider,
+    formattedTools: formattedTools,
+    providerName: displayOpts.providerName,
+    modelName: displayOpts.modelName,
+  });
+  const { provider: activeProvider, formattedTools: activeFormattedTools, providerName, modelName } = providerState;
 
   const autocomplete = useAutocomplete(inputValue);
 
   const submitTurnIdRef = useRef(0);
+  const switchingRef = useRef(false);
   const turnCoordinatorRef = useRef<TurnCoordinator | null>(null);
   if (!turnCoordinatorRef.current) {
     turnCoordinatorRef.current = new TurnCoordinator({
-      engine, provider, formattedTools, session, registry, chatMessages,
+      engine, provider: activeProvider, formattedTools: activeFormattedTools, session, registry, chatMessages,
     });
   }
   // Keep deps current after re-render / provider change
   turnCoordinatorRef.current.updateDeps({
-    engine, provider, formattedTools, session, registry, chatMessages,
+    engine, provider: activeProvider, formattedTools: activeFormattedTools, session, registry, chatMessages,
   });
   const turnCoordinator = turnCoordinatorRef.current;
+  const runtimeDisplayOpts = useMemo(() => ({ providerName, modelName }), [providerName, modelName]);
 
   // Reactive terminal width
   const [termColumns, setTermColumns] = useState(process.stdout.columns || 80);
@@ -138,6 +157,81 @@ export function App({
     addSystemMessage('Session cleared.');
   }, [clearMessages, addSystemMessage]);
 
+  const applyRuntimeSwitch = useCallback((
+    nextProvider: AIProvider,
+    nextSpaceName?: string,
+  ) => {
+    turnCoordinatorRef.current!.clearSession();
+    setShowThinking(false);
+    resetStreaming();
+    setProviderState({
+      provider: nextProvider,
+      formattedTools: nextProvider.formatTools(Object.values(registry)),
+      providerName: nextProvider.name,
+      modelName: nextProvider.model,
+    });
+    if (nextSpaceName !== undefined) {
+      setSpaceName(nextSpaceName);
+    }
+    // Reset stale event context so the UI doesn't show previous-session data.
+    session.currentEvent = undefined;
+    clearMessages();
+  }, [clearMessages, registry, resetStreaming, session]);
+
+  const switchProvider = useCallback(async (nextProviderName: ByokProviderName) => {
+    if (switchingRef.current) {
+      return 'A mode/provider switch is already in progress.';
+    }
+    switchingRef.current = true;
+    try {
+      return await handleSwitchProvider(nextProviderName, {
+        state: { isMainTurnActive: turnCoordinatorRef.current!.state.isMainTurnActive },
+        detectApiKey,
+        createByokProvider,
+        setAiModeConfig,
+        setConfigValue,
+        applyRuntimeSwitch,
+      });
+    } finally {
+      switchingRef.current = false;
+    }
+  }, [applyRuntimeSwitch]);
+
+  const switchMode = useCallback(async (nextMode: 'credits' | 'own_key') => {
+    if (switchingRef.current) {
+      return 'A mode/provider switch is already in progress.';
+    }
+    switchingRef.current = true;
+    try {
+      return await handleSwitchMode(nextMode, {
+        state: { isMainTurnActive: turnCoordinatorRef.current!.state.isMainTurnActive },
+        detectProvider,
+        detectApiKey,
+        createByokProvider,
+        createCreditsProvider,
+        setAiModeConfig,
+        setConfigValue,
+        getCreditsSpaceId,
+        getDefaultSpace,
+        resolveSpaceTitle: async (spaceId: string) => {
+          if (session.currentSpace?._id === spaceId) return session.currentSpace.title;
+          try {
+            const { fetchMySpaces } = await import('../spaceSelection.js');
+            const spaces = await fetchMySpaces();
+            return spaces.find((s) => s._id === spaceId)?.title;
+          } catch {
+            return undefined;
+          }
+        },
+        currentSpaceId: session.currentSpace?._id,
+        spaceName: spaceNameRef.current,
+        applyRuntimeSwitch,
+      });
+    } finally {
+      switchingRef.current = false;
+    }
+  }, [applyRuntimeSwitch, session.currentSpace]);
+
   const { recordSubmit, handleHistoryUp: historyUp, handleHistoryDown: historyDown, resetBrowsing } = history;
   const { showAutocomplete, filteredCommands, selectCurrent } = autocomplete;
 
@@ -180,21 +274,25 @@ export function App({
         session,
         chatMessages,
         turnCoordinator,
+        switchProvider,
+        switchMode,
         startManualPlan,
         setSpaceName,
         setApiKeyPrompt,
         uiMessages: messages,
-        displayOpts,
+        displayOpts: runtimeDisplayOpts,
         spaceName,
         cachedSpacesRef,
       });
       return;
     }
 
-    // Regular messages: coordinator is the single authority for turn acceptance.
-    // ORDERING CONSTRAINT: submitMainTurn must be called before addUserMessage.
-    // The coordinator must accept the turn before the UI commits the message,
-    // otherwise a rejected turn would leave a dangling user message in the UI.
+    if (switchingRef.current) {
+      addSystemMessage('A mode/provider switch is in progress. Please wait.');
+      return;
+    }
+
+    // Coordinator is the single authority for turn acceptance.
     const submit = turnCoordinator.submitMainTurn(input);
     if (!submit.accepted) {
       addSystemMessage(submit.error);
@@ -217,7 +315,7 @@ export function App({
         setShowThinking(false);
       }
     }
-  }, [engine, session, registry, chatMessages, addUserMessage, addSystemMessage, performClear, exit, turnCoordinator, messages, displayOpts, spaceName, startManualPlan, recordSubmit]);
+  }, [engine, session, registry, chatMessages, addUserMessage, addSystemMessage, performClear, exit, turnCoordinator, switchProvider, switchMode, messages, runtimeDisplayOpts, spaceName, startManualPlan, recordSubmit]);
 
   // Input change with history reset
   const handleChange = useCallback((val: string) => {
@@ -339,8 +437,8 @@ export function App({
         <WelcomeBannerView
           firstName={firstName}
           agentName={agentName}
-          providerName={displayOpts.providerName}
-          modelName={displayOpts.modelName}
+          providerName={providerName}
+          modelName={modelName}
         />
       ) : null}
       {visibleMessages.map((msg, i) => (
@@ -443,7 +541,7 @@ export function App({
             <Box flexDirection="column" paddingLeft={1}>
               <Box justifyContent="space-between">
                 <Text dimColor>Space: {spaceName}</Text>
-                <Text dimColor>{displayOpts.modelName}</Text>
+                <Text dimColor>{modelName}</Text>
               </Box>
               <Box justifyContent="space-between">
                 <Text>{''}</Text>

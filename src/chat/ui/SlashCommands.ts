@@ -37,7 +37,7 @@ Commands:
   /provider <name>   Switch AI provider (BYOK only)
   /space             Show current space
   /mode              Show current AI mode (credits / own_key)
-  /mode <mode>       Switch AI mode (restarts session)
+  /mode <mode>       Switch AI mode
   /name              Show agent name
   /name <name>       Rename the agent
   /plan <tool>       Start guided mode for a tool (BYOK only)

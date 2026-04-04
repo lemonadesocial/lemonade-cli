@@ -5,7 +5,7 @@ import { AIProvider } from './providers/interface.js';
 // Temporary migration adapter: creates the credits-mode provider.
 // Uses the remote Lemonade AI backend (no local tool calling).
 // See src/chat/providers/lemonade-ai.ts for capability gap documentation.
-export async function createCreditsProvider(spaceId: string): Promise<AIProvider> {
+export async function createCreditsProvider(spaceId: string, opts?: { liveSwitch?: boolean }): Promise<AIProvider> {
   // Validate credits balance before creating provider
   let creditsChecked = false;
   let credits: { credits: number; subscription_tier: string; subscription_renewal_date?: string } | null = null;
@@ -22,16 +22,25 @@ export async function createCreditsProvider(spaceId: string): Promise<AIProvider
     credits = balanceResult.getStandCredits;
     creditsChecked = true;
   } catch {
-    // Non-fatal: continue even if balance check fails
+    if (opts?.liveSwitch) {
+      throw new Error('Could not verify credits eligibility. Check your network and try again.');
+    }
+    // Startup: non-fatal — continue even if balance check fails
   }
 
   if (creditsChecked) {
     if (!credits || (credits.credits <= 0 && credits.subscription_tier === 'free')) {
+      if (opts?.liveSwitch) {
+        throw new Error('Your community is on the free plan with no AI credits. Upgrade your plan or use /mode own_key.');
+      }
       console.error(chalk.red('  Your community is on the free plan with no AI credits.'));
       console.error(chalk.dim('  Upgrade your plan or use your own API key (run with ai_mode: own_key).'));
       process.exit(2);
     } else if (credits.credits <= 0) {
-      console.log(chalk.yellow(`  Your community has 0 credits remaining. Credits renew on ${credits.subscription_renewal_date || 'next billing cycle'}.`));
+      // Paid tier, 0 remaining — warn but allow (both startup and live-switch).
+      // Credits renew on the billing cycle; backend rejects if truly exhausted.
+      const renewal = credits.subscription_renewal_date ?? 'next billing cycle';
+      console.log(chalk.yellow(`  Your community has 0 credits remaining. Credits renew on ${renewal}.`));
       console.log(chalk.dim('  You can buy more credits with "credits buy" or switch to your own API key.'));
     }
   }
