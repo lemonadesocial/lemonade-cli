@@ -128,7 +128,9 @@ for (const name of binNames) {
     failed = true;
   }
 
-  // Verify the import target in dist/ actually exists
+  // Verify the import target in dist/ actually exists.
+  // This regex expects the current bin wrapper pattern: import(resolve(__dirname, ...segments)).
+  // If the wrapper structure changes materially, update this regex to match.
   const importMatch = contents.match(/import\(resolve\(__dirname,\s*([^)]+)\)\)/);
   if (!importMatch) {
     console.error(`${rel} — could not extract import target (regex did not match). Cannot verify dist/ target.`);
