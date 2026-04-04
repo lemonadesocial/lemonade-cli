@@ -9,9 +9,10 @@ vi.mock('../../../../src/chat/aiMode', () => ({
   setAiModeConfig: vi.fn(),
 }));
 
-import { getAiMode, getAiModeDisplay } from '../../../../src/chat/aiMode';
+import { getAiMode, getAiModeDisplay, setAiModeConfig } from '../../../../src/chat/aiMode';
 const mockGetAiMode = vi.mocked(getAiMode);
 const mockGetAiModeDisplay = vi.mocked(getAiModeDisplay);
+const mockSetAiModeConfig = vi.mocked(setAiModeConfig);
 
 function makeDeps(overrides: Partial<SlashCommandDeps> = {}): SlashCommandDeps {
   return {
@@ -495,7 +496,8 @@ describe('SlashCommandRouter', () => {
       expect(msg).toContain('requires restart');
     });
 
-    it('/mode credits shows approved display name in restart message', async () => {
+    it('/mode credits shows approved display name in restart message when switching', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
       const deps = makeDeps();
 
       await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
@@ -505,7 +507,7 @@ describe('SlashCommandRouter', () => {
       expect(msg).toContain('Restart');
     });
 
-    it('/mode own_key shows approved display name in restart message', async () => {
+    it('/mode own_key shows approved display name in restart message when switching', async () => {
       const deps = makeDeps();
 
       await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
@@ -513,6 +515,62 @@ describe('SlashCommandRouter', () => {
       const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
       expect(msg).toContain('BYOK');
       expect(msg).toContain('Restart');
+    });
+
+    it('/mode credits calls setAiModeConfig with "credits" when switching from own_key', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
+      mockSetAiModeConfig.mockClear();
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
+
+      expect(mockSetAiModeConfig).toHaveBeenCalledWith('credits');
+    });
+
+    it('/mode own_key calls setAiModeConfig with "own_key" when switching from credits', async () => {
+      mockSetAiModeConfig.mockClear();
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
+
+      expect(mockSetAiModeConfig).toHaveBeenCalledWith('own_key');
+    });
+
+    it('/mode credits when already in credits mode says already in that mode', async () => {
+      mockSetAiModeConfig.mockClear();
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode credits'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Already in');
+      expect(msg).toContain('Lemonade Credits');
+      expect(mockSetAiModeConfig).not.toHaveBeenCalled();
+    });
+
+    it('/mode own_key when already in own_key mode says already in that mode', async () => {
+      mockGetAiMode.mockReturnValue('own_key');
+      mockSetAiModeConfig.mockClear();
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode own_key'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Already in');
+      expect(msg).toContain('BYOK');
+      expect(mockSetAiModeConfig).not.toHaveBeenCalled();
+    });
+
+    it('/mode with invalid arg shows error with valid options', async () => {
+      const deps = makeDeps();
+
+      await executeSlashCommand(parseSlashCommand('/mode banana'), deps);
+
+      const msg = (deps.addSystemMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      expect(msg).toContain('Unknown mode');
+      expect(msg).toContain('banana');
+      expect(msg).toContain('credits');
+      expect(msg).toContain('own_key');
     });
   });
 });

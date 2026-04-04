@@ -70,7 +70,7 @@ Keyboard shortcuts:
   Ctrl+C             Cancel / exit on empty input
   Ctrl+L             Clear screen
   Ctrl+U             Clear input line
-  Tab (empty input)  Cycle to next model
+  Tab                Show slash command completions
 `.trim();
 
 export const ANTHROPIC_MODELS = [
