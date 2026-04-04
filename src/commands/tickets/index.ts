@@ -44,7 +44,9 @@ export function registerTicketCommands(program: Command): void {
               String(t.description || ''),
             ]),
           ));
-          console.log('\nNote: Ticket type IDs are not exposed by this query. Use "lemonade event analytics <id> --json" to get IDs from the sales breakdown.');
+          console.log('\nNote: Ticket type IDs are not exposed by this API.');
+          console.log('To get IDs for types with sales: lemonade event analytics <event-id> --json');
+          console.log('IDs for unsold types are not currently discoverable via the CLI.');
         }
       } catch (error) {
         setFlagApiKey(undefined);
@@ -94,11 +96,16 @@ export function registerTicketCommands(program: Command): void {
           const pairs: Array<[string, string]> = [
             ['Name', String(tt.title)],
             ['Active', tt.active ? 'Yes' : 'No'],
+            ['Limited', tt.limited ? 'Yes' : 'No'],
           ];
+          if (tt.description) pairs.push(['Description', String(tt.description)]);
           if (opts.price) {
             pairs.push(['Price (requested)', `${opts.price} ${opts.currency}`]);
+          } else {
+            pairs.push(['Price', 'Free']);
           }
           console.log(renderKeyValue(pairs));
+          console.log('\nNote: The backend does not return ticket type IDs on creation. To get the ID, use "lemonade event analytics <event-id> --json" after the first sale.');
         }
       } catch (error) {
         setFlagApiKey(undefined);
@@ -108,7 +115,7 @@ export function registerTicketCommands(program: Command): void {
 
   tickets
     .command('update-type <ticket-type-id>')
-    .description('Update a ticket type')
+    .description('Update a ticket type (get ID from "event analytics --json" sales breakdown)')
     .option('--name <text>', 'New name')
     .option('--price <amount>', 'New price in dollars')
     .option('--currency <code>', 'Currency code (used with --price)')
@@ -145,7 +152,9 @@ export function registerTicketCommands(program: Command): void {
           const pairs: Array<[string, string]> = [
             ['Name', String(tt.title)],
             ['Active', tt.active ? 'Yes' : 'No'],
+            ['Limited', tt.limited ? 'Yes' : 'No'],
           ];
+          if (tt.description) pairs.push(['Description', String(tt.description)]);
           if (opts.price) {
             pairs.push(['Price (requested)', `${opts.price} ${opts.currency || 'USD'}`]);
           }
@@ -160,7 +169,7 @@ export function registerTicketCommands(program: Command): void {
   tickets
     .command('buy <event-id>')
     .description('Purchase tickets')
-    .requiredOption('--ticket-type <id>', 'Ticket type ID')
+    .requiredOption('--ticket-type <id>', 'Ticket type ID (get from "event analytics --json" sales breakdown)')
     .option('--quantity <n>', 'Number of tickets', '1')
     .option('--attendee-name <names...>', 'Attendee names (one per ticket)')
     .option('--attendee-email <emails...>', 'Attendee emails (one per ticket)')
@@ -251,7 +260,7 @@ export function registerTicketCommands(program: Command): void {
   tickets
     .command('price <event-id>')
     .description('Calculate ticket price')
-    .requiredOption('--ticket-type <id>', 'Ticket type ID')
+    .requiredOption('--ticket-type <id>', 'Ticket type ID (get from "event analytics --json" sales breakdown)')
     .option('--quantity <n>', 'Quantity', '1')
     .option('--discount <code>', 'Discount code')
     .option('--json', 'Output as JSON')

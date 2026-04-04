@@ -580,11 +580,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'tickets_create_type',
     displayName: 'tickets create-type',
-    description: 'Create a ticket type for an event.',
+    description: 'Create a ticket type for an event. Omit price for a free ticket.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
       { name: 'name', type: 'string', description: 'Ticket type name', required: true },
-      { name: 'price', type: 'number', description: 'Price in dollars (e.g. 25.00)', required: true },
+      { name: 'price', type: 'number', description: 'Price in dollars (e.g. 25.00, omit for free)', required: false },
       { name: 'currency', type: 'string', description: 'Currency code', required: false, default: 'USD' },
       { name: 'limit', type: 'number', description: 'Max tickets available', required: false },
       { name: 'description', type: 'string', description: 'Ticket description', required: false },
