@@ -78,6 +78,8 @@ export function App({
   const [tip, setTip] = useState(randomTip);
   const [showThinking, setShowThinking] = useState(false);
   const [spaceName, setSpaceName] = useState(displayOpts.spaceName || 'none');
+  const spaceNameRef = useRef(spaceName);
+  spaceNameRef.current = spaceName;
   const [providerState, setProviderState] = useState({
     provider: provider,
     formattedTools: formattedTools,
@@ -222,13 +224,13 @@ export function App({
           }
         },
         currentSpaceId: session.currentSpace?._id,
-        spaceName,
+        spaceName: spaceNameRef.current,
         applyRuntimeSwitch,
       });
     } finally {
       switchingRef.current = false;
     }
-  }, [applyRuntimeSwitch, session.currentSpace, spaceName]);
+  }, [applyRuntimeSwitch, session.currentSpace]);
 
   const { recordSubmit, handleHistoryUp: historyUp, handleHistoryDown: historyDown, resetBrowsing } = history;
   const { showAutocomplete, filteredCommands, selectCurrent } = autocomplete;

@@ -105,7 +105,12 @@ export async function handleSwitchMode(
     deps.setConfigValue('ai_credits_space', nextCreditsSpace);
   }
   deps.setAiModeConfig('credits');
-  const resolvedTitle = await deps.resolveSpaceTitle(nextCreditsSpace) || deps.spaceName;
-  deps.applyRuntimeSwitch(nextProvider, resolvedTitle);
+  let resolvedTitle: string | undefined;
+  try {
+    resolvedTitle = await deps.resolveSpaceTitle(nextCreditsSpace);
+  } catch {
+    // Fall through to spaceName fallback — don't strand config/runtime split.
+  }
+  deps.applyRuntimeSwitch(nextProvider, resolvedTitle || deps.spaceName);
   return `Switched to Lemonade Credits mode. Session cleared.`;
 }

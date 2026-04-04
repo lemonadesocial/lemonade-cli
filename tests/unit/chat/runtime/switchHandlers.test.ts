@@ -203,6 +203,20 @@ describe('handleSwitchMode', () => {
       expect(deps.applyRuntimeSwitch).toHaveBeenCalledWith(provider, 'Fallback Space');
     });
 
+    it('falls back to spaceName when resolveSpaceTitle throws', async () => {
+      const provider = fakeProvider('lemonade-ai', 'Lemonade AI');
+      const deps = makeModeDeps({
+        getCreditsSpaceId: vi.fn(() => 'space-1'),
+        createCreditsProvider: vi.fn(async () => provider as any),
+        resolveSpaceTitle: vi.fn(async () => { throw new Error('network error'); }),
+        spaceName: 'Fallback Space',
+      });
+      const result = await handleSwitchMode('credits', deps);
+
+      expect(result).toContain('Switched to Lemonade Credits mode');
+      expect(deps.applyRuntimeSwitch).toHaveBeenCalledWith(provider, 'Fallback Space');
+    });
+
     it('uses resolved title for the actual credits space, not stale session state', async () => {
       const provider = fakeProvider('lemonade-ai', 'Lemonade AI');
       const deps = makeModeDeps({
