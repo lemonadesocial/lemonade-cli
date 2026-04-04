@@ -80,7 +80,7 @@ describe('handleSwitchProvider', () => {
     expect(result).toContain('Switched provider to openai');
     expect(deps.setAiModeConfig).toHaveBeenCalledWith('own_key');
     expect(deps.setConfigValue).toHaveBeenCalledWith('ai_provider', 'openai');
-    expect(deps.applyRuntimeSwitch).toHaveBeenCalledWith(provider, 'none');
+    expect(deps.applyRuntimeSwitch).toHaveBeenCalledWith(provider);
   });
 });
 
@@ -114,7 +114,7 @@ describe('handleSwitchMode', () => {
       expect(result).toContain('boom');
     });
 
-    it('succeeds: sets own_key config, persists provider, and applies switch with space=none', async () => {
+    it('succeeds: sets own_key config, persists provider, and applies switch preserving space', async () => {
       const provider = fakeProvider();
       const deps = makeModeDeps({
         createByokProvider: vi.fn(async () => provider as any),
@@ -124,7 +124,7 @@ describe('handleSwitchMode', () => {
       expect(result).toContain('Switched to BYOK mode');
       expect(deps.setAiModeConfig).toHaveBeenCalledWith('own_key');
       expect(deps.setConfigValue).toHaveBeenCalledWith('ai_provider', 'anthropic');
-      expect(deps.applyRuntimeSwitch).toHaveBeenCalledWith(provider, 'none');
+      expect(deps.applyRuntimeSwitch).toHaveBeenCalledWith(provider);
     });
   });
 

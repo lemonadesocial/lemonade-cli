@@ -249,7 +249,7 @@ describe('SlashCommandRouter', () => {
       expect(msg).toContain('Current provider: anthropic');
     });
 
-    it('informs user that provider switching requires restart', async () => {
+    it('switches provider live when given a valid provider name', async () => {
       const deps = makeDeps();
 
       await executeSlashCommand(parseSlashCommand('/provider openai'), deps);

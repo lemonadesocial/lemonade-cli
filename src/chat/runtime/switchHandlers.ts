@@ -38,7 +38,7 @@ export async function handleSwitchProvider(
 
   deps.setAiModeConfig('own_key');
   deps.setConfigValue('ai_provider', nextProviderName);
-  deps.applyRuntimeSwitch(nextProvider, 'none');
+  deps.applyRuntimeSwitch(nextProvider);
   return `Switched provider to ${nextProviderName}. Session cleared.`;
 }
 
@@ -85,7 +85,7 @@ export async function handleSwitchMode(
 
     deps.setAiModeConfig('own_key');
     deps.setConfigValue('ai_provider', detected);
-    deps.applyRuntimeSwitch(nextProvider, 'none');
+    deps.applyRuntimeSwitch(nextProvider);
     return `Switched to BYOK mode using ${detected}. Session cleared.`;
   }
 

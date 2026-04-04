@@ -17,7 +17,7 @@ import { getCreditsSpaceId } from './spaceSelection.js';
 import { VERSION } from './version.js';
 import { runTerminalUI } from './terminal.js';
 import { createCreditsProvider } from './creditsProvider.js';
-import { createByokProvider, VALID_PROVIDERS } from './providerFactory.js';
+import { createByokProvider, isValidProvider, VALID_PROVIDERS } from './providerFactory.js';
 import { resolveCreditsStartupMode } from './startupRecovery.js';
 
 export { parseArgs } from './parseArgs.js';
@@ -107,7 +107,7 @@ async function main(): Promise<void> {
   if (aiMode === 'own_key') {
     const providerName = args.provider || detectProvider();
 
-    if (!VALID_PROVIDERS.includes(providerName as (typeof VALID_PROVIDERS)[number])) {
+    if (!isValidProvider(providerName)) {
       console.error(chalk.red(`  Unknown provider "${providerName}". Supported: ${VALID_PROVIDERS.join(', ')}`));
       process.exit(2);
     }
@@ -149,7 +149,7 @@ async function main(): Promise<void> {
       process.exit(2);
     }
 
-    provider = await createByokProvider(providerName as (typeof VALID_PROVIDERS)[number], apiKey!, args.model);
+    provider = await createByokProvider(providerName, apiKey!, args.model);
   } else {
     // Use the space resolved by startup recovery; fall back to config only if needed.
     const creditsSpace = resolvedCreditsSpace || getCreditsSpaceId() || getDefaultSpace();
