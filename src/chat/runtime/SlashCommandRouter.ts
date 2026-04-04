@@ -144,14 +144,13 @@ export async function executeSlashCommand(
   if (slashResult.action === 'mode') {
     const currentMode = getAiModeDisplay();
     if (slashResult.args === 'credits' || slashResult.args === 'own_key') {
+      const displayName = slashResult.args === 'credits' ? 'Lemonade Credits' : 'BYOK (Own API Key)';
       const currentRaw = getAiMode();
       if (slashResult.args === currentRaw) {
-        const displayName = slashResult.args === 'credits' ? 'Lemonade Credits' : 'BYOK (Own API Key)';
         addSystemMessage(`Already in ${displayName} mode.`);
       } else {
         const { setAiModeConfig } = await import('../aiMode.js');
         setAiModeConfig(slashResult.args);
-        const displayName = slashResult.args === 'credits' ? 'Lemonade Credits' : 'BYOK (Own API Key)';
         addSystemMessage(`Restart the session to use ${displayName} mode.`);
       }
     } else if (slashResult.args) {

@@ -21,7 +21,7 @@ export const SLASH_COMMANDS = [
   { name: '/status', description: 'Show session status' },
   { name: '/events', description: 'List your events' },
   { name: '/spaces', description: 'List or switch spaces' },
-  { name: '/credits', description: 'Check credits balance' },
+  { name: '/credits', description: 'Check credits balance (credits mode only)' },
   { name: '/history', description: 'Show recent conversation' },
   { name: '/export', description: 'Export data as CSV file' },
   { name: '/connectors', description: 'Manage space integrations' },
@@ -48,7 +48,7 @@ Commands:
   /spaces            List your spaces
   /spaces <n>        Switch to space by number
   /spaces <name>     Switch to space by name
-  /credits           Check credits balance
+  /credits           Check credits balance (credits mode only)
   /history [n]       Show last n conversation turns (default 10)
   /export guests <event_id>   Export guest list as CSV
   /export apps <event_id>     Export applications as CSV
