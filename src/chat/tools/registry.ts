@@ -5185,5 +5185,68 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
+  // --- Space Role Permissions ---
+
+  register({
+    name: 'space_role_features',
+    displayName: 'space role features',
+    description: 'List features/permissions enabled for a specific role in a space.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'role', type: 'string', description: 'Space role', required: true,
+        enum: ['unsubscriber', 'subscriber', 'ambassador', 'admin', 'creator'] },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ listSpaceRoleFeatures: unknown }>(
+        `query($space: MongoID!, $role: SpaceRole!) {
+          listSpaceRoleFeatures(space: $space, role: $role) {
+            features { code title }
+            codes
+          }
+        }`,
+        { space: args.space_id, role: args.role },
+      );
+      return result.listSpaceRoleFeatures;
+    },
+    formatResult: (result) => {
+      const r = result as { features: Array<{ code: string; title: string }>; codes: string[] };
+      if (!r || !r.features) return JSON.stringify(result);
+      const lines = [`Role features (${r.features.length}):`];
+      for (const f of r.features) {
+        lines.push(`- ${f.code}: ${f.title}`);
+      }
+      return lines.join('\n');
+    },
+  });
+
+  register({
+    name: 'space_role_features_update',
+    displayName: 'space role features update',
+    description: 'Set the complete list of features/permissions for a role in a space. This REPLACES all current features — include every feature code the role should have. Available codes: AI, EventInvitation, DataDashboard, CSVGuestList, GuestListDashboard, EventSettings, TicketingSettings, EmailManager, PromotionCodes, CollectibleData, Checkin, Poap, Ticket, ViewSpace, ManageSpace, SpaceStatistic, ViewSpaceMembership, ManageSpaceMembership, ViewSpaceEvent, ManageSpaceEvent, ManageSpaceEventRequest, ViewSpaceTag, ManageSpaceTag, ManageSpaceTokenGate, ViewSpaceNewsletter, ManageSpaceNewsletter, ManageSubscription',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'role', type: 'string', description: 'Space role', required: true,
+        enum: ['unsubscriber', 'subscriber', 'ambassador', 'admin', 'creator'] },
+      { name: 'codes', type: 'string', description: 'Comma-separated feature codes to enable for this role', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const codes = (args.codes as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      if (codes.length === 0) throw new Error('At least one feature code is required');
+      const input = { space: args.space_id, role: args.role, codes };
+      const result = await graphqlRequest<{ updateSpaceRoleFeatures: unknown }>(
+        `mutation($input: UpdateSpaceRoleFeaturesInput!) {
+          updateSpaceRoleFeatures(input: $input)
+        }`,
+        { input },
+      );
+      return result.updateSpaceRoleFeatures;
+    },
+    formatResult: (result) => {
+      return result ? 'Role features updated successfully.' : 'No changes applied.';
+    },
+  });
+
   return tools;
 }

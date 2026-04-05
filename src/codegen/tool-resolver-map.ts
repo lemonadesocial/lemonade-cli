@@ -66,6 +66,8 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   space_event_summary: 'getSpaceEventSummary',
   space_sending_quota: 'getSpaceSendingQuota',
   space_my_event_requests: 'getMySpaceEventRequests',
+  space_role_features: 'listSpaceRoleFeatures',
+  space_role_features_update: 'updateSpaceRoleFeatures',
 };
 
 // Maps MCP tool names to CLI command group + subcommand
