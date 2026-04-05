@@ -222,6 +222,13 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   listSubscriptionItems: ['type', 'title', 'pricing', 'credits_per_month', 'price', 'annual_price', 'currency', 'decimals'],
   purchaseSubscription: ['checkout_url', 'session_id'],
   cancelSubscription: ['success', 'effective_date'],
+
+  // === Space event moderation & quota endpoints ===
+  getSpaceEventRequests: ['total', 'records', '_id', 'state', 'created_at', 'event_expanded', 'title', 'shortid', 'start', 'created_by_expanded', 'name', 'decided_at', 'decided_by_expanded'],
+  decideSpaceEventRequests: [], // Boolean
+  getSpaceEventSummary: ['all_events', 'virtual_events', 'irl_events', 'live_events', 'upcoming_events', 'past_events'],
+  getSpaceSendingQuota: ['type', 'reset_frequency', 'remain', 'total', 'used'],
+  getMySpaceEventRequests: ['total', 'records', '_id', 'state', 'created_at', 'decided_at', 'event_expanded', 'title', 'shortid', 'start'],
 };
 
 /**

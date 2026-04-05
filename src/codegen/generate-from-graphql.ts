@@ -100,6 +100,9 @@ const MANUAL_RESOLVERS = new Set([
   'listSpaceNewsletters', 'getSpaceNewsletter', 'createSpaceNewsletter',
   'updateSpaceNewsletter', 'deleteSpaceNewsletter', 'sendSpaceNewsletterTestEmails',
   'getSpaceNewsletterStatistics',
+  // Space event moderation & quota
+  'getSpaceEventRequests', 'decideSpaceEventRequests', 'getSpaceEventSummary',
+  'getSpaceSendingQuota', 'getMySpaceEventRequests',
 ]);
 
 function unwrapType(type: IntrospectionType): {
