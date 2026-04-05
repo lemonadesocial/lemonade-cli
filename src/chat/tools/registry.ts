@@ -5314,6 +5314,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (isNaN(startDate.getTime())) throw new Error('Invalid start date');
       const endDate = new Date(args.end as string);
       if (isNaN(endDate.getTime())) throw new Error('Invalid end date');
+      if (startDate >= endDate) throw new Error('start date must be before end date');
       const result = await graphqlRequest<{ getSpaceMemberAmountByDate: unknown }>(
         `query($space: MongoID!, $role: SpaceRole!, $start: DateTimeISO!, $end: DateTimeISO!) {
           getSpaceMemberAmountByDate(space: $space, role: $role, start: $start, end: $end) {
@@ -5327,6 +5328,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     formatResult: (result) => {
       const items = result as Array<{ _id: string; total: number }>;
       if (!Array.isArray(items)) return JSON.stringify(result);
+      if (!items.length) return 'No data found for the given parameters.';
       const lines = items.map((p) => `- ${p._id}: ${p.total}`);
       return `${items.length} data point(s):\n${lines.join('\n')}`;
     },
@@ -5342,7 +5344,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
-      const limit = args.limit !== undefined ? Math.max(1, Number(args.limit)) : 10;
+      let limit = 10;
+      if (args.limit !== undefined) {
+        const n = Number(args.limit);
+        if (!isNaN(n)) limit = Math.max(1, n);
+      }
       const result = await graphqlRequest<{ getTopSpaceEventAttendees: unknown }>(
         `query($space: MongoID!, $limit: Float!) {
           getTopSpaceEventAttendees(space: $space, limit: $limit) {
@@ -5358,11 +5364,13 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     formatResult: (result) => {
       const items = result as Array<{ attended_event_count: number; user_expanded?: { name: string; email: string }; non_login_user?: { name: string; email: string } }>;
       if (!Array.isArray(items)) return JSON.stringify(result);
+      if (!items.length) return 'No attendees found for this space.';
       const lines = items.map((a) => {
         const user = a.user_expanded || a.non_login_user;
         const name = user?.name || 'Unknown';
         const email = user?.email || '';
-        return `- ${name} (${email}): ${a.attended_event_count} event(s)`;
+        const emailPart = email ? ` (${email})` : '';
+        return `- ${name}${emailPart}: ${a.attended_event_count} event(s)`;
       });
       return `${items.length} attendee(s):\n${lines.join('\n')}`;
     },
@@ -5379,7 +5387,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
-      const limit = args.limit !== undefined ? Math.max(1, Number(args.limit)) : 10;
+      let limit = 10;
+      if (args.limit !== undefined) {
+        const n = Number(args.limit);
+        if (!isNaN(n)) limit = Math.max(1, n);
+      }
       const variables: Record<string, unknown> = { space: args.space_id, limit };
       if (args.by_city !== undefined) variables.city = args.by_city;
       const result = await graphqlRequest<{ getSpaceEventLocationsLeaderboard: unknown }>(
@@ -5395,6 +5407,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     formatResult: (result) => {
       const items = result as Array<{ country: string; city: string | null; total: number }>;
       if (!Array.isArray(items)) return JSON.stringify(result);
+      if (!items.length) return 'No location data found for this space.';
       const lines = items.map((loc) => {
         const label = loc.city ? `${loc.city}, ${loc.country}` : loc.country;
         return `- ${label}: ${loc.total}`;
@@ -5414,6 +5427,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
+      if (args.events === undefined && args.site_id === undefined && args.user_id === undefined) {
+        throw new Error('At least one scope parameter is required (events, site_id, or user_id)');
+      }
       const variables: Record<string, unknown> = {};
       if (args.events !== undefined) {
         variables.events = (args.events as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
@@ -5429,7 +5445,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.generateCubejsToken;
     },
     formatResult: (result) => {
-      return 'CubeJS token generated: ' + String(result);
+      const token = String(result);
+      if (token.length > 16) {
+        return `CubeJS token generated: ${token.substring(0, 8)}...${token.substring(token.length - 4)} (${token.length} chars)`;
+      }
+      return `CubeJS token generated (${token.length} chars). Use the raw result to access the full token.`;
     },
   });
 
@@ -5469,7 +5489,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
-      const limit = args.limit !== undefined ? Math.max(1, Number(args.limit)) : 20;
+      let limit = 20;
+      if (args.limit !== undefined) {
+        const n = Number(args.limit);
+        if (!isNaN(n)) limit = Math.max(1, n);
+      }
       const result = await graphqlRequest<{ getEventLatestViews: unknown }>(
         `query($event: MongoID!, $limit: Int!) {
           getEventLatestViews(event: $event, limit: $limit) {
@@ -5483,6 +5507,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     formatResult: (result) => {
       const r = result as { views: Array<{ date: string; geoip_country: string; geoip_region: string; geoip_city: string; user_agent: string }> };
       if (!r || !Array.isArray(r.views)) return JSON.stringify(result);
+      if (!r.views.length) return 'No views found for this event.';
       const lines = r.views.map((v) => {
         const location = [v.geoip_city, v.geoip_region, v.geoip_country].filter(Boolean).join(', ');
         return `- ${v.date} | ${location} | ${v.user_agent || 'unknown agent'}`;
