@@ -8,6 +8,7 @@ import { getAgentName } from '../skills/loader.js';
 import { getAiMode, getAiModeDisplay } from '../aiMode.js';
 import { getCreditsSpaceId } from '../spaceSelection.js';
 import { graphqlRequest } from '../../api/graphql.js';
+import { getToolCategory } from '../../commands/tools/index.js';
 import type { UIMessage } from '../ui/hooks/useChatEngine.js';
 
 /** Runtime-only dependencies — no React/Ink types leak in. */
@@ -862,6 +863,77 @@ export async function executeSlashCommand(
     }
 
     addSystemMessage('Usage:\n  /tempo — check status\n  /tempo install — install Tempo CLI\n  /tempo login — connect wallet\n  /tempo logout — disconnect\n  /tempo balance — check USDC balance\n  /tempo fund — add funds\n  /tempo request <url> — make a paid MPP request');
+    return;
+  }
+
+  if (slashResult.action === 'tools') {
+    const args = slashResult.args;
+    const toolEntries = Object.values(registry);
+
+    // /tools info <name> — show details for a single tool
+    if (args === 'info') {
+      addSystemMessage('Usage: /tools info <tool_name>\nExample: /tools info event_create');
+      return;
+    }
+    if (args && args.startsWith('info ')) {
+      const toolName = args.slice(5).trim();
+      const tool = registry[toolName] ||
+        toolEntries.find(
+          (t) => t.displayName.toLowerCase() === toolName.toLowerCase() ||
+                 t.name.toLowerCase() === toolName.toLowerCase(),
+        );
+      if (!tool) {
+        const suggestions = Object.keys(registry)
+          .filter((k) => k.toLowerCase().includes(toolName.toLowerCase()))
+          .slice(0, 5);
+        const hint = suggestions.length ? `\nDid you mean: ${suggestions.join(', ')}` : '';
+        addSystemMessage(`Tool "${toolName}" not found.${hint}`);
+      } else {
+        const params = tool.params.length > 0
+          ? tool.params.map((p) => {
+            const type = typeof p.type === 'object' ? 'object' : p.type;
+            const suffix = p.enum ? ` [${p.enum.join(', ')}]` : p.default !== undefined ? ` (default: ${p.default})` : '';
+            return `  ${p.required ? p.name : `[${p.name}]`} (${type}) — ${p.description}${suffix}`;
+          }).join('\n')
+          : '  (none)';
+        addSystemMessage(
+          `${tool.name} — ${tool.displayName}\n` +
+          `${tool.description}\n` +
+          `Destructive: ${tool.destructive ? 'yes' : 'no'}\n\n` +
+          `Parameters:\n${params}`,
+        );
+      }
+      return;
+    }
+
+    // /tools <category> — filter by category
+    if (args) {
+      const cat = args.toLowerCase();
+      const filtered = toolEntries.filter((t) => getToolCategory(t.name) === cat);
+      if (filtered.length === 0) {
+        const cats = new Set<string>();
+        for (const t of toolEntries) cats.add(getToolCategory(t.name));
+        addSystemMessage(`No tools in category "${args}". Available: ${[...cats].sort().join(', ')}`);
+      } else {
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+        const lines = filtered.map((t) => `  ${t.name} — ${t.description.length > 60 ? t.description.slice(0, 57) + '...' : t.description}`);
+        addSystemMessage(`${cat} tools (${filtered.length}):\n${lines.join('\n')}\n\nUse /tools info <name> for details.`);
+      }
+      return;
+    }
+
+    // /tools (no args) — show categories with counts
+    const counts: Record<string, number> = {};
+    for (const t of toolEntries) {
+      const cat = getToolCategory(t.name);
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    const sorted = Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
+    const lines = sorted.map(([cat, count]) => `  ${cat} (${count})`);
+    addSystemMessage(
+      `${toolEntries.length} tools in ${sorted.length} categories:\n${lines.join('\n')}\n\n` +
+      'Usage:\n  /tools <category>     List tools in a category\n  /tools info <name>    Show tool details',
+    );
     return;
   }
 

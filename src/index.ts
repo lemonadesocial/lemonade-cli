@@ -9,6 +9,7 @@ import { registerRewardCommands } from './commands/rewards/index.js';
 import { registerSiteCommands } from './commands/site/index.js';
 import { registerConnectorCommands } from './commands/connectors/index.js';
 import { registerConfigCommands } from './commands/config/index.js';
+import { registerToolCommands } from './commands/tools/index.js';
 import { loadGeneratedCommands, checkSchemaVersion } from './commands/loader.js';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
@@ -29,6 +30,7 @@ registerRewardCommands(program);
 registerSiteCommands(program);
 registerConnectorCommands(program);
 registerConfigCommands(program);
+registerToolCommands(program);
 
 // Load auto-generated commands (MCP + GraphQL) after manual commands.
 // Manual commands take priority: generated commands with the same group:subcommand are skipped.
