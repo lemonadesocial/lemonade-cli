@@ -43,7 +43,7 @@ export async function batchMode(
       // stderr for debugging; stdout JSON for programmatic consumers
       console.error(`Error: ${safeErrorMessage(err)}`);
       if (jsonOutput) {
-        console.log(JSON.stringify({ error: safeErrorMessage(err) }));
+        console.log(JSON.stringify({ ok: false, error: { code: 'CHAT_ERROR', message: safeErrorMessage(err) } }));
       }
       continue;
     }
@@ -55,7 +55,7 @@ export async function batchMode(
           (b) => b.type === 'text',
         );
         if (textBlock) {
-          console.log(JSON.stringify({ text: textBlock.text }));
+          console.log(JSON.stringify({ ok: true, data: { text: textBlock.text } }));
         }
       }
     }

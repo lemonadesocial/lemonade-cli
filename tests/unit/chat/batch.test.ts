@@ -74,8 +74,8 @@ describe('batchMode', () => {
     const jsonCalls = logSpy.mock.calls
       .map((c) => { try { return JSON.parse(c[0]); } catch { return null; } })
       .filter(Boolean);
-    const errorCall = jsonCalls.find((j) => 'error' in j);
-    expect(errorCall).toEqual({ error: 'provider exploded' });
+    const errorCall = jsonCalls.find((j) => j.ok === false);
+    expect(errorCall).toEqual({ ok: false, error: { code: 'CHAT_ERROR', message: 'provider exploded' } });
   });
 
   it('does not emit JSON to stdout when jsonOutput=false and handleTurn throws', async () => {
@@ -111,8 +111,8 @@ describe('batchMode', () => {
     const jsonCalls = logSpy.mock.calls
       .map((c) => { try { return JSON.parse(c[0]); } catch { return null; } })
       .filter(Boolean);
-    const successCall = jsonCalls.find((j) => 'text' in j);
-    expect(successCall).toEqual({ text: 'Hello back!' });
+    const successCall = jsonCalls.find((j) => j.ok === true);
+    expect(successCall).toEqual({ ok: true, data: { text: 'Hello back!' } });
   });
 
   it('continues processing after an error: first line errors, second line succeeds', async () => {
@@ -136,11 +136,11 @@ describe('batchMode', () => {
       .map((c) => { try { return JSON.parse(c[0]); } catch { return null; } })
       .filter(Boolean);
 
-    const errorCall = jsonCalls.find((j) => 'error' in j);
-    expect(errorCall).toEqual({ error: 'first line fails' });
+    const errorCall = jsonCalls.find((j) => j.ok === false);
+    expect(errorCall).toEqual({ ok: false, error: { code: 'CHAT_ERROR', message: 'first line fails' } });
 
-    const successCall = jsonCalls.find((j) => 'text' in j);
-    expect(successCall).toEqual({ text: 'second ok' });
+    const successCall = jsonCalls.find((j) => j.ok === true);
+    expect(successCall).toEqual({ ok: true, data: { text: 'second ok' } });
 
     expect(mockHandleTurn).toHaveBeenCalledTimes(2);
   });
@@ -155,7 +155,7 @@ describe('batchMode', () => {
     const jsonCalls = logSpy.mock.calls
       .map((c) => { try { return JSON.parse(c[0]); } catch { return null; } })
       .filter(Boolean);
-    const errorCall = jsonCalls.find((j) => 'error' in j);
-    expect(errorCall).toEqual({ error: 'Unknown error' });
+    const errorCall = jsonCalls.find((j) => j.ok === false);
+    expect(errorCall).toEqual({ ok: false, error: { code: 'CHAT_ERROR', message: 'Unknown error' } });
   });
 });
