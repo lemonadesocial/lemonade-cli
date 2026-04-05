@@ -1,4 +1,4 @@
-export const VALID_FLAGS = ['--provider', '--model', '--mode', '--json', '--simple', '--help', '-h'] as const;
+export const VALID_FLAGS = ['--provider', '--model', '--mode', '--json', '--help'] as const;
 
 export function parseArgs(argv: string[]): {
   provider?: string;
@@ -6,6 +6,7 @@ export function parseArgs(argv: string[]): {
   mode?: string;
   json: boolean;
   help: boolean;
+  simpleDeprecated: boolean;
   unknownFlags: string[];
 } {
   const result = {
@@ -14,6 +15,7 @@ export function parseArgs(argv: string[]): {
     mode: undefined as string | undefined,
     json: false,
     help: false,
+    simpleDeprecated: false,
     unknownFlags: [] as string[],
   };
 
@@ -32,7 +34,7 @@ export function parseArgs(argv: string[]): {
         result.json = true;
         break;
       case '--simple':
-        process.stderr.write('Warning: --simple is deprecated and has no effect.\n');
+        result.simpleDeprecated = true;
         break;
       case '--help':
       case '-h':

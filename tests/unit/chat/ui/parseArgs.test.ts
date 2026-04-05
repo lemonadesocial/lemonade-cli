@@ -6,12 +6,11 @@ describe('parseArgs', () => {
     vi.restoreAllMocks();
   });
 
-  it('accepts --simple flag and emits deprecation warning', () => {
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+  it('accepts --simple flag and sets simpleDeprecated', () => {
     const args = parseArgs(['node', 'make-lemonade', '--simple']);
     expect(args.json).toBe(false);
+    expect(args.simpleDeprecated).toBe(true);
     expect(args.unknownFlags).toEqual([]);
-    expect(stderrSpy).toHaveBeenCalledWith('Warning: --simple is deprecated and has no effect.\n');
   });
 
   it('parses --provider flag', () => {
@@ -44,17 +43,24 @@ describe('parseArgs', () => {
     expect(args.unknownFlags).toEqual([]);
   });
 
+  it('parses --mode flag', () => {
+    const args = parseArgs(['node', 'make-lemonade', '--mode', 'credits']);
+    expect(args.mode).toBe('credits');
+    expect(args.unknownFlags).toEqual([]);
+  });
+
   it('parses multiple flags together', () => {
-    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const args = parseArgs(['node', 'make-lemonade', '--simple', '--provider', 'anthropic', '--model', 'claude-sonnet-4-6']);
     expect(args.provider).toBe('anthropic');
     expect(args.model).toBe('claude-sonnet-4-6');
+    expect(args.simpleDeprecated).toBe(true);
     expect(args.unknownFlags).toEqual([]);
   });
 
   it('collects unknown flags starting with -', () => {
     const args = parseArgs(['node', 'make-lemonade', '--modle', 'gpt-4o', '--verbose']);
     expect(args.unknownFlags).toEqual(['--modle', '--verbose']);
+    expect(args.model).toBeUndefined();
   });
 
   it('collects unknown short flags', () => {
@@ -68,7 +74,6 @@ describe('parseArgs', () => {
   });
 
   it('valid flags are never reported as unknown', () => {
-    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const args = parseArgs([
       'node', 'make-lemonade',
       '--provider', 'openai',
