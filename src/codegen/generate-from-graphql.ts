@@ -96,6 +96,10 @@ const MANUAL_RESOLVERS = new Set([
   'mailEventTicket', 'mailTicketPaymentReceipt',
   // Payment operations
   'listEventPayments', 'getEventPayment', 'getEventPaymentSummary', 'getEventPaymentStatistics',
+  // Newsletter operations
+  'listSpaceNewsletters', 'getSpaceNewsletter', 'createSpaceNewsletter',
+  'updateSpaceNewsletter', 'deleteSpaceNewsletter', 'sendSpaceNewsletterTestEmails',
+  'getSpaceNewsletterStatistics',
 ]);
 
 function unwrapType(type: IntrospectionType): {

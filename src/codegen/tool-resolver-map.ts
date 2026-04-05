@@ -54,6 +54,13 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   event_payment_detail: 'getEventPayment',
   event_payment_summary: 'getEventPaymentSummary',
   event_payment_statistics: 'getEventPaymentStatistics',
+  newsletter_list: 'listSpaceNewsletters',
+  newsletter_get: 'getSpaceNewsletter',
+  newsletter_create: 'createSpaceNewsletter',
+  newsletter_update: 'updateSpaceNewsletter',
+  newsletter_delete: 'deleteSpaceNewsletter',
+  newsletter_test_send: 'sendSpaceNewsletterTestEmails',
+  newsletter_stats: 'getSpaceNewsletterStatistics',
 };
 
 // Maps MCP tool names to CLI command group + subcommand

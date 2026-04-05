@@ -207,6 +207,15 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   setPreferredModel: ['id', 'provider', 'name', 'tier', 'minimum_credits_per_request', 'capabilities', 'is_default'],
   setSpaceDefaultModel: ['id', 'provider', 'name', 'tier', 'minimum_credits_per_request', 'capabilities', 'is_default'],
 
+  // === Newsletter endpoints ===
+  listSpaceNewsletters: ['_id', 'subject_preview', 'body_preview', 'draft', 'disabled', 'scheduled_at', 'sent_at', 'created_at', 'recipient_types'],
+  getSpaceNewsletter: ['_id', 'custom_subject_html', 'custom_body_html', 'draft', 'disabled', 'scheduled_at', 'sent_at', 'failed_at', 'failed_reason', 'recipient_types', 'cc', 'created_at', 'subject_preview', 'body_preview'],
+  createSpaceNewsletter: ['_id', 'subject_preview', 'draft', 'scheduled_at', 'created_at'],
+  updateSpaceNewsletter: ['_id', 'subject_preview', 'draft', 'disabled', 'scheduled_at'],
+  deleteSpaceNewsletter: [], // Boolean
+  sendSpaceNewsletterTestEmails: [], // Boolean
+  getSpaceNewsletterStatistics: ['sent_count', 'delivered_count', 'open_count'],
+
   // === Subscription endpoints ===
   getSpaceSubscription: ['subscription', 'items', 'payment', '_id', 'space', 'status', 'current_period_start', 'current_period_end', 'cancel_at_period_end', 'type', 'active', 'client_secret', 'publishable_key'],
   listSubscriptionFeatureConfigs: ['feature_code', 'feature_type', 'description', 'display_label', 'tiers'],
