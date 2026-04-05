@@ -147,7 +147,7 @@ async function main(): Promise<void> {
         process.exit(2);
       }
     } else if (!apiKey) {
-      console.error('No AI API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.');
+      console.error(chalk.red('  No AI API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY, or use --mode credits.'));
       process.exit(2);
     }
 
