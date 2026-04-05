@@ -7,7 +7,6 @@
 
 export function formatCrashMessage(err: unknown): string {
   if (err instanceof Error) return err.stack || err.message;
-  if (err === null || err === undefined) return String(err);
   return String(err);
 }
 

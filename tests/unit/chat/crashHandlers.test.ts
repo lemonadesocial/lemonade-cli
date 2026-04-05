@@ -89,7 +89,7 @@ describe('crashHandlers', () => {
 
       const output = stderrSpy.mock.calls[0][0] as string;
       // Stack traces include file path references
-      expect(output).toContain('processHandlers.test');
+      expect(output).toContain('crashHandlers.test');
     });
   });
 
