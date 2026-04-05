@@ -47,6 +47,6 @@ export async function resolveCreditsStartupMode(isTTY: boolean): Promise<Credits
   return {
     mode: 'credits',
     failed: true,
-    message: chalk.red('  No credits space configured. Run "lemonade space switch" or set up an API key to use BYOK mode.'),
+    message: chalk.red('  No credits space configured. Use /spaces in chat, or run: lemonade space list → lemonade config set default_space <space-id>. Alternatively, set up an API key to use BYOK mode.'),
   };
 }

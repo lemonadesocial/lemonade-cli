@@ -91,7 +91,7 @@ export async function handleSwitchMode(
 
   const nextCreditsSpace = deps.getCreditsSpaceId() || deps.currentSpaceId || deps.getDefaultSpace();
   if (!nextCreditsSpace) {
-    return 'No credits space configured. Use /spaces to select a space or run "lemonade space switch", then try /mode credits again.';
+    return 'No credits space configured. Use /spaces to select a space, or run: lemonade space list → lemonade config set default_space <space-id>. Then try /mode credits again.';
   }
 
   let nextProvider: AIProvider;
