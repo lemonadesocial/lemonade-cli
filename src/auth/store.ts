@@ -60,26 +60,6 @@ export function setFlagApiKey(key: string | undefined): void {
   flagApiKey = key;
 }
 
-export function getAuthHeader(): string | undefined {
-  if (flagApiKey) return `Bearer ${flagApiKey}`;
-
-  const envKey = process.env.LEMONADE_API_KEY;
-  if (envKey) return `Bearer ${envKey}`;
-
-  const config = readConfig();
-
-  const accessToken = config.access_token;
-  const expiresAt = config.token_expires_at;
-  if (accessToken && expiresAt && Date.now() < expiresAt) {
-    return `Bearer ${accessToken}`;
-  }
-
-  const configKey = config.api_key;
-  if (configKey) return `Bearer ${configKey}`;
-
-  return undefined;
-}
-
 // Refresh buffer: attempt refresh when token expires within this window.
 const REFRESH_BUFFER_MS = 60_000;
 
@@ -87,9 +67,9 @@ const REFRESH_BUFFER_MS = 60_000;
 let refreshInFlight: Promise<string | null> | null = null;
 
 /**
- * Like getAuthHeader, but attempts an OAuth token refresh when the
- * access_token is expired or about to expire. Falls back to the same
- * behavior as getAuthHeader if refresh fails or is not applicable.
+ * Returns a Bearer auth header, attempting an OAuth token refresh when the
+ * access_token is expired or about to expire. Falls back to api_key or
+ * undefined if refresh fails or is not applicable.
  */
 export async function ensureAuthHeader(): Promise<string | undefined> {
   // Flag key and env key bypass token refresh entirely.
