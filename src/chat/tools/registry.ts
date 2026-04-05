@@ -6576,7 +6576,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventSessionReservations: unknown }>(
-        `query($input: GetEventSessionReservationsInput) {
+        `query($input: GetEventSessionReservationsInput!) {
           getEventSessionReservations(input: $input) {
             user event session ticket_type
             user_expanded { _id name }
@@ -6705,7 +6705,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (result === null || result === undefined) return 'Error: no response from server.';
       const items = result as Array<{ _id: string; title: string; state: string }>;
       if (!items.length) return 'No votings found.';
-      const lines = items.map(v => `  [${v._id}] "${v.title}" (${v.state})`);
+      const lines = items.map(v => `  [${v._id}] "${v.title}" (${v.state ?? 'unknown'})`);
       return `${items.length} voting(s):\n${lines.join('\n')}`;
     },
   });
@@ -6718,7 +6718,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'voting_id', type: 'string', description: 'Voting session ID', required: true },
       { name: 'option_id', type: 'string', description: 'Option ID to vote for (omit to unvote)', required: false },
     ],
-    destructive: false,
+    destructive: true,
     execute: async (args) => {
       const input: Record<string, unknown> = { voting_id: args.voting_id };
       if (args.option_id !== undefined) input.option_id = args.option_id;
@@ -6732,7 +6732,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
     formatResult: (result) => {
       if (result === null || result === undefined) return 'Error: no response from server.';
-      return result ? 'Vote cast successfully.' : 'Failed to cast vote.';
+      return result ? 'Vote submitted successfully.' : 'No changes applied.';
     },
   });
 
