@@ -32,15 +32,23 @@ Durability requirement:
 
 - Branch: (none — merged to main)
 - Status: MERGED
-- Scope: shared safeErrorMessage utility
+- Scope: API key error styling and guidance
 - Current gate: Complete
 
 ## Current Loop State
 
-- Last merged PR: #141
-- Last merge commit: 1c51834
-- Current next-issue status: session complete — all high/medium value items resolved
-- Current recommended next branch: fix/openai-tool-parse-warning (low priority)
+- Last merged PR: #146
+- Last merge commit: bee50c5
+- Current next-issue status: session complete — remaining items are low-value polish
+- Current recommended next branch: none (see deferred items)
+
+## Session Summary (2026-04-05, session 3)
+
+Four cycles completed:
+1. #143 — Validate --mode CLI flag and add it to help text (fix/validate-mode-flag)
+2. #144 — Align batch mode JSON output with standard CLI envelope (fix/batch-json-envelope-consistency)
+3. #145 — Show valid keys in config set help text (fix/config-set-help-keys)
+4. #146 — Add chalk styling and credits guidance to API key error (fix/unstyled-api-key-error)
 
 ## Session Summary (2026-04-05, session 1)
 
@@ -452,6 +460,83 @@ All high/medium priority deferred items resolved. Two previously reported issues
 - Item: JSON.parse() silent fallback in OpenAI provider (tool args become {})
 - Why deferred: Discovered during #138 discovery, separate concern
 - Suggested future branch: fix/openai-tool-parse-fallback
+
+## Branch: fix/validate-mode-flag
+
+### Gate A → Merge
+
+- Date: 2026-04-05
+- Branch: fix/validate-mode-flag
+- Issue: --mode CLI flag undocumented in help text and silently ignores invalid values
+- Scope: Add --mode to help, validate mode values, extract VALID_MODES/validateMode to dedicated module
+- Commits: 7c6e601 (impl), 763c008 (audit remediation), 6b2c99e (barrel-import fix), 82be6f1 (Karen NIT)
+- Files: src/chat/index.ts, src/chat/validation.ts (new), tests/unit/chat/modeValidation.test.ts (new)
+- Audit: 2 rounds. Round 1: 2 MEDIUM (mock-confirms-mock, triple-defined modes), 2 LOW, 2 NIT. Round 2: 1 MEDIUM (barrel-file side effects), 2 LOW, 1 NIT. All fixed.
+- PR #143: https://github.com/lemonadesocial/lemonade-cli/pull/143
+- Karen: APPROVE, 1 NIT (return guard comment), fixed
+- Final audit: ZERO FINDINGS
+- CI: all green
+- Merged at: 2026-04-05, merge commit: 5386e98
+
+### Discovery side-findings (logged for future branches)
+
+- ~~Batch mode JSON output format inconsistency~~ DONE in #144
+- ~~Config `set` command: no help listing valid keys~~ DONE in #145
+- Config `get` command: could also show valid keys in help text (parity with set, NIT from #145 audit)
+- ~~Inconsistent error message styling: startup API key error missing chalk.red~~ DONE in #146
+- Help text missing environment variable relationship documentation (low value)
+- Config `get` command: could show valid/gettable keys in help text (NIT parity with #145)
+
+---
+
+## Branch: fix/batch-json-envelope-consistency
+
+### Gate A → Merge
+
+- Date: 2026-04-05
+- Branch: fix/batch-json-envelope-consistency
+- Issue: Batch mode JSON output uses ad-hoc format inconsistent with standard CLI envelope
+- Scope: Use standard JsonEnvelope for batch mode success/error output, add compact option to helpers
+- Commits: 101b6bb (impl), 534163f (Karen remediation — use shared helpers)
+- Files: src/chat/batch.ts, src/output/json.ts, tests/unit/chat/batch.test.ts
+- Audit: 1 round. 3 LOW, 1 NIT. Verdict: safe to continue.
+- PR #144: https://github.com/lemonadesocial/lemonade-cli/pull/144
+- Karen: APPROVE, 1 MED (use shared helpers), 1 LOW (single error code). MED fixed.
+- Final audit: ZERO FINDINGS
+- CI: all green
+- Merged at: 2026-04-05, merge commit: 3b6f388
+
+## Branch: fix/config-set-help-keys
+
+### Gate A → Merge (fast-track)
+
+- Date: 2026-04-05
+- Branch: fix/config-set-help-keys
+- Issue: `config set --help` doesn't list valid keys
+- Scope: Add .addHelpText('after', ...) showing VALID_CONFIG_KEYS
+- Commit: 808ab9b
+- Files: src/commands/config/index.ts (1 file, 1 line added)
+- Audit: ZERO FINDINGS (1 NIT: config get parity, deferred)
+- PR #145: https://github.com/lemonadesocial/lemonade-cli/pull/145
+- Karen: APPROVE, zero findings
+- CI: all green
+- Merged at: 2026-04-05, merge commit: b3bc60a
+
+## Branch: fix/unstyled-api-key-error
+
+### Gate A → Merge (fast-track)
+
+- Date: 2026-04-05
+- Branch: fix/unstyled-api-key-error
+- Issue: "No AI API key found" error missing chalk.red styling and credits mode guidance
+- Scope: 1 line in src/chat/index.ts
+- Commit: 5244192
+- Files: src/chat/index.ts (1 line)
+- Audit: ZERO FINDINGS
+- PR #146: https://github.com/lemonadesocial/lemonade-cli/pull/146
+- Karen: APPROVE, zero findings
+- CI: all green
+- Merged at: 2026-04-05, merge commit: bee50c5
 
 ## Important Notes
 
