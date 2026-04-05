@@ -30,6 +30,7 @@ export async function batchMode(
 
     messages.push({ role: 'user', content: trimmed });
 
+    const preLen = messages.length;
     try {
       await handleTurn(
         provider,
@@ -42,7 +43,12 @@ export async function batchMode(
         false,
       );
     } catch (err) {
+      messages.length = preLen; // Roll back all messages appended during the failed turn
+      // stderr for debugging; stdout JSON for programmatic consumers
       console.error(`Error: ${safeErrorMessage(err)}`);
+      if (jsonOutput) {
+        console.log(JSON.stringify({ error: safeErrorMessage(err) }));
+      }
       continue;
     }
 
