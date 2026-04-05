@@ -13,11 +13,19 @@ describe('Tool Registry', () => {
   it('each tool has required fields', () => {
     for (const tool of tools) {
       expect(tool.name).toBeTruthy();
+      expect(tool.category).toBeTruthy();
       expect(tool.displayName).toBeTruthy();
       expect(tool.description).toBeTruthy();
       expect(typeof tool.destructive).toBe('boolean');
       expect(typeof tool.execute).toBe('function');
       expect(Array.isArray(tool.params)).toBe(true);
+    }
+  });
+
+  it('every tool has a non-empty category string', () => {
+    for (const tool of tools) {
+      expect(typeof tool.category, `Tool "${tool.name}" category is not a string`).toBe('string');
+      expect(tool.category.length, `Tool "${tool.name}" has an empty category`).toBeGreaterThan(0);
     }
   });
 

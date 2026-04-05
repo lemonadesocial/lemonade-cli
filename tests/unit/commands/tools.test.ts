@@ -4,17 +4,20 @@ import { buildToolRegistry } from '../../../src/chat/tools/registry';
 import { parseSlashCommand } from '../../../src/chat/ui/SlashCommands';
 
 describe('getToolCategory', () => {
-  it('extracts prefix before first underscore', () => {
-    expect(getToolCategory('event_create')).toBe('event');
-    expect(getToolCategory('space_list')).toBe('space');
-    expect(getToolCategory('tickets_buy')).toBe('tickets');
-    expect(getToolCategory('event_ticket_sold_insight')).toBe('event');
+  const registry = buildToolRegistry();
+
+  it('returns the explicit category from the tool definition', () => {
+    expect(getToolCategory(registry['event_create'])).toBe('event');
+    expect(getToolCategory(registry['space_list'])).toBe('space');
+    expect(getToolCategory(registry['tickets_buy'])).toBe('tickets');
+    expect(getToolCategory(registry['event_ticket_sold_insight'])).toBe('event');
   });
 
-  it('handles edge cases in tool name format', () => {
-    expect(getToolCategory('get_me')).toBe('get');
-    expect(getToolCategory('nounderscore')).toBe('general');
-    expect(getToolCategory('_leadingunderscore')).toBe('general');
+  it('returns correct categories for tools with non-prefix-based categories', () => {
+    expect(getToolCategory(registry['get_me'])).toBe('user');
+    expect(getToolCategory(registry['get_backend_version'])).toBe('system');
+    expect(getToolCategory(registry['event_votings'])).toBe('voting');
+    expect(getToolCategory(registry['event_session_reservations'])).toBe('session');
   });
 });
 
@@ -36,19 +39,18 @@ describe('getCategories', () => {
 describe('tool discoverability coverage', () => {
   const registry = buildToolRegistry();
 
-  it('every tool gets a non-empty category', () => {
-    for (const [name] of Object.entries(registry)) {
-      const cat = getToolCategory(name);
-      expect(cat).toBeTruthy();
-      expect(cat.length).toBeGreaterThan(0);
+  it('every tool has a non-empty category field', () => {
+    for (const [name, tool] of Object.entries(registry)) {
+      expect(tool.category, `Tool "${name}" is missing a category`).toBeTruthy();
+      expect(tool.category.length, `Tool "${name}" has an empty category`).toBeGreaterThan(0);
     }
   });
 
   it('categories have at least 1 tool each', () => {
     const cats = getCategories(registry);
     for (const cat of cats) {
-      const count = Object.keys(registry).filter(
-        (name) => getToolCategory(name) === cat,
+      const count = Object.values(registry).filter(
+        (tool) => getToolCategory(tool) === cat,
       ).length;
       expect(count).toBeGreaterThan(0);
     }

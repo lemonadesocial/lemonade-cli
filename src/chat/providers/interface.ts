@@ -77,6 +77,7 @@ export type ParamType =
 
 export interface ToolDef {
   name: string;
+  category: string;
   displayName: string;
   description: string;
   params: ToolParam[];
