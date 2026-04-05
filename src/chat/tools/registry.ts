@@ -1319,7 +1319,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     displayName: 'payment accounts list',
     description: 'List payment accounts configured for receiving payments (Stripe, crypto wallets).',
     params: [
-      { name: 'type', type: 'string', description: 'Filter by type', required: false, enum: ['solana', 'ethereum', 'digital'] },
+      { name: 'type', type: 'string', description: 'Filter by type', required: false, enum: ['ethereum', 'ethereum_escrow', 'ethereum_relay', 'ethereum_stake', 'digital'] },
       { name: 'provider', type: 'string', description: 'Filter by provider', required: false, enum: ['stripe', 'safe'] },
       { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
@@ -1331,6 +1331,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.skip !== undefined) {
         const n = Number(args.skip);
         if (!isNaN(n)) skip = Math.max(0, n);
+      }
+      let limit = 25;
+      if (args.limit !== undefined) {
+        const n = Number(args.limit);
+        if (!isNaN(n)) limit = Math.max(1, n);
       }
       let idFilter: string[] | undefined;
       if (args.account_ids !== undefined) {
@@ -1356,7 +1361,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         {
           type: args.type as string | undefined,
           provider: args.provider as string | undefined,
-          limit: args.limit !== undefined ? Number(args.limit) : 25,
+          limit,
           skip,
           _id: idFilter,
         },
@@ -1364,10 +1369,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.listNewPaymentAccounts;
     },
     formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
       const accounts = result as Array<{ _id: string; type: string; title?: string; provider?: string; active: boolean }>;
       if (!accounts.length) return 'No payment accounts configured.';
       const lines = accounts.map(a => {
-        const parts = [a.type];
+        const parts = [`[${a._id}]`, a.type];
         if (a.provider) parts.push(`(${a.provider})`);
         if (a.title) parts.push(`"${a.title}"`);
         parts.push(a.active ? '✓ active' : '✗ inactive');
@@ -1392,6 +1398,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async (args) => {
       const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      if (currencies.length === 0) throw new Error('At least one currency is required');
       const input: Record<string, unknown> = {
         type: 'ethereum',
         account_info: {
@@ -1437,7 +1444,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         throw new Error('threshold must be a positive number');
       }
       const owners = (args.owners as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      if (owners.length === 0) throw new Error('At least one owner address is required');
+      if (threshold > owners.length) throw new Error(`threshold (${threshold}) cannot exceed number of owners (${owners.length})`);
       const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      if (currencies.length === 0) throw new Error('At least one currency is required');
       const accountInfo: Record<string, unknown> = {
         network: args.network,
         owners,
@@ -1486,6 +1496,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         throw new Error('minimum_deposit_percent must be a number between 0 and 100');
       }
       const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      if (currencies.length === 0) throw new Error('At least one currency is required');
       const input: Record<string, unknown> = {
         type: 'ethereum_escrow',
         account_info: {
@@ -1526,6 +1537,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async (args) => {
       const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      if (currencies.length === 0) throw new Error('At least one currency is required');
       const input: Record<string, unknown> = {
         type: 'ethereum_relay',
         account_info: {
@@ -1566,6 +1578,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async (args) => {
       const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      if (currencies.length === 0) throw new Error('At least one currency is required');
       const accountInfo: Record<string, unknown> = {
         network: args.network,
         config_id: args.config_id,
@@ -1637,7 +1650,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     description: 'Update a payment account title or configuration.',
     params: [
       { name: 'account_id', type: 'string', description: 'Payment account ID', required: true },
-      { name: 'account_info', type: 'string', description: 'Updated account configuration as JSON object', required: true },
+      { name: 'account_info', type: 'string', description: 'Updated account configuration as JSON object (required by backend — send current config if only changing title)', required: true },
       { name: 'title', type: 'string', description: 'New display name', required: false },
     ],
     destructive: true,
@@ -1730,7 +1743,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     displayName: 'safe free limit',
     description: 'Check Safe wallet deployment eligibility for a network. Each user gets 1 free gasless Safe deployment.',
     params: [
-      { name: 'network', type: 'string', description: 'Chain ID to check', required: true },
+      { name: 'network', type: 'string', description: "Chain ID (numeric string, e.g. '8453' for Base). Use list_chains to find available networks.", required: true },
     ],
     destructive: false,
     execute: async (args) => {
