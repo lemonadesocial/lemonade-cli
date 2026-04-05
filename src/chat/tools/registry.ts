@@ -4770,7 +4770,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ listSpaceNewsletters: unknown }>(
         `query($space: MongoID!, $draft: Boolean, $sent: Boolean, $scheduled: Boolean) {
           listSpaceNewsletters(space: $space, draft: $draft, sent: $sent, scheduled: $scheduled) {
-            _id subject_preview body_preview draft disabled
+            _id subject_preview draft disabled
             scheduled_at sent_at created_at
             recipient_types
           }
@@ -4780,12 +4780,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.listSpaceNewsletters;
     },
     formatResult: (result) => {
-      const items = result as Array<{ _id: string; subject_preview: string; draft: boolean; sent_at: string | null; scheduled_at: string | null; created_at: string }>;
+      const items = result as Array<{ _id: string; subject_preview: string; draft: boolean; disabled: boolean; sent_at: string | null; scheduled_at: string | null; created_at: string }>;
       if (!Array.isArray(items)) return JSON.stringify(result);
       const lines = items.map((n) => {
-        let status = 'draft';
-        if (n.sent_at) status = 'sent';
-        else if (n.scheduled_at) status = 'scheduled';
+        const status = n.disabled ? 'disabled' : n.sent_at ? 'sent' : n.scheduled_at ? 'scheduled' : 'draft';
         const date = n.sent_at || n.scheduled_at || n.created_at || '';
         return `- ${n.subject_preview || '(no subject)'} [${status}] ${date}`;
       });
@@ -4832,7 +4830,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'newsletter_create',
     displayName: 'newsletter create',
-    description: 'Create a newsletter for a space. Created as draft by default.',
+    description: 'Create a newsletter for a space.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
       { name: 'subject', type: 'string', description: 'Email subject (HTML supported)', required: true },
@@ -4840,7 +4838,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'cc', type: 'string', description: 'CC email addresses (comma-separated)', required: false },
       { name: 'scheduled_at', type: 'string', description: 'Schedule send time (ISO 8601)', required: false },
       { name: 'recipient_types', type: 'string', description: 'Comma-separated recipient types: assigned, attending, registration, invited, space_tagged_people', required: false },
-      { name: 'draft', type: 'boolean', description: 'Save as draft (default: true)', required: false },
+      { name: 'draft', type: 'boolean', description: 'Save as draft (server default applies if omitted)', required: false },
     ],
     destructive: false,
     execute: async (args) => {
@@ -4848,7 +4846,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       input.custom_subject_html = args.subject;
       input.custom_body_html = args.body;
       if (args.cc !== undefined) input.cc = (args.cc as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
-      if (args.scheduled_at !== undefined) input.scheduled_at = new Date(args.scheduled_at as string).toISOString();
+      if (args.scheduled_at !== undefined) {
+        const d = new Date(args.scheduled_at as string);
+        if (isNaN(d.getTime())) throw new Error('Invalid date for scheduled_at');
+        input.scheduled_at = d.toISOString();
+      }
       if (args.recipient_types !== undefined) input.recipient_types = (args.recipient_types as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (args.draft !== undefined) input.draft = args.draft;
       const result = await graphqlRequest<{ createSpaceNewsletter: unknown }>(
@@ -4885,13 +4887,17 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'draft', type: 'boolean', description: 'Save as draft', required: false },
       { name: 'disabled', type: 'boolean', description: 'Disable newsletter', required: false },
     ],
-    destructive: false,
+    destructive: true,
     execute: async (args) => {
       const input: Record<string, unknown> = { _id: args.newsletter_id };
       if (args.subject !== undefined) input.custom_subject_html = args.subject;
       if (args.body !== undefined) input.custom_body_html = args.body;
       if (args.cc !== undefined) input.cc = (args.cc as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
-      if (args.scheduled_at !== undefined) input.scheduled_at = new Date(args.scheduled_at as string).toISOString();
+      if (args.scheduled_at !== undefined) {
+        const d = new Date(args.scheduled_at as string);
+        if (isNaN(d.getTime())) throw new Error('Invalid date for scheduled_at');
+        input.scheduled_at = d.toISOString();
+      }
       if (args.recipient_types !== undefined) input.recipient_types = (args.recipient_types as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (args.draft !== undefined) input.draft = args.draft;
       if (args.disabled !== undefined) input.disabled = args.disabled;
@@ -4952,10 +4958,13 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const input: Record<string, unknown> = {
         test_recipients: (args.test_recipients as string).split(',').map(s => s.trim()).filter(s => s.length > 0),
       };
-      if (args.space_id !== undefined) input.space = args.space_id;
+      input.space = args.space_id;
       if (args.newsletter_id !== undefined) input._id = args.newsletter_id;
       if (args.subject !== undefined) input.custom_subject_html = args.subject;
       if (args.body !== undefined) input.custom_body_html = args.body;
+      if (!input._id && !input.custom_subject_html) {
+        throw new Error('Provide either newsletter_id (existing newsletter) or subject + body (inline content)');
+      }
       const result = await graphqlRequest<{ sendSpaceNewsletterTestEmails: unknown }>(
         `mutation($input: SendSpaceNewsletterTestEmailsInput!) {
           sendSpaceNewsletterTestEmails(input: $input)
