@@ -4177,6 +4177,13 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.getEventPaymentSummary;
     },
+    formatResult: (result) => {
+      const summaries = result as Array<{ currency: string; amount: string; transfer_amount: string; pending_transfer_amount: string }>;
+      if (Array.isArray(summaries)) {
+        return summaries.map(s => `${s.currency}: ${s.amount} (transfers: ${s.transfer_amount}, pending: ${s.pending_transfer_amount})`).join(', ');
+      }
+      return JSON.stringify(result);
+    },
   });
 
   // --- User Tools ---
@@ -4449,6 +4456,296 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.search) serviceArgs.push('--search', String(args.search));
       const output = tempoExec(serviceArgs);
       return { output };
+    },
+  });
+
+  // --- Ticket Lifecycle ---
+
+  register({
+    name: 'tickets_create',
+    displayName: 'tickets create',
+    description: 'Create complimentary tickets (no payment). The ticket type determines the event. Assignments are by email.',
+    params: [
+      { name: 'ticket_type', type: 'string', description: 'Ticket type ID', required: true },
+      { name: 'assignments', type: 'string', description: 'JSON array of assignments: [{email, count}]', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      let ticketAssignments: unknown[];
+      try {
+        const parsed = JSON.parse(args.assignments as string);
+        if (!Array.isArray(parsed)) throw new Error('assignments must be a JSON array');
+        ticketAssignments = parsed;
+      } catch (e) {
+        throw e instanceof SyntaxError
+          ? new Error('Invalid JSON in assignments parameter. Expected: [{email, count}]')
+          : e;
+      }
+      const result = await graphqlRequest<{ createTickets: unknown }>(
+        `mutation($ticket_type: MongoID!, $ticket_assignments: [TicketAssignment!]!) {
+          createTickets(ticket_type: $ticket_type, ticket_assignments: $ticket_assignments) {
+            _id type accepted
+          }
+        }`,
+        { ticket_type: args.ticket_type, ticket_assignments: ticketAssignments },
+      );
+      return result.createTickets;
+    },
+    formatResult: (result) => {
+      const tickets = result as Array<{ _id: string; type: string; accepted: boolean }>;
+      if (Array.isArray(tickets)) {
+        return `Created ${tickets.length} ticket(s). IDs: ${tickets.map(t => t._id).join(', ')}`;
+      }
+      return JSON.stringify(result);
+    },
+  });
+
+  register({
+    name: 'tickets_cancel',
+    displayName: 'tickets cancel',
+    description: 'Cancel specific tickets for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'ticket_ids', type: 'string', description: 'Comma-separated ticket IDs to cancel', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ cancelTickets: unknown }>(
+        `mutation($input: CancelTicketsInput!) {
+          cancelTickets(input: $input)
+        }`,
+        { input: { event: args.event_id, tickets: (args.ticket_ids as string).split(',').map(s => s.trim()).filter(s => s.length > 0) } },
+      );
+      return result.cancelTickets;
+    },
+    formatResult: (result) => {
+      return result ? 'Tickets cancelled successfully.' : 'Cancellation failed.';
+    },
+  });
+
+  register({
+    name: 'tickets_assign',
+    displayName: 'tickets assign',
+    description: 'Assign tickets to users by email or user ID.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'assignments', type: 'string', description: 'JSON array of assignments: [{ticket, email}] or [{ticket, user}]', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      let assignees: unknown[];
+      try {
+        const parsed = JSON.parse(args.assignments as string);
+        if (!Array.isArray(parsed)) throw new Error('assignments must be a JSON array');
+        assignees = parsed;
+      } catch (e) {
+        throw e instanceof SyntaxError
+          ? new Error('Invalid JSON in assignments parameter. Expected: [{ticket, email}] or [{ticket, user}]')
+          : e;
+      }
+      const result = await graphqlRequest<{ assignTickets: unknown }>(
+        `mutation($input: AssignTicketsInput!) {
+          assignTickets(input: $input)
+        }`,
+        { input: { event: args.event_id, assignees } },
+      );
+      return result.assignTickets;
+    },
+    formatResult: (result) => {
+      return result ? 'Tickets assigned successfully.' : 'Assignment failed.';
+    },
+  });
+
+  register({
+    name: 'tickets_upgrade',
+    displayName: 'tickets upgrade',
+    description: 'Upgrade a ticket to a different ticket type.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'ticket_id', type: 'string', description: 'Ticket ID to upgrade', required: true },
+      { name: 'to_type', type: 'string', description: 'Target ticket type ID', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ upgradeTicket: unknown }>(
+        `mutation($input: UpgradeTicketInput!) {
+          upgradeTicket(input: $input)
+        }`,
+        { input: { event: args.event_id, ticket: args.ticket_id, to_type: args.to_type } },
+      );
+      return result.upgradeTicket;
+    },
+    formatResult: (result) => {
+      return result ? 'Ticket upgraded successfully.' : 'Upgrade failed.';
+    },
+  });
+
+  register({
+    name: 'tickets_email',
+    displayName: 'tickets email',
+    description: 'Email event tickets to specified addresses.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'emails', type: 'string', description: 'Comma-separated email addresses', required: true },
+      { name: 'payment_id', type: 'string', description: 'Payment ID (optional, to email specific payment tickets)', required: false },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ mailEventTicket: unknown }>(
+        `mutation($event: MongoID!, $emails: [String!]!, $payment: MongoID) {
+          mailEventTicket(event: $event, emails: $emails, payment: $payment)
+        }`,
+        {
+          event: args.event_id,
+          emails: (args.emails as string).split(',').map(s => s.trim()).filter(s => s.length > 0),
+          payment: args.payment_id as string | undefined,
+        },
+      );
+      return result.mailEventTicket;
+    },
+    formatResult: (result) => {
+      return result ? 'Ticket emails sent successfully.' : 'Failed to send ticket emails.';
+    },
+  });
+
+  register({
+    name: 'tickets_email_receipt',
+    displayName: 'tickets email receipt',
+    description: 'Email payment receipt for a specific ticket.',
+    params: [
+      { name: 'ticket_id', type: 'string', description: 'Ticket ID', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ mailTicketPaymentReceipt: unknown }>(
+        `mutation($ticket: MongoID!) {
+          mailTicketPaymentReceipt(ticket: $ticket)
+        }`,
+        { ticket: args.ticket_id },
+      );
+      return result.mailTicketPaymentReceipt;
+    },
+    formatResult: (result) => {
+      return result ? 'Payment receipt sent.' : 'Failed to send receipt.';
+    },
+  });
+
+  // --- Payments ---
+
+  register({
+    name: 'event_payments_list',
+    displayName: 'event payments list',
+    description: 'List payments for an event with optional filters.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'search', type: 'string', description: 'Search by buyer name or email', required: false },
+      { name: 'provider', type: 'string', description: 'Filter by payment provider', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      let limit = 25;
+      if (args.limit !== undefined) {
+        const n = Number(args.limit);
+        if (!isNaN(n)) limit = Math.max(1, n);
+      }
+      let skip = 0;
+      if (args.skip !== undefined) {
+        const n = Number(args.skip);
+        if (!isNaN(n)) skip = Math.max(0, n);
+      }
+      const result = await graphqlRequest<{ listEventPayments: unknown }>(
+        `query($event: MongoID!, $search: String, $provider: NewPaymentProvider, $limit: Int!, $skip: Int!) {
+          listEventPayments(event: $event, search: $search, provider: $provider, limit: $limit, skip: $skip) {
+            total
+            records {
+              _id amount currency state
+              formatted_total_amount formatted_discount_amount formatted_fee_amount
+              buyer_info { email first_name last_name }
+              tickets { _id type }
+            }
+          }
+        }`,
+        {
+          event: args.event_id,
+          search: args.search as string | undefined,
+          provider: args.provider as string | undefined,
+          limit,
+          skip,
+        },
+      );
+      return result.listEventPayments;
+    },
+    formatResult: (result) => {
+      const r = result as { total: number; records: Array<{ _id: string; amount: number; currency: string; state: string }> };
+      if (r && r.records) {
+        return `${r.total} payment(s) found. Showing ${r.records.length} record(s).`;
+      }
+      return JSON.stringify(result);
+    },
+  });
+
+  register({
+    name: 'event_payment_detail',
+    displayName: 'event payment detail',
+    description: 'Get details of a specific payment.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'payment_id', type: 'string', description: 'Payment ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventPayment: unknown }>(
+        `query($event: MongoID!, $_id: MongoID!) {
+          getEventPayment(event: $event, _id: $_id) {
+            _id amount currency state
+            formatted_total_amount formatted_discount_amount formatted_fee_amount
+            buyer_info { email first_name last_name }
+            tickets { _id type }
+            stripe_payment_info { payment_intent_id }
+          }
+        }`,
+        { event: args.event_id, _id: args.payment_id },
+      );
+      return result.getEventPayment;
+    },
+    formatResult: (result) => {
+      const r = result as { _id: string; amount: number; currency: string; state: string; formatted_total_amount: string };
+      if (r && r._id) {
+        return `Payment ${r._id}: ${r.formatted_total_amount || r.amount} ${r.currency} (${r.state})`;
+      }
+      return JSON.stringify(result);
+    },
+  });
+
+  register({
+    name: 'event_payment_statistics',
+    displayName: 'event payment statistics',
+    description: 'Get detailed payment statistics by provider (Stripe vs crypto) with network breakdowns. For simple revenue totals, use event_payment_stats.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventPaymentStatistics: unknown }>(
+        `query($event: MongoID!) {
+          getEventPaymentStatistics(event: $event) {
+            total_payments
+            stripe_payments { count revenue { currency formatted_total_amount } }
+            crypto_payments { count revenue { currency formatted_total_amount } networks { chain_id count } }
+          }
+        }`,
+        { event: args.event_id },
+      );
+      return result.getEventPaymentStatistics;
+    },
+    formatResult: (result) => {
+      const r = result as { total_payments: number };
+      if (r && r.total_payments !== undefined) {
+        return `Total payments: ${r.total_payments}`;
+      }
+      return JSON.stringify(result);
     },
   });
 

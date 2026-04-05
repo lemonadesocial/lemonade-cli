@@ -117,6 +117,19 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   atlasGenerateReferralCode: ['code'],
   atlasApplyReferralCode: [], // void
 
+  // === Ticket lifecycle endpoints ===
+  createTickets: ['_id', 'type', 'accepted'],
+  cancelTickets: [], // scalar
+  assignTickets: [], // scalar
+  upgradeTicket: [], // scalar
+  mailEventTicket: [], // scalar
+  mailTicketPaymentReceipt: [], // scalar
+
+  // === Payment operation endpoints ===
+  listEventPayments: ['total', 'records', '_id', 'amount', 'currency', 'state', 'formatted_total_amount', 'formatted_discount_amount', 'formatted_fee_amount', 'buyer_info', 'email', 'first_name', 'last_name', 'tickets', 'type'],
+  getEventPayment: ['_id', 'amount', 'currency', 'state', 'formatted_total_amount', 'formatted_discount_amount', 'formatted_fee_amount', 'buyer_info', 'email', 'first_name', 'last_name', 'tickets', 'type', 'stripe_payment_info', 'payment_intent_id'],
+  getEventPaymentStatistics: ['total_payments', 'stripe_payments', 'count', 'revenue', 'currency', 'formatted_total_amount', 'crypto_payments', 'networks', 'chain_id'],
+
   // === Mutations returning Boolean or simple types ===
   cloneEvent: [], // Returns [ObjectId]
   generateRecurringDates: [], // Returns [Date]

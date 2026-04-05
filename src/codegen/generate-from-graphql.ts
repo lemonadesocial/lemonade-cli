@@ -91,6 +91,11 @@ const MANUAL_RESOLVERS = new Set([
   'listNewPaymentAccounts',
   // Config/system
   'aiGetBackendVersion',
+  // Ticket lifecycle
+  'createTickets', 'cancelTickets', 'assignTickets', 'upgradeTicket',
+  'mailEventTicket', 'mailTicketPaymentReceipt',
+  // Payment operations
+  'listEventPayments', 'getEventPayment', 'getEventPaymentSummary', 'getEventPaymentStatistics',
 ]);
 
 function unwrapType(type: IntrospectionType): {

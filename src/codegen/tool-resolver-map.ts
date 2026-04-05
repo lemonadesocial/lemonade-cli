@@ -44,6 +44,16 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   accept_event: 'aiAcceptEvent',
   decline_event: 'aiDeclineEvent',
   list_payment_accounts: 'listNewPaymentAccounts',
+  tickets_create: 'createTickets',
+  tickets_cancel: 'cancelTickets',
+  tickets_assign: 'assignTickets',
+  tickets_upgrade: 'upgradeTicket',
+  tickets_email: 'mailEventTicket',
+  tickets_email_receipt: 'mailTicketPaymentReceipt',
+  event_payments_list: 'listEventPayments',
+  event_payment_detail: 'getEventPayment',
+  event_payment_summary: 'getEventPaymentSummary',
+  event_payment_statistics: 'getEventPaymentStatistics',
 };
 
 // Maps MCP tool names to CLI command group + subcommand
