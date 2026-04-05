@@ -10,6 +10,7 @@ import { registerSiteCommands } from './commands/site/index.js';
 import { registerConnectorCommands } from './commands/connectors/index.js';
 import { registerConfigCommands } from './commands/config/index.js';
 import { registerStatusCommands } from './commands/status/index.js';
+import { registerDoctorCommands } from './commands/doctor/index.js';
 import { registerToolCommands } from './commands/tools/index.js';
 import { loadGeneratedCommands, checkSchemaVersion } from './commands/loader.js';
 import { createRequire } from 'module';
@@ -32,6 +33,7 @@ registerSiteCommands(program);
 registerConnectorCommands(program);
 registerConfigCommands(program);
 registerStatusCommands(program);
+registerDoctorCommands(program);
 registerToolCommands(program);
 
 // Load auto-generated commands (MCP + GraphQL) after manual commands.
