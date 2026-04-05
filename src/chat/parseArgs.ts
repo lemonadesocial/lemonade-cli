@@ -1,9 +1,12 @@
+export const VALID_FLAGS = ['--provider', '--model', '--mode', '--json', '--simple', '--help', '-h'] as const;
+
 export function parseArgs(argv: string[]): {
   provider?: string;
   model?: string;
   mode?: string;
   json: boolean;
   help: boolean;
+  unknownFlags: string[];
 } {
   const result = {
     provider: undefined as string | undefined,
@@ -11,6 +14,7 @@ export function parseArgs(argv: string[]): {
     mode: undefined as string | undefined,
     json: false,
     help: false,
+    unknownFlags: [] as string[],
   };
 
   for (let i = 2; i < argv.length; i++) {
@@ -28,11 +32,16 @@ export function parseArgs(argv: string[]): {
         result.json = true;
         break;
       case '--simple':
-        // Ignored — readline mode is now the default and only mode
+        process.stderr.write('Warning: --simple is deprecated and has no effect.\n');
         break;
       case '--help':
       case '-h':
         result.help = true;
+        break;
+      default:
+        if (argv[i].startsWith('-')) {
+          result.unknownFlags.push(argv[i]);
+        }
         break;
     }
   }

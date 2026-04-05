@@ -66,6 +66,10 @@ async function fetchUser(): Promise<{ _id: string; name: string; email: string; 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
+  if (args.unknownFlags.length > 0) {
+    console.error(chalk.yellow(`Warning: unknown flag(s) ignored: ${args.unknownFlags.join(', ')}. Valid flags: --provider, --model, --mode, --json, --help`));
+  }
+
   if (args.help) {
     printHelp();
     process.exit(0);
