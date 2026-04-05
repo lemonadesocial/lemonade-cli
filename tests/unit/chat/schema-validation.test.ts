@@ -56,6 +56,11 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   createSpace: ['_id', 'title', 'slug', 'description', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'address', 'title', 'city', 'country'],
   updateSpace: ['_id', 'title', 'slug', 'description', 'state', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'address', 'title', 'city', 'country'],
   listNewPaymentAccounts: ['_id', 'active', 'type', 'title', 'provider', 'created_at', 'account_info', 'currencies', 'address', 'network', 'StripeAccount', 'SolanaAccount', 'EthereumAccount', 'DigitalAccount', 'SafeAccount', 'EthereumEscrowAccount', 'EthereumRelayAccount', 'EthereumStakeAccount'],
+  createNewPaymentAccount: ['_id', 'active', 'type', 'title', 'provider', 'created_at'],
+  updateNewPaymentAccount: ['_id', 'active', 'type', 'title', 'provider', 'created_at'],
+  disconnectStripeAccount: [], // Boolean
+  getStripeConnectedAccountCapability: ['id', 'capabilities', 'type', 'detail', 'available', 'display_preference', 'overridable', 'preference', 'value'],
+  getSafeFreeLimit: ['current', 'max'],
   aiGetSpaceMembers: ['items', 'name', 'email', 'role', 'joined_at'],
   aiGetSpaceStats: ['total_members', 'admins', 'ambassadors', 'subscribers', 'total_events', 'total_attendees', 'average_event_rating'],
   aiAddSpaceMember: [], // scalar

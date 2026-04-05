@@ -1322,12 +1322,24 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'type', type: 'string', description: 'Filter by type', required: false, enum: ['solana', 'ethereum', 'digital'] },
       { name: 'provider', type: 'string', description: 'Filter by provider', required: false, enum: ['stripe', 'safe'] },
       { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+      { name: 'account_ids', type: 'string', description: 'Comma-separated account IDs to filter', required: false },
     ],
     destructive: false,
     execute: async (args) => {
+      let skip = 0;
+      if (args.skip !== undefined) {
+        const n = Number(args.skip);
+        if (!isNaN(n)) skip = Math.max(0, n);
+      }
+      let idFilter: string[] | undefined;
+      if (args.account_ids !== undefined) {
+        idFilter = (args.account_ids as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+        if (idFilter.length === 0) idFilter = undefined;
+      }
       const result = await graphqlRequest<{ listNewPaymentAccounts: unknown }>(
-        `query($type: PaymentAccountType, $provider: NewPaymentProvider, $limit: Int!) {
-          listNewPaymentAccounts(type: $type, provider: $provider, limit: $limit, skip: 0) {
+        `query($type: PaymentAccountType, $provider: NewPaymentProvider, $limit: Int!, $skip: Int!, $_id: [MongoID!]) {
+          listNewPaymentAccounts(type: $type, provider: $provider, limit: $limit, skip: $skip, _id: $_id) {
             _id active type title provider created_at
             account_info {
               ... on StripeAccount { currencies }
@@ -1345,6 +1357,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
           type: args.type as string | undefined,
           provider: args.provider as string | undefined,
           limit: args.limit !== undefined ? Number(args.limit) : 25,
+          skip,
+          _id: idFilter,
         },
       );
       return result.listNewPaymentAccounts;
@@ -1360,6 +1374,380 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         return `  ${parts.join(' ')}`;
       });
       return `${accounts.length} payment account(s):\n${lines.join('\n')}`;
+    },
+  });
+
+  // --- Payment Account CRUD ---
+
+  register({
+    name: 'payment_account_create_wallet',
+    displayName: 'payment account create wallet',
+    description: 'Create an Ethereum wallet payment account for receiving crypto payments. Use list_chains first to find available networks and tokens.',
+    params: [
+      { name: 'network', type: 'string', description: "Chain ID (e.g. '8453' for Base, '42161' for Arbitrum). Use list_chains to see available networks.", required: true },
+      { name: 'address', type: 'string', description: 'Ethereum wallet address (0x...)', required: true },
+      { name: 'currencies', type: 'string', description: "Comma-separated token symbols available on this chain (e.g. 'USDC,ETH')", required: true },
+      { name: 'title', type: 'string', description: 'Display name (defaults to address)', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      const input: Record<string, unknown> = {
+        type: 'ethereum',
+        account_info: {
+          address: args.address,
+          network: args.network,
+          currencies,
+        },
+      };
+      if (args.title !== undefined) input.title = args.title;
+      const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
+        `mutation($input: CreateNewPaymentAccountInput!) {
+          createNewPaymentAccount(input: $input) {
+            _id active type title provider created_at
+          }
+        }`,
+        { input },
+      );
+      return result.createNewPaymentAccount;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; type: string; title?: string; active: boolean };
+      return `Wallet payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, ${r.active ? 'active' : 'inactive'})`;
+    },
+  });
+
+  register({
+    name: 'payment_account_create_safe',
+    displayName: 'payment account create safe',
+    description: 'Create a Safe multisig wallet payment account. Omit address to auto-deploy a new Safe (1 free per user, gasless via Gelato). Provide address to import an existing Safe.',
+    params: [
+      { name: 'network', type: 'string', description: 'Chain ID', required: true },
+      { name: 'owners', type: 'string', description: 'Comma-separated owner wallet addresses', required: true },
+      { name: 'threshold', type: 'number', description: 'Number of required confirmations', required: true },
+      { name: 'currencies', type: 'string', description: 'Comma-separated token symbols', required: true },
+      { name: 'address', type: 'string', description: 'Existing Safe address to import (omit to deploy new)', required: false },
+      { name: 'title', type: 'string', description: 'Display name', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const threshold = Number(args.threshold);
+      if (isNaN(threshold) || threshold <= 0) {
+        throw new Error('threshold must be a positive number');
+      }
+      const owners = (args.owners as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      const accountInfo: Record<string, unknown> = {
+        network: args.network,
+        owners,
+        threshold,
+        currencies,
+      };
+      if (args.address !== undefined) accountInfo.address = args.address;
+      const input: Record<string, unknown> = {
+        type: 'ethereum',
+        provider: 'safe',
+        account_info: accountInfo,
+      };
+      if (args.title !== undefined) input.title = args.title;
+      const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
+        `mutation($input: CreateNewPaymentAccountInput!) {
+          createNewPaymentAccount(input: $input) {
+            _id active type title provider created_at
+          }
+        }`,
+        { input },
+      );
+      return result.createNewPaymentAccount;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; type: string; title?: string; provider?: string; active: boolean };
+      return `Safe payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, provider: ${r.provider || 'safe'}, ${r.active ? 'active' : 'inactive'})`;
+    },
+  });
+
+  register({
+    name: 'payment_account_create_escrow',
+    displayName: 'payment account create escrow',
+    description: 'Create an escrow payment account. Funds are held in escrow until event completion.',
+    params: [
+      { name: 'network', type: 'string', description: 'Chain ID', required: true },
+      { name: 'address', type: 'string', description: 'Escrow contract address (0x...)', required: true },
+      { name: 'currencies', type: 'string', description: 'Comma-separated token symbols', required: true },
+      { name: 'minimum_deposit_percent', type: 'number', description: 'Minimum deposit percentage (0-100)', required: true },
+      { name: 'title', type: 'string', description: 'Display name', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const minimumDepositPercent = Number(args.minimum_deposit_percent);
+      if (isNaN(minimumDepositPercent) || minimumDepositPercent < 0 || minimumDepositPercent > 100) {
+        throw new Error('minimum_deposit_percent must be a number between 0 and 100');
+      }
+      const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      const input: Record<string, unknown> = {
+        type: 'ethereum_escrow',
+        account_info: {
+          address: args.address,
+          network: args.network,
+          currencies,
+          minimum_deposit_percent: minimumDepositPercent,
+        },
+      };
+      if (args.title !== undefined) input.title = args.title;
+      const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
+        `mutation($input: CreateNewPaymentAccountInput!) {
+          createNewPaymentAccount(input: $input) {
+            _id active type title provider created_at
+          }
+        }`,
+        { input },
+      );
+      return result.createNewPaymentAccount;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; type: string; title?: string; active: boolean };
+      return `Escrow payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, ${r.active ? 'active' : 'inactive'})`;
+    },
+  });
+
+  register({
+    name: 'payment_account_create_relay',
+    displayName: 'payment account create relay',
+    description: 'Create a relay/payment-splitter payment account. Address is auto-set from chain config.',
+    params: [
+      { name: 'network', type: 'string', description: 'Chain ID', required: true },
+      { name: 'payment_splitter_contract', type: 'string', description: 'Payment splitter contract address (0x...)', required: true },
+      { name: 'currencies', type: 'string', description: 'Comma-separated token symbols', required: true },
+      { name: 'title', type: 'string', description: 'Display name', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      const input: Record<string, unknown> = {
+        type: 'ethereum_relay',
+        account_info: {
+          network: args.network,
+          payment_splitter_contract: args.payment_splitter_contract,
+          currencies,
+        },
+      };
+      if (args.title !== undefined) input.title = args.title;
+      const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
+        `mutation($input: CreateNewPaymentAccountInput!) {
+          createNewPaymentAccount(input: $input) {
+            _id active type title provider created_at
+          }
+        }`,
+        { input },
+      );
+      return result.createNewPaymentAccount;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; type: string; title?: string; active: boolean };
+      return `Relay payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, ${r.active ? 'active' : 'inactive'})`;
+    },
+  });
+
+  register({
+    name: 'payment_account_create_stake',
+    displayName: 'payment account create stake',
+    description: 'Create a stake payment account. Attendees stake tokens. Address is auto-set from chain config.',
+    params: [
+      { name: 'network', type: 'string', description: 'Chain ID', required: true },
+      { name: 'config_id', type: 'string', description: 'Stake configuration ID', required: true },
+      { name: 'currencies', type: 'string', description: 'Comma-separated token symbols', required: true },
+      { name: 'requirement_checkin_before', type: 'string', description: 'Check-in deadline (ISO 8601)', required: false },
+      { name: 'title', type: 'string', description: 'Display name', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      const accountInfo: Record<string, unknown> = {
+        network: args.network,
+        config_id: args.config_id,
+        currencies,
+      };
+      if (args.requirement_checkin_before !== undefined) {
+        const d = new Date(args.requirement_checkin_before as string);
+        if (isNaN(d.getTime())) {
+          throw new Error('requirement_checkin_before must be a valid ISO 8601 date');
+        }
+        accountInfo.requirement_checkin_before = d.toISOString();
+      }
+      const input: Record<string, unknown> = {
+        type: 'ethereum_stake',
+        account_info: accountInfo,
+      };
+      if (args.title !== undefined) input.title = args.title;
+      const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
+        `mutation($input: CreateNewPaymentAccountInput!) {
+          createNewPaymentAccount(input: $input) {
+            _id active type title provider created_at
+          }
+        }`,
+        { input },
+      );
+      return result.createNewPaymentAccount;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; type: string; title?: string; active: boolean };
+      return `Stake payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, ${r.active ? 'active' : 'inactive'})`;
+    },
+  });
+
+  register({
+    name: 'payment_account_create_stripe',
+    displayName: 'payment account create stripe',
+    description: 'Create a Stripe payment account for fiat payments. Requires Stripe Connect to be completed first (use space_stripe_connect). No account_info needed — currencies are auto-configured.',
+    params: [
+      { name: 'title', type: 'string', description: 'Display name', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        type: 'digital',
+        provider: 'stripe',
+      };
+      if (args.title !== undefined) input.title = args.title;
+      const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
+        `mutation($input: CreateNewPaymentAccountInput!) {
+          createNewPaymentAccount(input: $input) {
+            _id active type title provider created_at
+          }
+        }`,
+        { input },
+      );
+      return result.createNewPaymentAccount;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; type: string; title?: string; provider?: string; active: boolean };
+      return `Stripe payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, provider: ${r.provider || 'stripe'}, ${r.active ? 'active' : 'inactive'})`;
+    },
+  });
+
+  register({
+    name: 'payment_account_update',
+    displayName: 'payment account update',
+    description: 'Update a payment account title or configuration.',
+    params: [
+      { name: 'account_id', type: 'string', description: 'Payment account ID', required: true },
+      { name: 'account_info', type: 'string', description: 'Updated account configuration as JSON object', required: true },
+      { name: 'title', type: 'string', description: 'New display name', required: false },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      let parsedInfo: unknown;
+      try {
+        parsedInfo = JSON.parse(args.account_info as string);
+      } catch {
+        throw new Error('account_info must be valid JSON');
+      }
+      if (typeof parsedInfo !== 'object' || parsedInfo === null || Array.isArray(parsedInfo)) {
+        throw new Error('account_info must be a JSON object');
+      }
+      const input: Record<string, unknown> = {
+        _id: args.account_id,
+        account_info: parsedInfo,
+      };
+      if (args.title !== undefined) input.title = args.title;
+      const result = await graphqlRequest<{ updateNewPaymentAccount: unknown }>(
+        `mutation($input: UpdateNewPaymentAccountInput!) {
+          updateNewPaymentAccount(input: $input) {
+            _id active type title provider created_at
+          }
+        }`,
+        { input },
+      );
+      return result.updateNewPaymentAccount;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; type: string; title?: string; active: boolean };
+      return `Payment account updated: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, ${r.active ? 'active' : 'inactive'})`;
+    },
+  });
+
+  register({
+    name: 'stripe_disconnect',
+    displayName: 'stripe disconnect',
+    description: 'Disconnect Stripe payment account. This is irreversible.',
+    params: [],
+    destructive: true,
+    execute: async () => {
+      const result = await graphqlRequest<{ disconnectStripeAccount: boolean }>(
+        `mutation { disconnectStripeAccount }`,
+      );
+      return { disconnected: result.disconnectStripeAccount };
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { disconnected: boolean };
+      return r.disconnected ? 'Stripe account disconnected successfully.' : 'Failed to disconnect Stripe account.';
+    },
+  });
+
+  register({
+    name: 'stripe_capabilities',
+    displayName: 'stripe capabilities',
+    description: 'View Stripe payment method capabilities (card, Apple Pay, Google Pay).',
+    params: [],
+    destructive: false,
+    execute: async () => {
+      const result = await graphqlRequest<{ getStripeConnectedAccountCapability: unknown }>(
+        `query {
+          getStripeConnectedAccountCapability {
+            id
+            capabilities {
+              type
+              detail {
+                available
+                display_preference { overridable preference value }
+              }
+            }
+          }
+        }`,
+      );
+      return result.getStripeConnectedAccountCapability;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'No Stripe capabilities found. Is Stripe connected?';
+      const r = result as { id: string; capabilities: Array<{ type: string; detail: { available: boolean; display_preference: { preference: string; value: string } } }> };
+      const lines = r.capabilities.map(c =>
+        `  ${c.type}: ${c.detail.available ? 'available' : 'unavailable'}, preference: ${c.detail.display_preference.preference || c.detail.display_preference.value || 'none'}`,
+      );
+      return `Stripe capabilities (${r.id}):\n${lines.join('\n')}`;
+    },
+  });
+
+  register({
+    name: 'safe_free_limit',
+    displayName: 'safe free limit',
+    description: 'Check Safe wallet deployment eligibility for a network. Each user gets 1 free gasless Safe deployment.',
+    params: [
+      { name: 'network', type: 'string', description: 'Chain ID to check', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getSafeFreeLimit: unknown }>(
+        `query($network: String!) {
+          getSafeFreeLimit(network: $network) {
+            current max
+          }
+        }`,
+        { network: args.network },
+      );
+      return result.getSafeFreeLimit;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { current: number; max: number };
+      return `Used ${r.current} of ${r.max} free Safe deployments.`;
     },
   });
 

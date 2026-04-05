@@ -89,6 +89,11 @@ const MANUAL_RESOLVERS = new Set([
   'aiUpdatePageConfigSection', 'aiSuggestSections',
   // Payment accounts
   'listNewPaymentAccounts',
+  'createNewPaymentAccount',
+  'updateNewPaymentAccount',
+  'disconnectStripeAccount',
+  'getStripeConnectedAccountCapability',
+  'getSafeFreeLimit',
   // Config/system
   'aiGetBackendVersion',
   // Ticket lifecycle
