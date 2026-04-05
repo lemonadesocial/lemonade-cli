@@ -138,6 +138,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
             _id title shortid start end published description
             virtual virtual_url private guest_limit guest_limit_per timezone approval_required
             address { title city country latitude longitude }
+            theme_data dark_theme_image light_theme_image
           }
         }`,
         { input },
@@ -320,6 +321,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
           updateEvent(_id: $id, input: $input) {
             _id title shortid start end published description
             virtual virtual_url private guest_limit guest_limit_per timezone approval_required
+            theme_data dark_theme_image light_theme_image
           }
         }`,
         { id: args.event_id, input },
@@ -6533,13 +6535,18 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         },
         font_title: (args.font_title as string) || 'default',
         font_body: (args.font_body as string) || 'default',
-        variables: {},
       };
 
       const config = themeData.config as Record<string, unknown>;
       if (args.color !== undefined) config.color = args.color;
 
       const preset = themeData.theme as string;
+      if (args.shader !== undefined && preset !== 'shader') {
+        throw new Error('shader param only applies when preset is "shader"');
+      }
+      if (args.pattern !== undefined && preset !== 'pattern') {
+        throw new Error('pattern param only applies when preset is "pattern"');
+      }
       if (preset === 'shader' && args.shader !== undefined) config.name = args.shader;
       if (preset === 'pattern' && args.pattern !== undefined) config.name = args.pattern;
 
