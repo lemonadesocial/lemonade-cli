@@ -5340,7 +5340,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     description: 'Get top event attendees leaderboard for a space.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
-      { name: 'limit', type: 'number', description: 'Max results', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '10' },
     ],
     destructive: false,
     execute: async (args) => {
@@ -5383,7 +5383,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
       { name: 'by_city', type: 'boolean', description: 'Group by city instead of country', required: false },
-      { name: 'limit', type: 'number', description: 'Max results', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '10' },
     ],
     destructive: false,
     execute: async (args) => {
@@ -5485,14 +5485,14 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     description: 'Get the most recent individual page views for an event with geographic and device data.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
-      { name: 'limit', type: 'number', description: 'Max results', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '20' },
     ],
     destructive: false,
     execute: async (args) => {
       let limit = 20;
       if (args.limit !== undefined) {
         const n = Number(args.limit);
-        if (!isNaN(n)) limit = Math.max(1, n);
+        if (!isNaN(n)) limit = Math.floor(Math.max(1, n));
       }
       const result = await graphqlRequest<{ getEventLatestViews: unknown }>(
         `query($event: MongoID!, $limit: Int!) {
