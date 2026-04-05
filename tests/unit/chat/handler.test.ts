@@ -455,6 +455,53 @@ describe('handleTurn', () => {
       expect(errorMsg).toContain('retry');
     });
 
+    it('preserves committed messages when error occurs on iteration > 0', async () => {
+      const tool = mockTool();
+      const registry = { test_tool: tool };
+
+      let callCount = 0;
+      const provider: AIProvider = {
+        name: 'iter-error-test',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          callCount++;
+          if (callCount === 1) {
+            // Iteration 0: succeed with a tool call
+            yield { type: 'text_delta' as const, text: 'Calling tool.' };
+            yield { type: 'tool_call' as const, toolCall: { id: 'tc1', name: 'test_tool', arguments: {} } };
+            yield { type: 'done' as const, stopReason: 'tool_use' as const };
+          } else {
+            // Iteration 1: throw before producing any content
+            throw new Error('connection reset');
+          }
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'do something' }];
+
+      await handleTurn(
+        provider,
+        messages,
+        [],
+        systemPrompt,
+        session,
+        registry,
+        null,
+        false,
+      );
+
+      // Iteration 0 committed: assistant (tool_use) + user (tool_result)
+      // Iteration 1 failed but should NOT roll back the original user message.
+      // Expected: user, assistant (tool_use), user (tool_result) — all preserved
+      expect(messages).toHaveLength(3);
+      expect(messages[0].role).toBe('user');
+      expect(messages[0].content).toBe('do something');
+      expect(messages[1].role).toBe('assistant');
+      expect(messages[2].role).toBe('user'); // tool_result
+    });
+
     it('allows normal turn after streaming error recovery', async () => {
       // First call: throws an error (simulating 429)
       // Second call: succeeds normally

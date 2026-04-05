@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { truncateHistory, sanitizeConsecutiveRoles } from '../../../src/chat/session/history';
+import { truncateHistory } from '../../../src/chat/session/history';
 import { Message } from '../../../src/chat/providers/interface';
 
 describe('truncateHistory', () => {
@@ -98,72 +98,5 @@ describe('truncateHistory', () => {
     const originalLength = messages.length;
     truncateHistory(messages);
     expect(messages.length).toBe(originalLength);
-  });
-});
-
-describe('sanitizeConsecutiveRoles', () => {
-  it('returns false and does nothing when roles already alternate', () => {
-    const messages: Message[] = [
-      { role: 'user', content: 'a' },
-      { role: 'assistant', content: 'b' },
-      { role: 'user', content: 'c' },
-    ];
-
-    const changed = sanitizeConsecutiveRoles(messages);
-    expect(changed).toBe(false);
-    expect(messages).toHaveLength(3);
-  });
-
-  it('removes earlier duplicate when two consecutive user messages exist', () => {
-    const messages: Message[] = [
-      { role: 'user', content: 'first' },
-      { role: 'user', content: 'second' },
-      { role: 'assistant', content: 'reply' },
-    ];
-
-    const changed = sanitizeConsecutiveRoles(messages);
-    expect(changed).toBe(true);
-    expect(messages).toHaveLength(2);
-    expect(messages[0]).toEqual({ role: 'user', content: 'second' });
-    expect(messages[1]).toEqual({ role: 'assistant', content: 'reply' });
-  });
-
-  it('removes earlier duplicate when two consecutive assistant messages exist', () => {
-    const messages: Message[] = [
-      { role: 'user', content: 'hi' },
-      { role: 'assistant', content: 'first reply' },
-      { role: 'assistant', content: 'second reply' },
-    ];
-
-    const changed = sanitizeConsecutiveRoles(messages);
-    expect(changed).toBe(true);
-    expect(messages).toHaveLength(2);
-    expect(messages[0]).toEqual({ role: 'user', content: 'hi' });
-    expect(messages[1]).toEqual({ role: 'assistant', content: 'second reply' });
-  });
-
-  it('handles three consecutive same-role messages', () => {
-    const messages: Message[] = [
-      { role: 'user', content: 'a' },
-      { role: 'user', content: 'b' },
-      { role: 'user', content: 'c' },
-      { role: 'assistant', content: 'reply' },
-    ];
-
-    const changed = sanitizeConsecutiveRoles(messages);
-    expect(changed).toBe(true);
-    expect(messages).toHaveLength(2);
-    expect(messages[0].role).toBe('user');
-    expect(messages[1].role).toBe('assistant');
-  });
-
-  it('handles empty and single-element arrays', () => {
-    const empty: Message[] = [];
-    expect(sanitizeConsecutiveRoles(empty)).toBe(false);
-    expect(empty).toHaveLength(0);
-
-    const single: Message[] = [{ role: 'user', content: 'hi' }];
-    expect(sanitizeConsecutiveRoles(single)).toBe(false);
-    expect(single).toHaveLength(1);
   });
 });

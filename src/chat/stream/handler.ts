@@ -30,7 +30,21 @@ function safeErrorMessage(err: unknown): string {
   return 'Unknown error';
 }
 
-function formatStreamingErrorMessage(rawMsg: string): string {
+function formatStreamingErrorMessage(err: unknown): string {
+  // Prefer structured status code from API errors (e.g. Anthropic SDK's APIError)
+  const status = typeof (err as Record<string, unknown>)?.status === 'number'
+    ? (err as Record<string, unknown>).status as number
+    : undefined;
+
+  if (status === 429) {
+    return 'Rate limited by the API. Your message was not lost — just send it again in a few seconds.';
+  }
+  if (status === 529) {
+    return 'The API is temporarily overloaded. Your message was not lost — please retry shortly.';
+  }
+
+  // Fall back to string matching for errors without a status property
+  const rawMsg = safeErrorMessage(err);
   const lower = rawMsg.toLowerCase();
   if (lower.includes('429') || lower.includes('rate limit')) {
     return 'Rate limited by the API. Your message was not lost — just send it again in a few seconds.';
@@ -133,13 +147,11 @@ export async function handleTurn(
         return;
       }
 
-      // Roll back the user message if no assistant content was committed
-      // to history during this turn.  Without rollback, the next user
-      // message creates consecutive user-role entries which the API
-      // rejects with "roles must alternate".
-      if (!accumulatedText && toolCalls.length === 0) {
-        // Find and remove the last user message (the one that triggered
-        // this turn).  Walk backwards to handle the common case quickly.
+      // Roll back the user message only on the first iteration (iteration 0),
+      // when no prior iteration has committed any messages to history.
+      // On iteration > 0, prior iterations already committed assistant + tool_result
+      // messages, so rolling back the original user message would orphan them.
+      if (iteration === 0 && !accumulatedText && toolCalls.length === 0) {
         for (let i = messages.length - 1; i >= 0; i--) {
           if (messages[i].role === 'user') {
             messages.splice(i, 1);
@@ -148,8 +160,7 @@ export async function handleTurn(
         }
       }
 
-      const rawMsg = safeErrorMessage(err);
-      const userMessage = formatStreamingErrorMessage(rawMsg);
+      const userMessage = formatStreamingErrorMessage(err);
 
       if (engine) {
         engine.emit('error', { message: userMessage, fatal: false, turnId });
