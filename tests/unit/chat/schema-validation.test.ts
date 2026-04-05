@@ -72,8 +72,13 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiAddLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
   aiUpdateLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
   aiSuggestSections: ['type', 'name', 'reason', 'default_props', 'id', 'description', 'preview_url'],
-  aiCreatePageConfig: [], // opaque JSON
-  aiUpdatePageConfigSection: [], // opaque JSON
+  aiCreatePageConfig: ['_id', 'name', 'status', 'version'],
+  aiUpdatePageConfigSection: ['_id', 'name', 'status', 'version', 'sections', 'id', 'type', 'order', 'hidden'],
+  getPageConfig: ['_id', 'owner_type', 'owner_id', 'name', 'description', 'status', 'version', 'published_version', 'template_id', 'thumbnail_url', 'sections', 'id', 'type', 'order', 'hidden', 'props'],
+  updatePageConfig: ['_id', 'name', 'status', 'version'],
+  getPublishedConfig: ['_id', 'owner_type', 'owner_id', 'name', 'status', 'version', 'sections', 'id', 'type', 'order', 'hidden'],
+  generatePreviewLink: ['id', 'token', 'url', 'expires_at'],
+  createPageConfig: ['_id', 'owner_type', 'owner_id', 'name', 'status', 'version'],
   aiGeneratePageFromDescription: [], // opaque JSON
 
   // === Standard backend endpoints ===

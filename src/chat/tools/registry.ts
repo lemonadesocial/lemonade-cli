@@ -2160,22 +2160,50 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'site_create_page',
     displayName: 'site create-page',
-    description: 'Create a page configuration.',
+    description: 'Create an AI-assisted page configuration.',
     params: [
-      { name: 'owner_id', type: 'string', description: 'Owner ID', required: true },
-      { name: 'owner_type', type: 'string', description: 'Owner type: event|space', required: true,
+      { name: 'owner_id', type: 'string', description: 'Event or space ID', required: true },
+      { name: 'owner_type', type: 'string', description: 'Owner type', required: true,
         enum: ['event', 'space'] },
-      { name: 'name', type: 'string', description: 'Page name', required: true },
+      { name: 'name', type: 'string', description: 'Page name', required: false },
+      { name: 'theme', type: 'string', description: 'Theme config as JSON', required: false },
+      { name: 'sections', type: 'string', description: 'Sections as JSON array', required: false },
+      { name: 'template_id', type: 'string', description: 'Template ID to base config on', required: false },
     ],
     destructive: false,
     execute: async (args) => {
+      const input: Record<string, unknown> = {
+        owner_id: args.owner_id,
+        owner_type: args.owner_type,
+      };
+      if (args.name !== undefined) input.name = args.name;
+      if (args.template_id !== undefined) input.template_id = args.template_id;
+      if (args.theme !== undefined) {
+        try {
+          const parsed = JSON.parse(args.theme as string);
+          if (typeof parsed !== 'object' || parsed === null) throw new Error('theme must be a JSON object');
+          input.theme = parsed;
+        } catch (e) {
+          throw new Error(`Invalid theme JSON: ${(e as Error).message}`);
+        }
+      }
+      if (args.sections !== undefined) {
+        try {
+          const parsed = JSON.parse(args.sections as string);
+          if (!Array.isArray(parsed)) throw new Error('sections must be a JSON array');
+          input.sections = parsed;
+        } catch (e) {
+          throw new Error(`Invalid sections JSON: ${(e as Error).message}`);
+        }
+      }
+
       const result = await graphqlRequest<{ aiCreatePageConfig: unknown }>(
-        `mutation($input: CreatePageConfigInput!) {
+        `mutation($input: AICreatePageConfigInput!) {
           aiCreatePageConfig(input: $input) {
             _id name status version
           }
         }`,
-        { input: { owner_id: args.owner_id, owner_type: args.owner_type, name: args.name } },
+        { input },
       );
       return result.aiCreatePageConfig;
     },
@@ -2188,25 +2216,31 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     params: [
       { name: 'page_id', type: 'string', description: 'Page config ID', required: true },
       { name: 'section_id', type: 'string', description: 'Section ID', required: true },
-      { name: 'hidden', type: 'boolean', description: 'Hide/show section', required: false },
-      { name: 'order', type: 'number', description: 'Display order', required: false },
+      { name: 'updates', type: 'string', description: 'Section updates as JSON object', required: true },
     ],
     destructive: false,
     execute: async (args) => {
-      const input: Record<string, unknown> = {
-        page_id: args.page_id,
-        section_id: args.section_id,
-      };
-      if (args.hidden !== undefined) input.hidden = args.hidden;
-      if (args.order !== undefined) input.order = args.order;
+      let parsedUpdates: unknown;
+      try {
+        parsedUpdates = JSON.parse(args.updates as string);
+        if (typeof parsedUpdates !== 'object' || parsedUpdates === null) {
+          throw new Error('updates must be a JSON object');
+        }
+      } catch (e) {
+        throw new Error(`Invalid updates JSON: ${(e as Error).message}`);
+      }
 
       const result = await graphqlRequest<{ aiUpdatePageConfigSection: unknown }>(
-        `mutation($input: UpdatePageConfigSectionInput!) {
-          aiUpdatePageConfigSection(input: $input) {
-            _id name status
+        `mutation($input: AIUpdatePageConfigSectionInput!, $section_id: String!, $config_id: MongoID!) {
+          aiUpdatePageConfigSection(input: $input, section_id: $section_id, config_id: $config_id) {
+            _id name status version sections { id type order hidden }
           }
         }`,
-        { input },
+        {
+          input: { updates: parsedUpdates },
+          section_id: args.section_id,
+          config_id: args.page_id,
+        },
       );
       return result.aiUpdatePageConfigSection;
     },
@@ -2234,20 +2268,28 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'site_templates',
     displayName: 'site templates',
-    description: 'List available page section templates.',
+    description: 'List available page section templates with AI suggestions.',
     params: [
-      { name: 'owner_type', type: 'string', description: 'Owner type: event|space', required: false, default: 'event',
+      { name: 'owner_type', type: 'string', description: 'Owner type', required: true,
         enum: ['event', 'space'] },
+      { name: 'owner_id', type: 'string', description: 'Event or space ID', required: true },
+      { name: 'context', type: 'string', description: 'Context for AI suggestions', required: false },
     ],
     destructive: false,
     execute: async (args) => {
+      const variables: Record<string, unknown> = {
+        owner_type: args.owner_type,
+        owner_id: args.owner_id,
+      };
+      if (args.context !== undefined) variables.context = args.context;
+
       const result = await graphqlRequest<{ aiSuggestSections: unknown }>(
-        `query($ownerType: String!) {
-          aiSuggestSections(ownerType: $ownerType) {
-            id name description preview_url
+        `query($owner_type: String!, $owner_id: MongoID!, $context: String) {
+          aiSuggestSections(owner_type: $owner_type, owner_id: $owner_id, context: $context) {
+            type name reason default_props
           }
         }`,
-        { ownerType: (args.owner_type as string) || 'event' },
+        variables,
       );
       return result.aiSuggestSections;
     },
@@ -5896,6 +5938,211 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         return `- ${v.date} | ${location} | ${v.user_agent || 'unknown agent'}`;
       });
       return `${r.views.length} view(s):\n${lines.join('\n')}`;
+    },
+  });
+
+  // --- Page Config Management ---
+
+  register({
+    name: 'page_config_get',
+    displayName: 'page config get',
+    description: 'Get a page configuration by ID.',
+    params: [
+      { name: 'config_id', type: 'string', description: 'Page config ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getPageConfig: unknown }>(
+        `query($id: MongoID!) {
+          getPageConfig(id: $id) {
+            _id owner_type owner_id name description status version published_version template_id thumbnail_url
+            sections { id type order hidden props }
+          }
+        }`,
+        { id: args.config_id },
+      );
+      return result.getPageConfig;
+    },
+    formatResult: (result) => {
+      if (!result) return 'Page config not found.';
+      return JSON.stringify(result);
+    },
+  });
+
+  register({
+    name: 'page_config_update',
+    displayName: 'page config update',
+    description: 'Update a page configuration (name, description, theme, sections, SEO).',
+    params: [
+      { name: 'config_id', type: 'string', description: 'Page config ID', required: true },
+      { name: 'name', type: 'string', description: 'Page name', required: false },
+      { name: 'description', type: 'string', description: 'Page description', required: false },
+      { name: 'theme', type: 'string', description: 'Theme config as JSON', required: false },
+      { name: 'sections', type: 'string', description: 'Sections as JSON array', required: false },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {};
+      if (args.name !== undefined) input.name = args.name;
+      if (args.description !== undefined) input.description = args.description;
+      if (args.theme !== undefined) {
+        try {
+          const parsed = JSON.parse(args.theme as string);
+          if (typeof parsed !== 'object' || parsed === null) throw new Error('theme must be a JSON object');
+          input.theme = parsed;
+        } catch (e) {
+          throw new Error(`Invalid theme JSON: ${(e as Error).message}`);
+        }
+      }
+      if (args.sections !== undefined) {
+        try {
+          const parsed = JSON.parse(args.sections as string);
+          if (!Array.isArray(parsed)) throw new Error('sections must be a JSON array');
+          input.sections = parsed;
+        } catch (e) {
+          throw new Error(`Invalid sections JSON: ${(e as Error).message}`);
+        }
+      }
+
+      const result = await graphqlRequest<{ updatePageConfig: unknown }>(
+        `mutation($input: UpdatePageConfigInput!, $id: MongoID!) {
+          updatePageConfig(input: $input, id: $id) {
+            _id name status version
+          }
+        }`,
+        { input, id: args.config_id },
+      );
+      return result.updatePageConfig;
+    },
+    formatResult: (result) => {
+      if (!result) return 'Failed to update page config.';
+      return JSON.stringify(result);
+    },
+  });
+
+  register({
+    name: 'page_config_published',
+    displayName: 'page config published',
+    description: 'Get the currently published page configuration for an event or space.',
+    params: [
+      { name: 'owner_type', type: 'string', description: 'Owner type', required: true,
+        enum: ['event', 'space'] },
+      { name: 'owner_id', type: 'string', description: 'Event or space ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getPublishedConfig: unknown }>(
+        `query($owner_type: String!, $owner_id: MongoID!) {
+          getPublishedConfig(owner_type: $owner_type, owner_id: $owner_id) {
+            _id owner_type owner_id name status version
+            sections { id type order hidden }
+          }
+        }`,
+        { owner_type: args.owner_type, owner_id: args.owner_id },
+      );
+      return result.getPublishedConfig;
+    },
+    formatResult: (result) => {
+      if (!result) return 'No published page config found.';
+      return JSON.stringify(result);
+    },
+  });
+
+  register({
+    name: 'page_preview_link',
+    displayName: 'page preview link',
+    description: 'Generate a preview link for a draft page configuration.',
+    params: [
+      { name: 'config_id', type: 'string', description: 'Page config ID', required: true },
+      { name: 'password', type: 'string', description: 'Optional password protection', required: false },
+      { name: 'expires_in_hours', type: 'number', description: 'Link expiry in hours', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const variables: Record<string, unknown> = {
+        config_id: args.config_id,
+      };
+      if (args.password !== undefined || args.expires_in_hours !== undefined) {
+        const options: Record<string, unknown> = {};
+        if (args.password !== undefined) options.password = args.password;
+        if (args.expires_in_hours !== undefined) {
+          const hours = Number(args.expires_in_hours);
+          if (isNaN(hours)) throw new Error('expires_in_hours must be a valid number');
+          options.expires_in_hours = hours;
+        }
+        variables.options = options;
+      }
+
+      const result = await graphqlRequest<{ generatePreviewLink: unknown }>(
+        `mutation($config_id: MongoID!, $options: PreviewLinkOptionsInput) {
+          generatePreviewLink(config_id: $config_id, options: $options) {
+            id token url expires_at
+          }
+        }`,
+        variables,
+      );
+      return result.generatePreviewLink;
+    },
+    formatResult: (result) => {
+      if (!result) return 'Failed to generate preview link.';
+      const r = result as { url: string; expires_at?: string };
+      return r.expires_at ? `Preview: ${r.url} (expires ${r.expires_at})` : `Preview: ${r.url}`;
+    },
+  });
+
+  register({
+    name: 'page_config_create',
+    displayName: 'page config create',
+    description: 'Create a page configuration with full control over sections and theme. For AI-generated pages, use site_generate instead.',
+    params: [
+      { name: 'owner_type', type: 'string', description: 'Owner type', required: true,
+        enum: ['event', 'space'] },
+      { name: 'owner_id', type: 'string', description: 'Event or space ID', required: true },
+      { name: 'name', type: 'string', description: 'Page name', required: false },
+      { name: 'template_id', type: 'string', description: 'Template ID to base config on', required: false },
+      { name: 'theme', type: 'string', description: 'Theme config as JSON', required: false },
+      { name: 'sections', type: 'string', description: 'Sections as JSON array', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = {
+        owner_type: args.owner_type,
+        owner_id: args.owner_id,
+      };
+      if (args.name !== undefined) input.name = args.name;
+      if (args.template_id !== undefined) input.template_id = args.template_id;
+      if (args.theme !== undefined) {
+        try {
+          const parsed = JSON.parse(args.theme as string);
+          if (typeof parsed !== 'object' || parsed === null) throw new Error('theme must be a JSON object');
+          input.theme = parsed;
+        } catch (e) {
+          throw new Error(`Invalid theme JSON: ${(e as Error).message}`);
+        }
+      }
+      if (args.sections !== undefined) {
+        try {
+          const parsed = JSON.parse(args.sections as string);
+          if (!Array.isArray(parsed)) throw new Error('sections must be a JSON array');
+          input.sections = parsed;
+        } catch (e) {
+          throw new Error(`Invalid sections JSON: ${(e as Error).message}`);
+        }
+      }
+
+      const result = await graphqlRequest<{ createPageConfig: unknown }>(
+        `mutation($input: CreatePageConfigInput!) {
+          createPageConfig(input: $input) {
+            _id owner_type owner_id name status version
+          }
+        }`,
+        { input },
+      );
+      return result.createPageConfig;
+    },
+    formatResult: (result) => {
+      if (!result) return 'Failed to create page config.';
+      return JSON.stringify(result);
     },
   });
 
