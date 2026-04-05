@@ -21,9 +21,11 @@ import { createByokProvider, isValidProvider, VALID_PROVIDERS } from './provider
 import { resolveCreditsStartupMode } from './startupRecovery.js';
 import { registerCrashHandlers } from './crashHandlers.js';
 import { safeErrorMessage } from './utils/errorMessages.js';
+import { validateMode } from './validation.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
+export { VALID_MODES, validateMode } from './validation.js';
 
 function printHelp(): void {
   console.log(`
@@ -37,6 +39,7 @@ function printHelp(): void {
   ${chalk.bold('Options:')}
     --provider <name>   AI provider: anthropic (default), openai
     --model <model>     Model override (e.g. claude-sonnet-4-6, gpt-4o)
+    --mode <mode>       AI mode: credits, own_key (default: auto-detect)
     --json              Output as JSON (batch mode)
     -h, --help          Show this help
 
@@ -67,6 +70,8 @@ async function main(): Promise<void> {
     printHelp();
     process.exit(0);
   }
+
+  validateMode(args.mode);
 
   // Check Lemonade auth (attempt token refresh if expired)
   const auth = await ensureAuthHeader();
