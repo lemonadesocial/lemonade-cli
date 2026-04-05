@@ -1330,12 +1330,12 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       let skip = 0;
       if (args.skip !== undefined) {
         const n = Number(args.skip);
-        if (!isNaN(n)) skip = Math.max(0, n);
+        if (!isNaN(n)) skip = Math.floor(Math.max(0, n));
       }
       let limit = 25;
       if (args.limit !== undefined) {
         const n = Number(args.limit);
-        if (!isNaN(n)) limit = Math.max(1, n);
+        if (!isNaN(n)) limit = Math.floor(Math.max(1, n));
       }
       let idFilter: string[] | undefined;
       if (args.account_ids !== undefined) {
@@ -1385,6 +1385,12 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   // --- Payment Account CRUD ---
 
+  const CREATE_PAYMENT_ACCOUNT_MUTATION = `mutation($input: CreateNewPaymentAccountInput!) {
+    createNewPaymentAccount(input: $input) {
+      _id active type title provider created_at
+    }
+  }`;
+
   register({
     name: 'payment_account_create_wallet',
     displayName: 'payment account create wallet',
@@ -1409,11 +1415,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       };
       if (args.title !== undefined) input.title = args.title;
       const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
-        `mutation($input: CreateNewPaymentAccountInput!) {
-          createNewPaymentAccount(input: $input) {
-            _id active type title provider created_at
-          }
-        }`,
+        CREATE_PAYMENT_ACCOUNT_MUTATION,
         { input },
       );
       return result.createNewPaymentAccount;
@@ -1439,9 +1441,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: false,
     execute: async (args) => {
-      const threshold = Number(args.threshold);
-      if (isNaN(threshold) || threshold <= 0) {
-        throw new Error('threshold must be a positive number');
+      const threshold = Math.floor(Number(args.threshold));
+      if (isNaN(threshold) || threshold < 1) {
+        throw new Error('threshold must be a positive integer');
       }
       const owners = (args.owners as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (owners.length === 0) throw new Error('At least one owner address is required');
@@ -1462,11 +1464,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       };
       if (args.title !== undefined) input.title = args.title;
       const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
-        `mutation($input: CreateNewPaymentAccountInput!) {
-          createNewPaymentAccount(input: $input) {
-            _id active type title provider created_at
-          }
-        }`,
+        CREATE_PAYMENT_ACCOUNT_MUTATION,
         { input },
       );
       return result.createNewPaymentAccount;
@@ -1508,11 +1506,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       };
       if (args.title !== undefined) input.title = args.title;
       const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
-        `mutation($input: CreateNewPaymentAccountInput!) {
-          createNewPaymentAccount(input: $input) {
-            _id active type title provider created_at
-          }
-        }`,
+        CREATE_PAYMENT_ACCOUNT_MUTATION,
         { input },
       );
       return result.createNewPaymentAccount;
@@ -1548,11 +1542,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       };
       if (args.title !== undefined) input.title = args.title;
       const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
-        `mutation($input: CreateNewPaymentAccountInput!) {
-          createNewPaymentAccount(input: $input) {
-            _id active type title provider created_at
-          }
-        }`,
+        CREATE_PAYMENT_ACCOUNT_MUTATION,
         { input },
       );
       return result.createNewPaymentAccount;
@@ -1597,11 +1587,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       };
       if (args.title !== undefined) input.title = args.title;
       const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
-        `mutation($input: CreateNewPaymentAccountInput!) {
-          createNewPaymentAccount(input: $input) {
-            _id active type title provider created_at
-          }
-        }`,
+        CREATE_PAYMENT_ACCOUNT_MUTATION,
         { input },
       );
       return result.createNewPaymentAccount;
@@ -1628,11 +1614,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       };
       if (args.title !== undefined) input.title = args.title;
       const result = await graphqlRequest<{ createNewPaymentAccount: unknown }>(
-        `mutation($input: CreateNewPaymentAccountInput!) {
-          createNewPaymentAccount(input: $input) {
-            _id active type title provider created_at
-          }
-        }`,
+        CREATE_PAYMENT_ACCOUNT_MUTATION,
         { input },
       );
       return result.createNewPaymentAccount;
