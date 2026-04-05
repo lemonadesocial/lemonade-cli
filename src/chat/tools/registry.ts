@@ -5067,6 +5067,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: true,
     execute: async (args) => {
+      const requests = (args.request_ids as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      if (requests.length === 0) throw new Error('At least one request ID is required');
       const result = await graphqlRequest<{ decideSpaceEventRequests: unknown }>(
         `mutation($input: DecideSpaceEventRequestsInput!) {
           decideSpaceEventRequests(input: $input)
@@ -5074,7 +5076,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         {
           input: {
             space: args.space_id,
-            requests: (args.request_ids as string).split(',').map(s => s.trim()).filter(s => s.length > 0),
+            requests,
             decision: args.decision,
           },
         },
@@ -5082,14 +5084,14 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.decideSpaceEventRequests;
     },
     formatResult: (result) => {
-      return result ? 'Event request decision applied successfully.' : 'Decision failed.';
+      return result ? 'Event request decision applied.' : 'No changes applied — requests may have already been decided.';
     },
   });
 
   register({
     name: 'space_event_summary',
     displayName: 'space event summary',
-    description: 'Get event count summary for a space (total, virtual, IRL, live, upcoming, past).',
+    description: 'Get aggregate event counts for a space (total, virtual, IRL, live, upcoming, past). For per-event performance, use space_events_insight.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
