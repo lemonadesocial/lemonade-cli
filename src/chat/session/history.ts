@@ -44,8 +44,8 @@ export function truncateHistory(messages: Message[]): void {
 
   messages.splice(0, cutIndex);
 
-  // Ensure messages don't start with a tool_result (orphaned)
-  while (messages.length > 0 && isToolResultMessage(messages[0])) {
+  // Ensure messages start with a non-tool-result user message
+  while (messages.length > 0 && (messages[0].role !== 'user' || isToolResultMessage(messages[0]))) {
     messages.shift();
   }
 
