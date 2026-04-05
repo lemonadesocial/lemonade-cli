@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 
@@ -36,6 +36,13 @@ function ensureConfigDir(): void {
   }
 }
 
+function cleanupStaleTmpFile(): void {
+  const tmpFile = CONFIG_FILE + '.tmp';
+  if (existsSync(tmpFile)) {
+    try { unlinkSync(tmpFile); } catch { /* ignore */ }
+  }
+}
+
 function readConfig(): LemonadeConfig {
   ensureConfigDir();
   if (!existsSync(CONFIG_FILE)) {
@@ -43,15 +50,28 @@ function readConfig(): LemonadeConfig {
   }
   try {
     const raw = readFileSync(CONFIG_FILE, 'utf-8');
-    return { ...DEFAULTS, ...JSON.parse(raw) };
+    const config = { ...DEFAULTS, ...JSON.parse(raw) };
+    cleanupStaleTmpFile();
+    return config;
   } catch {
+    cleanupStaleTmpFile();
     return { ...DEFAULTS };
   }
 }
 
 function writeConfig(config: LemonadeConfig): void {
   ensureConfigDir();
-  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  const data = JSON.stringify(config, null, 2);
+  const tmpFile = CONFIG_FILE + '.tmp';
+
+  try {
+    writeFileSync(tmpFile, data, { encoding: 'utf-8', mode: 0o600 });
+    renameSync(tmpFile, CONFIG_FILE);
+  } catch (err) {
+    // Clean up temp file if rename failed
+    try { unlinkSync(tmpFile); } catch { /* ignore */ }
+    throw err;
+  }
 }
 
 let flagApiKey: string | undefined;

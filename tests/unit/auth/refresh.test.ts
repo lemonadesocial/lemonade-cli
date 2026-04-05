@@ -173,6 +173,7 @@ describe('ensureAuthHeader', () => {
         existsSync: () => true,
         readFileSync: () => expiredConfig,
         writeFileSync: () => {},
+        renameSync: () => {},
         mkdirSync: () => {},
       };
     });
@@ -208,6 +209,7 @@ describe('ensureAuthHeader', () => {
         existsSync: () => true,
         readFileSync: () => expiredConfig,
         writeFileSync: () => {},
+        renameSync: () => {},
         mkdirSync: () => {},
       };
     });
