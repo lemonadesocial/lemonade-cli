@@ -4784,7 +4784,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (!Array.isArray(items)) return JSON.stringify(result);
       const lines = items.map((n) => {
         const status = n.disabled ? 'disabled' : n.failed_at ? 'failed' : n.sent_at ? 'sent' : n.scheduled_at ? 'scheduled' : 'draft';
-        const date = n.sent_at || n.scheduled_at || n.created_at || '';
+        const date = n.sent_at || n.failed_at || n.scheduled_at || n.created_at || '';
         return `- [${n._id}] ${n.subject_preview || '(no subject)'} [${status}] ${date}`;
       });
       return `${items.length} newsletter(s):\n${lines.join('\n')}`;
