@@ -611,6 +611,38 @@ describe('Tool Registry', () => {
     expect(tool.params.find((p) => p.name === 'light_theme_image')).toBeDefined();
   });
 
+  it('theme_build execute returns correct shape and validates params', async () => {
+    const tool = registry.theme_build;
+
+    // Default params
+    const defaultResult = await tool.execute({});
+    expect(defaultResult).toEqual({
+      theme: 'default',
+      config: { mode: 'dark' },
+      font_title: 'default',
+      font_body: 'default',
+    });
+
+    // preset=shader + shader=dreamy
+    const shaderResult = (await tool.execute({ preset: 'shader', shader: 'dreamy' })) as { config: { name: string } };
+    expect(shaderResult.config.name).toBe('dreamy');
+
+    // preset=shader without shader → throws
+    await expect(tool.execute({ preset: 'shader' })).rejects.toThrow(
+      'shader name is required when preset is "shader"',
+    );
+
+    // preset=pattern without pattern → throws
+    await expect(tool.execute({ preset: 'pattern' })).rejects.toThrow(
+      'pattern name is required when preset is "pattern"',
+    );
+
+    // shader param without preset=shader → throws
+    await expect(tool.execute({ shader: 'dreamy' })).rejects.toThrow(
+      'shader param only applies when preset is "shader"',
+    );
+  });
+
   it('includes event photo tool', () => {
     expect(registry.event_set_photos).toBeDefined();
     expect(registry.event_set_photos.destructive).toBe(true);

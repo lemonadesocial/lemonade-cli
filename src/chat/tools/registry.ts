@@ -6547,6 +6547,12 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.pattern !== undefined && preset !== 'pattern') {
         throw new Error('pattern param only applies when preset is "pattern"');
       }
+      if (preset === 'shader' && args.shader === undefined) {
+        throw new Error('shader name is required when preset is "shader" (options: dreamy, summer, melon, barbie, sunset, ocean, forest, lavender)');
+      }
+      if (preset === 'pattern' && args.pattern === undefined) {
+        throw new Error('pattern name is required when preset is "pattern" (options: cross, hypnotic, plus, polkadot, wave, zigzag)');
+      }
       if (preset === 'shader' && args.shader !== undefined) config.name = args.shader;
       if (preset === 'pattern' && args.pattern !== undefined) config.name = args.pattern;
 
