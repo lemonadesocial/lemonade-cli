@@ -4771,7 +4771,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         `query($space: MongoID!, $draft: Boolean, $sent: Boolean, $scheduled: Boolean) {
           listSpaceNewsletters(space: $space, draft: $draft, sent: $sent, scheduled: $scheduled) {
             _id subject_preview draft disabled
-            scheduled_at sent_at created_at
+            scheduled_at sent_at failed_at created_at
             recipient_types
           }
         }`,
@@ -4780,11 +4780,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.listSpaceNewsletters;
     },
     formatResult: (result) => {
-      const items = result as Array<{ _id: string; subject_preview: string; draft: boolean; disabled: boolean; sent_at: string | null; scheduled_at: string | null; created_at: string }>;
+      const items = result as Array<{ _id: string; subject_preview: string; draft: boolean; disabled: boolean; sent_at: string | null; scheduled_at: string | null; failed_at: string | null; created_at: string }>;
       if (!Array.isArray(items)) return JSON.stringify(result);
       const lines = items.map((n) => {
-        const status = n.disabled ? 'disabled' : n.sent_at ? 'sent' : n.scheduled_at ? 'scheduled' : 'draft';
-        const date = n.sent_at || n.scheduled_at || n.created_at || '';
+        const status = n.disabled ? 'disabled' : n.failed_at ? 'failed' : n.sent_at ? 'sent' : n.scheduled_at ? 'scheduled' : 'draft';
+        const date = n.sent_at || n.failed_at || n.scheduled_at || n.created_at || '';
         return `- [${n._id}] ${n.subject_preview || '(no subject)'} [${status}] ${date}`;
       });
       return `${items.length} newsletter(s):\n${lines.join('\n')}`;
@@ -4815,13 +4815,19 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.getSpaceNewsletter;
     },
     formatResult: (result) => {
-      const r = result as { _id: string; subject_preview: string; draft: boolean; disabled: boolean; sent_at: string | null; scheduled_at: string | null; failed_at: string | null; failed_reason: string | null };
-      if (r && r._id) {
-        let status = r.disabled ? 'disabled' : r.sent_at ? 'sent' : r.scheduled_at ? 'scheduled' : 'draft';
-        if (r.failed_at) status = `failed: ${r.failed_reason || 'unknown'}`;
-        return `Newsletter ${r._id}: "${r.subject_preview || '(no subject)'}" [${status}]`;
-      }
-      return JSON.stringify(result);
+      const r = result as Record<string, unknown>;
+      if (!r || !r._id) return 'Newsletter not found.';
+      const status = r.disabled ? 'disabled' : r.failed_at ? 'failed' : r.sent_at ? 'sent' : r.scheduled_at ? 'scheduled' : 'draft';
+      const lines = [`Newsletter ${r._id}: "${r.subject_preview || r.custom_subject_html || '(no subject)'}" [${status}]`];
+      const bodyPreview = (r.body_preview || r.custom_body_html || '') as string;
+      if (bodyPreview) lines.push(`Body: ${bodyPreview.substring(0, 120)}${bodyPreview.length > 120 ? '...' : ''}`);
+      if (r.recipient_types && (r.recipient_types as string[]).length) lines.push(`Recipients: ${(r.recipient_types as string[]).join(', ')}`);
+      if (r.cc && (r.cc as string[]).length) lines.push(`CC: ${(r.cc as string[]).join(', ')}`);
+      if (r.created_at) lines.push(`Created: ${r.created_at}`);
+      if (r.scheduled_at) lines.push(`Scheduled: ${r.scheduled_at}`);
+      if (r.sent_at) lines.push(`Sent: ${r.sent_at}`);
+      if (r.failed_at) lines.push(`Failed: ${r.failed_at} — ${r.failed_reason || 'unknown reason'}`);
+      return lines.join('\n');
     },
   });
 
@@ -5015,15 +5021,25 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
       { name: 'state', type: 'string', description: 'Filter by state', required: false,
         enum: ['pending', 'approved', 'declined'] },
-      { name: 'limit', type: 'number', description: 'Max results', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
     execute: async (args) => {
+      let limit = 25;
+      if (args.limit !== undefined) {
+        const n = Number(args.limit);
+        if (!isNaN(n)) limit = Math.max(1, n);
+      }
+      let skip = 0;
+      if (args.skip !== undefined) {
+        const n = Number(args.skip);
+        if (!isNaN(n)) skip = Math.max(0, n);
+      }
       const variables: Record<string, unknown> = {
         space: args.space_id,
-        limit: args.limit !== undefined ? Math.max(1, Number(args.limit)) : 25,
-        skip: args.skip !== undefined ? Math.max(0, Number(args.skip)) : 0,
+        limit,
+        skip,
       };
       if (args.state !== undefined) variables.state = args.state;
       const result = await graphqlRequest<{ getSpaceEventRequests: unknown }>(
@@ -5043,13 +5059,17 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.getSpaceEventRequests;
     },
     formatResult: (result) => {
-      const r = result as { total: number; records: Array<{ _id: string; state: string; created_at: string; event_expanded?: { title: string }; created_by_expanded?: { name: string } }> };
+      const r = result as { total: number; records: Array<{ _id: string; state: string; created_at: string; event_expanded?: { title: string }; created_by_expanded?: { name: string }; decided_at?: string; decided_by_expanded?: { name: string } }> };
       if (!r || !r.records) return JSON.stringify(result);
       const lines = [`Total: ${r.total}`];
       for (const rec of r.records) {
         const event = rec.event_expanded?.title ?? 'Unknown';
         const by = rec.created_by_expanded?.name ?? 'Unknown';
-        lines.push(`- [${rec.state}] "${event}" by ${by} (${rec.created_at})`);
+        let line = `- [${rec.state}] "${event}" by ${by} (${rec.created_at})`;
+        if (rec.decided_at && rec.decided_by_expanded) {
+          line += ` (decided by ${rec.decided_by_expanded.name || 'unknown'})`;
+        }
+        lines.push(line);
       }
       return lines.join('\n');
     },
@@ -5084,6 +5104,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.decideSpaceEventRequests;
     },
     formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
       return result ? 'Event request decision applied.' : 'No changes applied — requests may have already been decided.';
     },
   });
@@ -5148,15 +5169,25 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
       { name: 'state', type: 'string', description: 'Filter by state', required: false,
         enum: ['pending', 'approved', 'declined'] },
-      { name: 'limit', type: 'number', description: 'Max results', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
     execute: async (args) => {
+      let limit = 25;
+      if (args.limit !== undefined) {
+        const n = Number(args.limit);
+        if (!isNaN(n)) limit = Math.max(1, n);
+      }
+      let skip = 0;
+      if (args.skip !== undefined) {
+        const n = Number(args.skip);
+        if (!isNaN(n)) skip = Math.max(0, n);
+      }
       const variables: Record<string, unknown> = {
         space: args.space_id,
-        limit: args.limit !== undefined ? Math.max(1, Number(args.limit)) : 25,
-        skip: args.skip !== undefined ? Math.max(0, Number(args.skip)) : 0,
+        limit,
+        skip,
       };
       if (args.state !== undefined) variables.state = args.state;
       const result = await graphqlRequest<{ getMySpaceEventRequests: unknown }>(
@@ -5220,10 +5251,21 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
+  const VALID_FEATURE_CODES = [
+    'AI', 'EventInvitation', 'DataDashboard', 'CSVGuestList', 'GuestListDashboard',
+    'EventSettings', 'TicketingSettings', 'EmailManager', 'PromotionCodes',
+    'CollectibleData', 'Checkin', 'Poap', 'Ticket', 'ViewSpace', 'ManageSpace',
+    'SpaceStatistic', 'ViewSpaceMembership', 'ManageSpaceMembership',
+    'ViewSpaceEvent', 'ManageSpaceEvent', 'ManageSpaceEventRequest',
+    'ViewSpaceTag', 'ManageSpaceTag', 'ManageSpaceTokenGate',
+    'ViewSpaceNewsletter', 'ManageSpaceNewsletter', 'ManageSubscription',
+  ];
+  const VALID_FEATURE_CODES_SET = new Set(VALID_FEATURE_CODES);
+
   register({
     name: 'space_role_features_update',
     displayName: 'space role features update',
-    description: 'Set the complete list of features/permissions for a role in a space. This REPLACES all current features — include every feature code the role should have. Available codes: AI, EventInvitation, DataDashboard, CSVGuestList, GuestListDashboard, EventSettings, TicketingSettings, EmailManager, PromotionCodes, CollectibleData, Checkin, Poap, Ticket, ViewSpace, ManageSpace, SpaceStatistic, ViewSpaceMembership, ManageSpaceMembership, ViewSpaceEvent, ManageSpaceEvent, ManageSpaceEventRequest, ViewSpaceTag, ManageSpaceTag, ManageSpaceTokenGate, ViewSpaceNewsletter, ManageSpaceNewsletter, ManageSubscription',
+    description: `Set the complete list of features/permissions for a role in a space. This REPLACES all current features — include every feature code the role should have. Available codes: ${VALID_FEATURE_CODES.join(', ')}`,
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
       { name: 'role', type: 'string', description: 'Space role', required: true,
@@ -5234,6 +5276,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     execute: async (args) => {
       const codes = (args.codes as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (codes.length === 0) throw new Error('At least one feature code is required');
+      const invalid = codes.filter(c => !VALID_FEATURE_CODES_SET.has(c));
+      if (invalid.length > 0) {
+        throw new Error(`Invalid feature code(s): ${invalid.join(', ')}. Valid codes: ${VALID_FEATURE_CODES.join(', ')}`);
+      }
       const input = { space: args.space_id, role: args.role, codes };
       const result = await graphqlRequest<{ updateSpaceRoleFeatures: unknown }>(
         `mutation($input: UpdateSpaceRoleFeaturesInput!) {
@@ -5244,7 +5290,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.updateSpaceRoleFeatures;
     },
     formatResult: (result) => {
-      return result ? 'Role features updated successfully.' : 'No changes applied.';
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      return result ? 'Role features updated. Use space_role_features to verify the current state.' : 'No changes applied — features may already match the requested configuration.';
     },
   });
 
