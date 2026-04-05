@@ -5015,15 +5015,25 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
       { name: 'state', type: 'string', description: 'Filter by state', required: false,
         enum: ['pending', 'approved', 'declined'] },
-      { name: 'limit', type: 'number', description: 'Max results', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
     execute: async (args) => {
+      let limit = 25;
+      if (args.limit !== undefined) {
+        const n = Number(args.limit);
+        if (!isNaN(n)) limit = Math.max(1, n);
+      }
+      let skip = 0;
+      if (args.skip !== undefined) {
+        const n = Number(args.skip);
+        if (!isNaN(n)) skip = Math.max(0, n);
+      }
       const variables: Record<string, unknown> = {
         space: args.space_id,
-        limit: args.limit !== undefined ? Math.max(1, Number(args.limit)) : 25,
-        skip: args.skip !== undefined ? Math.max(0, Number(args.skip)) : 0,
+        limit,
+        skip,
       };
       if (args.state !== undefined) variables.state = args.state;
       const result = await graphqlRequest<{ getSpaceEventRequests: unknown }>(
@@ -5043,13 +5053,17 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.getSpaceEventRequests;
     },
     formatResult: (result) => {
-      const r = result as { total: number; records: Array<{ _id: string; state: string; created_at: string; event_expanded?: { title: string }; created_by_expanded?: { name: string } }> };
+      const r = result as { total: number; records: Array<{ _id: string; state: string; created_at: string; event_expanded?: { title: string }; created_by_expanded?: { name: string }; decided_at?: string; decided_by_expanded?: { name: string } }> };
       if (!r || !r.records) return JSON.stringify(result);
       const lines = [`Total: ${r.total}`];
       for (const rec of r.records) {
         const event = rec.event_expanded?.title ?? 'Unknown';
         const by = rec.created_by_expanded?.name ?? 'Unknown';
-        lines.push(`- [${rec.state}] "${event}" by ${by} (${rec.created_at})`);
+        let line = `- [${rec.state}] "${event}" by ${by} (${rec.created_at})`;
+        if (rec.decided_at && rec.decided_by_expanded) {
+          line += ` (decided by ${rec.decided_by_expanded.name || 'unknown'})`;
+        }
+        lines.push(line);
       }
       return lines.join('\n');
     },
@@ -5084,6 +5098,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.decideSpaceEventRequests;
     },
     formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
       return result ? 'Event request decision applied.' : 'No changes applied — requests may have already been decided.';
     },
   });
@@ -5148,15 +5163,25 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
       { name: 'state', type: 'string', description: 'Filter by state', required: false,
         enum: ['pending', 'approved', 'declined'] },
-      { name: 'limit', type: 'number', description: 'Max results', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
     execute: async (args) => {
+      let limit = 25;
+      if (args.limit !== undefined) {
+        const n = Number(args.limit);
+        if (!isNaN(n)) limit = Math.max(1, n);
+      }
+      let skip = 0;
+      if (args.skip !== undefined) {
+        const n = Number(args.skip);
+        if (!isNaN(n)) skip = Math.max(0, n);
+      }
       const variables: Record<string, unknown> = {
         space: args.space_id,
-        limit: args.limit !== undefined ? Math.max(1, Number(args.limit)) : 25,
-        skip: args.skip !== undefined ? Math.max(0, Number(args.skip)) : 0,
+        limit,
+        skip,
       };
       if (args.state !== undefined) variables.state = args.state;
       const result = await graphqlRequest<{ getMySpaceEventRequests: unknown }>(
@@ -5223,7 +5248,18 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'space_role_features_update',
     displayName: 'space role features update',
-    description: 'Set the complete list of features/permissions for a role in a space. This REPLACES all current features — include every feature code the role should have. Available codes: AI, EventInvitation, DataDashboard, CSVGuestList, GuestListDashboard, EventSettings, TicketingSettings, EmailManager, PromotionCodes, CollectibleData, Checkin, Poap, Ticket, ViewSpace, ManageSpace, SpaceStatistic, ViewSpaceMembership, ManageSpaceMembership, ViewSpaceEvent, ManageSpaceEvent, ManageSpaceEventRequest, ViewSpaceTag, ManageSpaceTag, ManageSpaceTokenGate, ViewSpaceNewsletter, ManageSpaceNewsletter, ManageSubscription',
+    description: (() => {
+      const codes = [
+        'AI', 'EventInvitation', 'DataDashboard', 'CSVGuestList', 'GuestListDashboard',
+        'EventSettings', 'TicketingSettings', 'EmailManager', 'PromotionCodes',
+        'CollectibleData', 'Checkin', 'Poap', 'Ticket', 'ViewSpace', 'ManageSpace',
+        'SpaceStatistic', 'ViewSpaceMembership', 'ManageSpaceMembership',
+        'ViewSpaceEvent', 'ManageSpaceEvent', 'ManageSpaceEventRequest',
+        'ViewSpaceTag', 'ManageSpaceTag', 'ManageSpaceTokenGate',
+        'ViewSpaceNewsletter', 'ManageSpaceNewsletter', 'ManageSubscription',
+      ];
+      return `Set the complete list of features/permissions for a role in a space. This REPLACES all current features — include every feature code the role should have. Available codes: ${codes.join(', ')}`;
+    })(),
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
       { name: 'role', type: 'string', description: 'Space role', required: true,
@@ -5232,8 +5268,21 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: true,
     execute: async (args) => {
+      const VALID_FEATURE_CODES = new Set([
+        'AI', 'EventInvitation', 'DataDashboard', 'CSVGuestList', 'GuestListDashboard',
+        'EventSettings', 'TicketingSettings', 'EmailManager', 'PromotionCodes',
+        'CollectibleData', 'Checkin', 'Poap', 'Ticket', 'ViewSpace', 'ManageSpace',
+        'SpaceStatistic', 'ViewSpaceMembership', 'ManageSpaceMembership',
+        'ViewSpaceEvent', 'ManageSpaceEvent', 'ManageSpaceEventRequest',
+        'ViewSpaceTag', 'ManageSpaceTag', 'ManageSpaceTokenGate',
+        'ViewSpaceNewsletter', 'ManageSpaceNewsletter', 'ManageSubscription',
+      ]);
       const codes = (args.codes as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (codes.length === 0) throw new Error('At least one feature code is required');
+      const invalid = codes.filter(c => !VALID_FEATURE_CODES.has(c));
+      if (invalid.length > 0) {
+        throw new Error(`Invalid feature code(s): ${invalid.join(', ')}. Valid codes: ${[...VALID_FEATURE_CODES].join(', ')}`);
+      }
       const input = { space: args.space_id, role: args.role, codes };
       const result = await graphqlRequest<{ updateSpaceRoleFeatures: unknown }>(
         `mutation($input: UpdateSpaceRoleFeaturesInput!) {
@@ -5244,7 +5293,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.updateSpaceRoleFeatures;
     },
     formatResult: (result) => {
-      return result ? 'Role features updated successfully.' : 'No changes applied.';
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      return result ? 'Role features updated. Use space_role_features to verify the current state.' : 'No changes applied — features may already match the requested configuration.';
     },
   });
 
