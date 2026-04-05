@@ -4771,7 +4771,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         `query($space: MongoID!, $draft: Boolean, $sent: Boolean, $scheduled: Boolean) {
           listSpaceNewsletters(space: $space, draft: $draft, sent: $sent, scheduled: $scheduled) {
             _id subject_preview draft disabled
-            scheduled_at sent_at created_at
+            scheduled_at sent_at failed_at created_at
             recipient_types
           }
         }`,
@@ -4780,10 +4780,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.listSpaceNewsletters;
     },
     formatResult: (result) => {
-      const items = result as Array<{ _id: string; subject_preview: string; draft: boolean; disabled: boolean; sent_at: string | null; scheduled_at: string | null; created_at: string }>;
+      const items = result as Array<{ _id: string; subject_preview: string; draft: boolean; disabled: boolean; sent_at: string | null; scheduled_at: string | null; failed_at: string | null; created_at: string }>;
       if (!Array.isArray(items)) return JSON.stringify(result);
       const lines = items.map((n) => {
-        const status = n.disabled ? 'disabled' : n.sent_at ? 'sent' : n.scheduled_at ? 'scheduled' : 'draft';
+        const status = n.disabled ? 'disabled' : n.failed_at ? 'failed' : n.sent_at ? 'sent' : n.scheduled_at ? 'scheduled' : 'draft';
         const date = n.sent_at || n.scheduled_at || n.created_at || '';
         return `- [${n._id}] ${n.subject_preview || '(no subject)'} [${status}] ${date}`;
       });
@@ -4815,13 +4815,19 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.getSpaceNewsletter;
     },
     formatResult: (result) => {
-      const r = result as { _id: string; subject_preview: string; draft: boolean; disabled: boolean; sent_at: string | null; scheduled_at: string | null; failed_at: string | null; failed_reason: string | null };
-      if (r && r._id) {
-        let status = r.disabled ? 'disabled' : r.sent_at ? 'sent' : r.scheduled_at ? 'scheduled' : 'draft';
-        if (r.failed_at) status = `failed: ${r.failed_reason || 'unknown'}`;
-        return `Newsletter ${r._id}: "${r.subject_preview || '(no subject)'}" [${status}]`;
-      }
-      return JSON.stringify(result);
+      const r = result as Record<string, unknown>;
+      if (!r) return 'Newsletter not found.';
+      const status = (r as any).disabled ? 'disabled' : (r as any).failed_at ? 'failed' : (r as any).sent_at ? 'sent' : (r as any).scheduled_at ? 'scheduled' : 'draft';
+      const lines = [`Newsletter ${r._id}: "${r.subject_preview || r.custom_subject_html || '(no subject)'}" [${status}]`];
+      const bodyPreview = (r.body_preview || r.custom_body_html || '') as string;
+      if (bodyPreview) lines.push(`Body: ${bodyPreview.substring(0, 120)}${bodyPreview.length > 120 ? '...' : ''}`);
+      if (r.recipient_types && (r.recipient_types as string[]).length) lines.push(`Recipients: ${(r.recipient_types as string[]).join(', ')}`);
+      if (r.cc && (r.cc as string[]).length) lines.push(`CC: ${(r.cc as string[]).join(', ')}`);
+      if (r.created_at) lines.push(`Created: ${r.created_at}`);
+      if (r.scheduled_at) lines.push(`Scheduled: ${r.scheduled_at}`);
+      if (r.sent_at) lines.push(`Sent: ${r.sent_at}`);
+      if (r.failed_at) lines.push(`Failed: ${r.failed_at} — ${r.failed_reason || 'unknown reason'}`);
+      return lines.join('\n');
     },
   });
 

@@ -208,7 +208,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   setSpaceDefaultModel: ['id', 'provider', 'name', 'tier', 'minimum_credits_per_request', 'capabilities', 'is_default'],
 
   // === Newsletter endpoints ===
-  listSpaceNewsletters: ['_id', 'subject_preview', 'draft', 'disabled', 'scheduled_at', 'sent_at', 'created_at', 'recipient_types'],
+  listSpaceNewsletters: ['_id', 'subject_preview', 'draft', 'disabled', 'scheduled_at', 'sent_at', 'failed_at', 'created_at', 'recipient_types'],
   getSpaceNewsletter: ['_id', 'custom_subject_html', 'custom_body_html', 'draft', 'disabled', 'scheduled_at', 'sent_at', 'failed_at', 'failed_reason', 'recipient_types', 'cc', 'created_at', 'subject_preview', 'body_preview'],
   createSpaceNewsletter: ['_id', 'subject_preview', 'draft', 'scheduled_at', 'created_at'],
   updateSpaceNewsletter: ['_id', 'subject_preview', 'draft', 'disabled', 'scheduled_at'],
