@@ -1277,4 +1277,76 @@ describe('TurnCoordinator', () => {
       expect(result.error).toBeUndefined();
     });
   });
+
+  describe('error recovery rollback', () => {
+    it('rolls back user message when executeMainTurn catches a thrown error', async () => {
+      const chatMessages: Message[] = [];
+      // Make buildSystemMessages throw to trigger the catch in executeMainTurn
+      mockBuildSystemMessages.mockImplementationOnce(() => {
+        throw new Error('build failed');
+      });
+
+      const deps = makeDeps({ chatMessages });
+      const tc = new TurnCoordinator(deps);
+      const submit = tc.submitMainTurn('hello');
+      if (!submit.accepted) throw new Error('should accept');
+
+      await submit.completion;
+
+      // The user message should have been rolled back
+      expect(chatMessages).toHaveLength(0);
+    });
+
+    it('does not roll back user message when handleTurn appended assistant content', async () => {
+      const chatMessages: Message[] = [];
+      // handleTurn appends an assistant message
+      mockHandleTurn.mockImplementationOnce(async (_p, msgs) => {
+        msgs.push({ role: 'assistant', content: 'I replied' });
+      });
+
+      const deps = makeDeps({ chatMessages });
+      const tc = new TurnCoordinator(deps);
+      const submit = tc.submitMainTurn('hello');
+      if (!submit.accepted) throw new Error('should accept');
+
+      await submit.completion;
+
+      // Both user and assistant messages should remain
+      expect(chatMessages).toHaveLength(2);
+      expect(chatMessages[0].role).toBe('user');
+      expect(chatMessages[1].role).toBe('assistant');
+    });
+
+    it('allows subsequent turn after error recovery', async () => {
+      const chatMessages: Message[] = [];
+
+      // First call: buildSystemMessages throws
+      mockBuildSystemMessages.mockImplementationOnce(() => {
+        throw new Error('transient error');
+      });
+
+      const deps = makeDeps({ chatMessages });
+      const tc = new TurnCoordinator(deps);
+
+      // First turn: error — should roll back
+      const submit1 = tc.submitMainTurn('attempt 1');
+      if (!submit1.accepted) throw new Error('should accept');
+      await submit1.completion;
+      expect(chatMessages).toHaveLength(0);
+
+      // Second turn: succeeds normally
+      mockBuildSystemMessages.mockReturnValueOnce([{ type: 'text', text: 'system' }]);
+      mockHandleTurn.mockImplementationOnce(async (_p, msgs) => {
+        msgs.push({ role: 'assistant', content: 'success' });
+      });
+
+      const submit2 = tc.submitMainTurn('attempt 2');
+      if (!submit2.accepted) throw new Error('should accept');
+      await submit2.completion;
+
+      expect(chatMessages).toHaveLength(2);
+      expect(chatMessages[0].role).toBe('user');
+      expect(chatMessages[1].role).toBe('assistant');
+    });
+  });
 });

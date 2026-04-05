@@ -30,6 +30,20 @@ function safeErrorMessage(err: unknown): string {
   return 'Unknown error';
 }
 
+function formatStreamingErrorMessage(rawMsg: string): string {
+  const lower = rawMsg.toLowerCase();
+  if (lower.includes('429') || lower.includes('rate limit')) {
+    return 'Rate limited by the API. Your message was not lost — just send it again in a few seconds.';
+  }
+  if (lower.includes('529') || lower.includes('overloaded')) {
+    return 'The API is temporarily overloaded. Your message was not lost — please retry shortly.';
+  }
+  if (lower.includes('econnreset') || lower.includes('etimedout') || lower.includes('fetch failed') || lower.includes('network') || lower.includes('socket')) {
+    return 'Network error — connection was interrupted. Your message was not lost — check your connection and retry.';
+  }
+  return `Streaming error: ${rawMsg}. Your message was not lost — you can retry.`;
+}
+
 // Dual-mode function: when `engine` is provided, all output is emitted as typed
 // events (consumed by the Ink UI via useChatEngine). When `engine` is omitted,
 // output falls back to direct stdout writes via display.ts (batch mode and tests).
@@ -118,8 +132,27 @@ export async function handleTurn(
         emitAbortDone();
         return;
       }
+
+      // Roll back the user message if no assistant content was committed
+      // to history during this turn.  Without rollback, the next user
+      // message creates consecutive user-role entries which the API
+      // rejects with "roles must alternate".
+      if (!accumulatedText && toolCalls.length === 0) {
+        // Find and remove the last user message (the one that triggered
+        // this turn).  Walk backwards to handle the common case quickly.
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i].role === 'user') {
+            messages.splice(i, 1);
+            break;
+          }
+        }
+      }
+
+      const rawMsg = safeErrorMessage(err);
+      const userMessage = formatStreamingErrorMessage(rawMsg);
+
       if (engine) {
-        engine.emit('error', { message: `Streaming error: ${safeErrorMessage(err)}`, fatal: false, turnId });
+        engine.emit('error', { message: userMessage, fatal: false, turnId });
         engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
       } else {
         if (textStarted) {
@@ -127,7 +160,7 @@ export async function handleTurn(
           writeNewline();
         }
         const { printWarning } = await import('./display.js');
-        printWarning(`Streaming error: ${safeErrorMessage(err)}`);
+        printWarning(userMessage);
       }
       return;
     }

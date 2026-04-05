@@ -25,6 +25,32 @@ function isToolResultMessage(msg: Message): boolean {
   return blocks.length > 0 && 'tool_use_id' in blocks[0];
 }
 
+/**
+ * Safety net: removes consecutive same-role messages from the array before
+ * it is sent to the API.  The Anthropic API rejects payloads where
+ * "roles must alternate", so this guard catches any corruption that slipped
+ * past the normal rollback logic (e.g. a race between cancel and error
+ * recovery).
+ *
+ * When consecutive same-role messages are found the *earlier* duplicate is
+ * removed — the later one is assumed to be more recent / more relevant.
+ *
+ * Mutates `messages` in place and returns `true` if any messages were removed.
+ */
+export function sanitizeConsecutiveRoles(messages: Message[]): boolean {
+  let changed = false;
+  for (let i = messages.length - 1; i > 0; i--) {
+    if (messages[i].role === messages[i - 1].role) {
+      messages.splice(i - 1, 1);
+      changed = true;
+      // Don't decrement i further — the splice shifted elements so
+      // messages[i-1] is now a new element that needs checking on the
+      // next loop iteration (i will be decremented by the for-loop).
+    }
+  }
+  return changed;
+}
+
 export function truncateHistory(messages: Message[]): void {
   const shouldTruncate =
     messages.length > MAX_MESSAGES ||

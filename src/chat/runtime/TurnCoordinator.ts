@@ -126,6 +126,9 @@ export class TurnCoordinator {
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
+      // Roll back the user message when executeMainTurn itself throws
+      // (before handleTurn had a chance to run or commit assistant content).
+      this.rollbackUncommittedUserMessage();
       if (msg.includes('context length') || msg.includes('too many tokens')) {
         return { error: 'Error: Session is too long. Start a new session: exit and run make-lemonade again.' };
       }
@@ -181,6 +184,23 @@ export class TurnCoordinator {
     return btwTurnId;
   }
 
+  /**
+   * Roll back the user message pushed by submitMainTurn if no assistant
+   * or tool content was appended after it.  Shared by cancelMainTurn and
+   * the error-recovery path in executeMainTurn.
+   */
+  private rollbackUncommittedUserMessage(): void {
+    if (this.mainTurnUserMsgIndex === null) return;
+    const msgs = this.deps.chatMessages;
+    if (
+      msgs.length === this.mainTurnUserMsgIndex + 1 &&
+      msgs[this.mainTurnUserMsgIndex].role === 'user'
+    ) {
+      msgs.splice(this.mainTurnUserMsgIndex, 1);
+    }
+    this.mainTurnUserMsgIndex = null;
+  }
+
   cancelMainTurn(): boolean {
     if (this.mainAbort) {
       this.mainAbort.abort();
@@ -190,18 +210,8 @@ export class TurnCoordinator {
       this.mainTurnActive = false;
 
       // Roll back the user message if no assistant/tool content was committed
-      // after it. Safe check: the user message must still be the last entry
-      // in chatMessages, meaning handleTurn hasn't appended anything yet.
-      if (this.mainTurnUserMsgIndex !== null) {
-        const msgs = this.deps.chatMessages;
-        if (
-          msgs.length === this.mainTurnUserMsgIndex + 1 &&
-          msgs[this.mainTurnUserMsgIndex].role === 'user'
-        ) {
-          msgs.splice(this.mainTurnUserMsgIndex, 1);
-        }
-        this.mainTurnUserMsgIndex = null;
-      }
+      // after it.
+      this.rollbackUncommittedUserMessage();
 
       return true;
     }
