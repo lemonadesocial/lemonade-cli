@@ -5,8 +5,8 @@
 export const TOOL_TO_RESOLVER: Record<string, string> = {
   search_events: 'aiSearchEvents',
   get_event: 'aiGetEvent',
-  create_event: 'aiCreateEvent',
-  update_event: 'aiUpdateEvent',
+  create_event: 'createEvent',
+  update_event: 'updateEvent',
   publish_event: 'aiPublishEvent',
   cancel_event: 'aiCancelEvent',
   get_hosting_events: 'aiGetHostingEvents',
