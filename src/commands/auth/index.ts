@@ -111,8 +111,9 @@ export function registerAuthCommands(program: Command): void {
         if (opts.json) {
           console.log(jsonSuccess({ logged_out: true }));
         } else {
-          console.log('Logged out. All stored credentials have been cleared.');
+          console.log('Logged out. Lemonade auth tokens cleared.');
         }
+        process.exit(0);
       } catch (error) {
         handleError(error, opts.json);
         process.exit(1);

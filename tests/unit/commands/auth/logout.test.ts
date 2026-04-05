@@ -11,9 +11,9 @@ vi.mock('../../../../src/auth/oauth.js', () => ({
 }));
 
 vi.mock('../../../../src/api/graphql.js', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<typeof import('../../../../src/api/graphql.js')>();
   return {
-    ...actual,
+    GraphQLError: actual.GraphQLError,
     graphqlRequest: vi.fn(),
   };
 });
@@ -43,7 +43,7 @@ describe('auth logout', () => {
 
     expect(clearAuth).toHaveBeenCalledOnce();
     expect(logSpy).toHaveBeenCalledWith(
-      'Logged out. All stored credentials have been cleared.',
+      'Logged out. Lemonade auth tokens cleared.',
     );
   });
 
@@ -57,6 +57,19 @@ describe('auth logout', () => {
     expect(parsed.data.logged_out).toBe(true);
   });
 
+  it('succeeds when already logged out (idempotent)', async () => {
+    // clearAuth is a no-op when no credentials exist — should still succeed
+    vi.mocked(clearAuth).mockImplementation(() => {});
+
+    await program.parseAsync(['node', 'test', 'auth', 'logout']);
+
+    expect(clearAuth).toHaveBeenCalledOnce();
+    expect(logSpy).toHaveBeenCalledWith(
+      'Logged out. Lemonade auth tokens cleared.',
+    );
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
   it('handles clearAuth errors', async () => {
     vi.mocked(clearAuth).mockImplementation(() => {
       throw new Error('Permission denied');
@@ -67,7 +80,7 @@ describe('auth logout', () => {
     expect(stderrSpy).toHaveBeenCalled();
     const written = stderrSpy.mock.calls[0][0] as string;
     expect(written).toContain('Permission denied');
-    expect(exitSpy).toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('handles clearAuth errors with --json flag', async () => {
@@ -82,6 +95,6 @@ describe('auth logout', () => {
     const parsed = JSON.parse(written.trim());
     expect(parsed.ok).toBe(false);
     expect(parsed.error.message).toContain('Permission denied');
-    expect(exitSpy).toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 });
