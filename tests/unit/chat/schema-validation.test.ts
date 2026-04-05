@@ -71,7 +71,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiListLaunchpadCoins: ['items', '_id', 'name', 'symbol', 'status'],
   aiAddLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
   aiUpdateLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
-  aiSuggestSections: ['type', 'name', 'reason', 'default_props', 'id', 'description', 'preview_url'],
+  aiSuggestSections: ['type', 'name', 'reason', 'default_props'],
   aiCreatePageConfig: ['_id', 'name', 'status', 'version'],
   aiUpdatePageConfigSection: ['_id', 'name', 'status', 'version', 'sections', 'id', 'type', 'order', 'hidden'],
   getPageConfig: ['_id', 'owner_type', 'owner_id', 'name', 'description', 'status', 'version', 'published_version', 'template_id', 'thumbnail_url', 'sections', 'id', 'type', 'order', 'hidden', 'props'],

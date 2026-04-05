@@ -2160,7 +2160,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'site_create_page',
     displayName: 'site create-page',
-    description: 'Create an AI-assisted page configuration.',
+    description: 'Create a page configuration using AI assistance. For manual control over sections and theme, use page_config_create.',
     params: [
       { name: 'owner_id', type: 'string', description: 'Event or space ID', required: true },
       { name: 'owner_type', type: 'string', description: 'Owner type', required: true,
@@ -2207,6 +2207,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.aiCreatePageConfig;
     },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as Record<string, unknown>;
+      return `Page config created: ${r._id} "${r.name || '(unnamed)'}" [${r.status}]`;
+    },
   });
 
   register({
@@ -2218,7 +2223,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'section_id', type: 'string', description: 'Section ID', required: true },
       { name: 'updates', type: 'string', description: 'Section updates as JSON object', required: true },
     ],
-    destructive: false,
+    destructive: true,
     execute: async (args) => {
       let parsedUpdates: unknown;
       try {
@@ -2243,6 +2248,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         },
       );
       return result.aiUpdatePageConfigSection;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as Record<string, unknown>;
+      return `Section updated. Page "${r.name || '(unnamed)'}" now at version ${r.version}.`;
     },
   });
 
@@ -2292,6 +2302,12 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         variables,
       );
       return result.aiSuggestSections;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const suggestions = result as Array<Record<string, unknown>>;
+      if (!suggestions.length) return 'No section suggestions found.';
+      return `${suggestions.length} suggestion(s):\n${suggestions.map(s => `- ${s.type}: ${s.name} — ${s.reason}`).join('\n')}`;
     },
   });
 
@@ -5972,7 +5988,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'page_config_update',
     displayName: 'page config update',
-    description: 'Update a page configuration (name, description, theme, sections, SEO).',
+    description: 'Update a page configuration (name, description, theme, sections).',
     params: [
       { name: 'config_id', type: 'string', description: 'Page config ID', required: true },
       { name: 'name', type: 'string', description: 'Page name', required: false },
@@ -6003,6 +6019,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
           throw new Error(`Invalid sections JSON: ${(e as Error).message}`);
         }
       }
+
+      if (Object.keys(input).length === 0) throw new Error('At least one field to update is required (name, description, theme, or sections)');
 
       const result = await graphqlRequest<{ updatePageConfig: unknown }>(
         `mutation($input: UpdatePageConfigInput!, $id: MongoID!) {
@@ -6093,7 +6111,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'page_config_create',
     displayName: 'page config create',
-    description: 'Create a page configuration with full control over sections and theme. For AI-generated pages, use site_generate instead.',
+    description: 'Create a page configuration with full control over sections and theme. For AI-assisted creation, use site_create_page.',
     params: [
       { name: 'owner_type', type: 'string', description: 'Owner type', required: true,
         enum: ['event', 'space'] },
