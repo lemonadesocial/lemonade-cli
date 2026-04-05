@@ -157,7 +157,7 @@ async function main(): Promise<void> {
     const creditsSpace = resolvedCreditsSpace || getCreditsSpaceId() || getDefaultSpace();
 
     if (!creditsSpace) {
-      console.error(chalk.red('  No credits space configured. Run /mode credits to select a space, or "lemonade space switch".'));
+      console.error(chalk.red('  No credits space configured. Use /spaces in chat, or run: lemonade space list → lemonade config set default_space <space-id>'));
       process.exit(2);
     }
 
