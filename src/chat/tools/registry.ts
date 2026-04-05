@@ -1310,7 +1310,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'list_payment_accounts',
-    displayName: 'list payment accounts',
+    displayName: 'payment accounts list',
     description: 'List payment accounts configured for receiving payments (Stripe, crypto wallets).',
     params: [
       { name: 'type', type: 'string', description: 'Filter by type', required: false, enum: ['solana', 'ethereum', 'digital'] },
@@ -1336,8 +1336,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
           }
         }`,
         {
-          type: args.type || undefined,
-          provider: args.provider || undefined,
+          type: args.type !== undefined ? args.type : undefined,
+          provider: args.provider !== undefined ? args.provider : undefined,
           limit: args.limit !== undefined ? Number(args.limit) : 25,
         },
       );
