@@ -4816,8 +4816,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
     formatResult: (result) => {
       const r = result as Record<string, unknown>;
-      if (!r) return 'Newsletter not found.';
-      const status = (r as any).disabled ? 'disabled' : (r as any).failed_at ? 'failed' : (r as any).sent_at ? 'sent' : (r as any).scheduled_at ? 'scheduled' : 'draft';
+      if (!r || !r._id) return 'Newsletter not found.';
+      const status = r.disabled ? 'disabled' : r.failed_at ? 'failed' : r.sent_at ? 'sent' : r.scheduled_at ? 'scheduled' : 'draft';
       const lines = [`Newsletter ${r._id}: "${r.subject_preview || r.custom_subject_html || '(no subject)'}" [${status}]`];
       const bodyPreview = (r.body_preview || r.custom_body_html || '') as string;
       if (bodyPreview) lines.push(`Body: ${bodyPreview.substring(0, 120)}${bodyPreview.length > 120 ? '...' : ''}`);
@@ -5251,21 +5251,21 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
+  const VALID_FEATURE_CODES = [
+    'AI', 'EventInvitation', 'DataDashboard', 'CSVGuestList', 'GuestListDashboard',
+    'EventSettings', 'TicketingSettings', 'EmailManager', 'PromotionCodes',
+    'CollectibleData', 'Checkin', 'Poap', 'Ticket', 'ViewSpace', 'ManageSpace',
+    'SpaceStatistic', 'ViewSpaceMembership', 'ManageSpaceMembership',
+    'ViewSpaceEvent', 'ManageSpaceEvent', 'ManageSpaceEventRequest',
+    'ViewSpaceTag', 'ManageSpaceTag', 'ManageSpaceTokenGate',
+    'ViewSpaceNewsletter', 'ManageSpaceNewsletter', 'ManageSubscription',
+  ];
+  const VALID_FEATURE_CODES_SET = new Set(VALID_FEATURE_CODES);
+
   register({
     name: 'space_role_features_update',
     displayName: 'space role features update',
-    description: (() => {
-      const codes = [
-        'AI', 'EventInvitation', 'DataDashboard', 'CSVGuestList', 'GuestListDashboard',
-        'EventSettings', 'TicketingSettings', 'EmailManager', 'PromotionCodes',
-        'CollectibleData', 'Checkin', 'Poap', 'Ticket', 'ViewSpace', 'ManageSpace',
-        'SpaceStatistic', 'ViewSpaceMembership', 'ManageSpaceMembership',
-        'ViewSpaceEvent', 'ManageSpaceEvent', 'ManageSpaceEventRequest',
-        'ViewSpaceTag', 'ManageSpaceTag', 'ManageSpaceTokenGate',
-        'ViewSpaceNewsletter', 'ManageSpaceNewsletter', 'ManageSubscription',
-      ];
-      return `Set the complete list of features/permissions for a role in a space. This REPLACES all current features — include every feature code the role should have. Available codes: ${codes.join(', ')}`;
-    })(),
+    description: `Set the complete list of features/permissions for a role in a space. This REPLACES all current features — include every feature code the role should have. Available codes: ${VALID_FEATURE_CODES.join(', ')}`,
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
       { name: 'role', type: 'string', description: 'Space role', required: true,
@@ -5274,20 +5274,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: true,
     execute: async (args) => {
-      const VALID_FEATURE_CODES = new Set([
-        'AI', 'EventInvitation', 'DataDashboard', 'CSVGuestList', 'GuestListDashboard',
-        'EventSettings', 'TicketingSettings', 'EmailManager', 'PromotionCodes',
-        'CollectibleData', 'Checkin', 'Poap', 'Ticket', 'ViewSpace', 'ManageSpace',
-        'SpaceStatistic', 'ViewSpaceMembership', 'ManageSpaceMembership',
-        'ViewSpaceEvent', 'ManageSpaceEvent', 'ManageSpaceEventRequest',
-        'ViewSpaceTag', 'ManageSpaceTag', 'ManageSpaceTokenGate',
-        'ViewSpaceNewsletter', 'ManageSpaceNewsletter', 'ManageSubscription',
-      ]);
       const codes = (args.codes as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (codes.length === 0) throw new Error('At least one feature code is required');
-      const invalid = codes.filter(c => !VALID_FEATURE_CODES.has(c));
+      const invalid = codes.filter(c => !VALID_FEATURE_CODES_SET.has(c));
       if (invalid.length > 0) {
-        throw new Error(`Invalid feature code(s): ${invalid.join(', ')}. Valid codes: ${[...VALID_FEATURE_CODES].join(', ')}`);
+        throw new Error(`Invalid feature code(s): ${invalid.join(', ')}. Valid codes: ${VALID_FEATURE_CODES.join(', ')}`);
       }
       const input = { space: args.space_id, role: args.role, codes };
       const result = await graphqlRequest<{ updateSpaceRoleFeatures: unknown }>(
