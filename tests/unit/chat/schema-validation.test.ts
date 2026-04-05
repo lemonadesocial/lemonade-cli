@@ -53,10 +53,11 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiDeclineEvent: [], // scalar
   aiGetMyTickets: ['items', 'event_title', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],
   aiListMySpaces: ['items', '_id', 'title', 'slug', 'description', 'private', 'personal', 'image_avatar_url', 'member_count', 'event_count'],
-  aiCreateSpace: ['_id', 'title', 'slug', 'description'],
-  aiUpdateSpace: ['_id', 'title', 'slug'],
+  createSpace: ['_id', 'title', 'slug', 'description', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'address', 'title', 'city', 'country'],
+  updateSpace: ['_id', 'title', 'slug', 'description', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'address', 'city', 'country'],
+  listNewPaymentAccounts: ['_id', 'active', 'type', 'title', 'provider', 'created_at', 'account_info', 'currencies', 'address', 'network', 'StripeAccount', 'SolanaAccount', 'EthereumAccount', 'DigitalAccount', 'SafeAccount'],
   aiGetSpaceMembers: ['items', 'name', 'email', 'role', 'joined_at'],
-  aiGetSpaceStats: ['total_members', 'admins', 'ambassadors', 'subscribers', 'total_events', 'total_attendees', 'average_event_rating'],
+  aiGetSpaceStats: ['total_members', 'admins', 'ambassadors', 'subscribers', 'total_events', 'total_attendees', 'average_event_rating', 'slug', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'website', 'tint_color', 'private'],
   aiAddSpaceMember: [], // scalar
   aiRemoveSpaceMember: [], // scalar
   aiGetNotifications: ['id', 'type', 'message', 'from_user_name', 'ref_event_title', 'read', 'created_at'],
