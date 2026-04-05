@@ -1676,7 +1676,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: true,
     execute: async () => {
       const result = await graphqlRequest<{ disconnectStripeAccount: boolean }>(
-        `mutation { disconnectStripeAccount }`,
+        'mutation { disconnectStripeAccount }',
       );
       return { disconnected: result.disconnectStripeAccount };
     },
