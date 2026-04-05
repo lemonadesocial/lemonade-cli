@@ -1,42 +1,63 @@
-import { describe, it, expect } from 'vitest';
-
-const VALID_MODES = ['credits', 'own_key'] as const;
-
-function validateMode(mode: string | undefined): string | null {
-  if (!mode) return null;
-  if (mode === 'credits' || mode === 'own_key') return null;
-  return `Unknown mode "${mode}". Supported: credits, own_key`;
-}
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { validateMode, VALID_MODES } from '../../../src/chat/index.js';
 
 describe('--mode flag validation', () => {
+  const mockExit = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+  const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+  beforeEach(() => {
+    mockExit.mockClear();
+    mockError.mockClear();
+  });
+
+  afterEach(() => {
+    mockExit.mockClear();
+    mockError.mockClear();
+  });
+
   it('accepts "credits" without error', () => {
-    expect(validateMode('credits')).toBeNull();
+    validateMode('credits');
+    expect(mockError).not.toHaveBeenCalled();
+    expect(mockExit).not.toHaveBeenCalled();
   });
 
   it('accepts "own_key" without error', () => {
-    expect(validateMode('own_key')).toBeNull();
+    validateMode('own_key');
+    expect(mockError).not.toHaveBeenCalled();
+    expect(mockExit).not.toHaveBeenCalled();
   });
 
   it('returns error for invalid mode', () => {
-    const err = validateMode('turbo');
-    expect(err).not.toBeNull();
-    expect(err).toContain('turbo');
-    expect(err).toContain('credits');
-    expect(err).toContain('own_key');
+    validateMode('turbo');
+    expect(mockError).toHaveBeenCalledOnce();
+    const msg = mockError.mock.calls[0][0] as string;
+    expect(msg).toContain('turbo');
+    expect(msg).toContain('credits');
+    expect(msg).toContain('own_key');
+    expect(mockExit).toHaveBeenCalledWith(2);
   });
 
-  it('returns null when no mode is provided', () => {
-    expect(validateMode(undefined)).toBeNull();
+  it('does not trigger error when no mode is provided', () => {
+    validateMode(undefined);
+    expect(mockError).not.toHaveBeenCalled();
+    expect(mockExit).not.toHaveBeenCalled();
   });
 
-  it('rejects empty string as invalid mode', () => {
-    // empty string is falsy, so treated as "not provided"
-    expect(validateMode('')).toBeNull();
+  it('treats empty string as not provided', () => {
+    validateMode('');
+    expect(mockError).not.toHaveBeenCalled();
+    expect(mockExit).not.toHaveBeenCalled();
   });
 
   for (const valid of VALID_MODES) {
     it(`does not reject valid mode "${valid}"`, () => {
-      expect(validateMode(valid)).toBeNull();
+      validateMode(valid);
+      expect(mockError).not.toHaveBeenCalled();
+      expect(mockExit).not.toHaveBeenCalled();
     });
   }
+
+  it('VALID_MODES contains exactly credits and own_key', () => {
+    expect([...VALID_MODES]).toEqual(['credits', 'own_key']);
+  });
 });

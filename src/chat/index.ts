@@ -25,6 +25,15 @@ import { safeErrorMessage } from './utils/errorMessages.js';
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
 
+export const VALID_MODES = ['credits', 'own_key'] as const;
+
+export function validateMode(mode: string | undefined): void {
+  if (mode && !VALID_MODES.includes(mode as any)) {
+    console.error(chalk.red(`  Unknown mode "${mode}". Supported: ${VALID_MODES.join(', ')}`));
+    process.exit(2);
+  }
+}
+
 function printHelp(): void {
   console.log(`
   ${chalk.bold('make-lemonade')} v${VERSION}
@@ -69,10 +78,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (args.mode && args.mode !== 'credits' && args.mode !== 'own_key') {
-    console.error(chalk.red(`  Unknown mode "${args.mode}". Supported: credits, own_key`));
-    process.exit(2);
-  }
+  validateMode(args.mode);
 
   // Check Lemonade auth (attempt token refresh if expired)
   const auth = await ensureAuthHeader();
