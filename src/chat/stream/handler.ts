@@ -31,9 +31,11 @@ function safeErrorMessage(err: unknown): string {
 }
 
 function formatStreamingErrorMessage(err: unknown): string {
-  // Prefer structured status code from API errors (e.g. Anthropic SDK's APIError)
-  const status = typeof (err as Record<string, unknown>)?.status === 'number'
-    ? (err as Record<string, unknown>).status as number
+  // Cast to a generic record so we can probe for structured fields like `status`
+  // without assuming a specific error class (e.g. Anthropic SDK's APIError).
+  const errRecord = err as Record<string, unknown>;
+  const status = typeof errRecord?.status === 'number'
+    ? errRecord.status as number
     : undefined;
 
   if (status === 429) {
@@ -52,7 +54,7 @@ function formatStreamingErrorMessage(err: unknown): string {
   if (lower.includes('529') || lower.includes('overloaded')) {
     return 'The API is temporarily overloaded. Your message was not lost — please retry shortly.';
   }
-  if (lower.includes('econnreset') || lower.includes('etimedout') || lower.includes('fetch failed') || lower.includes('network') || lower.includes('socket')) {
+  if (lower.includes('econnreset') || lower.includes('etimedout') || lower.includes('enotfound') || lower.includes('econnrefused') || lower.includes('fetch failed') || lower.includes('network') || lower.includes('socket')) {
     return 'Network error — connection was interrupted. Your message was not lost — check your connection and retry.';
   }
   return `Streaming error: ${rawMsg}. Your message was not lost — you can retry.`;
@@ -147,16 +149,13 @@ export async function handleTurn(
         return;
       }
 
-      // Roll back the user message only on the first iteration (iteration 0),
-      // when no prior iteration has committed any messages to history.
-      // On iteration > 0, prior iterations already committed assistant + tool_result
-      // messages, so rolling back the original user message would orphan them.
+      // Roll back the user message only on the first iteration, and only when
+      // this iteration hasn't accumulated any text or tool calls (i.e., the
+      // stream failed before producing any content).
       if (iteration === 0 && !accumulatedText && toolCalls.length === 0) {
-        for (let i = messages.length - 1; i >= 0; i--) {
-          if (messages[i].role === 'user') {
-            messages.splice(i, 1);
-            break;
-          }
+        const lastIdx = messages.length - 1;
+        if (lastIdx >= 0 && messages[lastIdx].role === 'user') {
+          messages.splice(lastIdx, 1);
         }
       }
 
