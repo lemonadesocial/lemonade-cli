@@ -108,11 +108,11 @@ describe('batchMode', () => {
 
     expect(errorSpy).not.toHaveBeenCalled();
 
-    const logCalls = logSpy.mock.calls.map((c) => c[0]);
-    const jsonCall = logCalls.find((c) => typeof c === 'string' && c.includes('"text"'));
-    expect(jsonCall).toBeDefined();
-    const parsed = JSON.parse(jsonCall as string);
-    expect(parsed).toEqual({ text: 'Hello back!' });
+    const jsonCalls = logSpy.mock.calls
+      .map((c) => { try { return JSON.parse(c[0]); } catch { return null; } })
+      .filter(Boolean);
+    const successCall = jsonCalls.find((j) => 'text' in j);
+    expect(successCall).toEqual({ text: 'Hello back!' });
   });
 
   it('continues processing after an error: first line errors, second line succeeds', async () => {
