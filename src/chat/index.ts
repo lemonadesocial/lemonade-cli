@@ -10,7 +10,7 @@ import { createSessionState } from './session/state.js';
 import { buildSystemMessages } from './session/cache.js';
 import { batchMode } from './batch.js';
 import { detectApiKey, detectProvider, onboardApiKey } from './onboarding.js';
-import { parseArgs } from './parseArgs.js';
+import { parseArgs, VALID_FLAGS } from './parseArgs.js';
 import { initAiMode } from './aiMode.js';
 import { getAgentName } from './skills/loader.js';
 import { getCreditsSpaceId } from './spaceSelection.js';
@@ -65,6 +65,14 @@ async function fetchUser(): Promise<{ _id: string; name: string; email: string; 
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
+
+  if (args.unknownFlags.length > 0) {
+    console.error(chalk.yellow(`Warning: unknown flag(s) ignored: ${args.unknownFlags.join(', ')}. Valid flags: ${VALID_FLAGS.join(', ')}`));
+  }
+
+  if (args.simpleDeprecated) {
+    console.error(chalk.yellow('Warning: --simple is deprecated and has no effect.'));
+  }
 
   if (args.help) {
     printHelp();
