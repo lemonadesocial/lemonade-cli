@@ -56,6 +56,7 @@ describe('doctor command', () => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
     delete process.env.LEMONADE_API_KEY;
+    delete process.env.LEMONADE_API_URL;
   });
 
   afterEach(() => {
@@ -134,6 +135,20 @@ describe('doctor command', () => {
     it('fails with non-HTTPS API URL', () => {
       const result = checkApiUrl({ api_url: 'http://insecure.example.com' });
       expect(result.status).toBe('fail');
+    });
+
+    it('fails when LEMONADE_API_URL env var is insecure', () => {
+      process.env.LEMONADE_API_URL = 'http://insecure.example.com';
+      const result = checkApiUrl({ api_url: 'https://backend.lemonade.social' });
+      expect(result.status).toBe('fail');
+      expect(result.detail).toContain('not valid HTTPS');
+    });
+
+    it('uses LEMONADE_API_URL env var over config', () => {
+      process.env.LEMONADE_API_URL = 'https://custom.example.com';
+      const result = checkApiUrl({ api_url: 'https://backend.lemonade.social' });
+      expect(result.status).toBe('pass');
+      expect(result.detail).toBe('https://custom.example.com');
     });
   });
 

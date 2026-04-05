@@ -72,10 +72,7 @@ function checkOutputFormat(config: LemonadeConfig): CheckResult {
 }
 
 function checkApiUrl(config: LemonadeConfig): CheckResult {
-  const url = config.api_url || DEFAULT_API_URL;
-  if (!url) {
-    return { name: 'api_url', status: 'pass', detail: 'not set (default)' };
-  }
+  const url = process.env.LEMONADE_API_URL || config.api_url || DEFAULT_API_URL;
   if (url.startsWith('https://') || url === 'http://localhost' || url.startsWith('http://localhost:') || url.startsWith('http://localhost/')) {
     return { name: 'api_url', status: 'pass', detail: url };
   }
