@@ -23,8 +23,10 @@ export interface LemonadeConfig {
 const CONFIG_DIR = join(homedir(), '.lemonade');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
+export const DEFAULT_API_URL = 'https://backend.lemonade.social';
+
 const DEFAULTS: Partial<LemonadeConfig> = {
-  api_url: 'https://backend.lemonade.social',
+  api_url: DEFAULT_API_URL,
   hydra_url: 'https://oauth2.lemonade.social',
   registry_url: 'https://registry.atlas-protocol.org',
   output_format: 'table',

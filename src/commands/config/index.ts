@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { jsonSuccess } from '../../output/json.js';
 import { handleError } from '../../output/error.js';
+import { SENSITIVE_KEYS, redactValue } from '../../output/redact.js';
 import {
   getConfig,
   getConfigPath,
@@ -9,14 +10,6 @@ import {
   configExists,
 } from '../../auth/store.js';
 import { VALID_CONFIG_KEYS, ValidConfigKey } from '../../config/defaults.js';
-
-const SENSITIVE_KEYS = new Set(['anthropic_key', 'openai_key', 'access_token', 'refresh_token', 'api_key']);
-
-function redactValue(key: string, value: unknown): string {
-  const str = String(value);
-  if (!SENSITIVE_KEYS.has(key) || str.length <= 4) return str;
-  return str.slice(0, 3) + '...' + str.slice(-4);
-}
 
 export function registerConfigCommands(program: Command): void {
   const config = program
