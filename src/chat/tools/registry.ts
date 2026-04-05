@@ -4457,7 +4457,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'tickets_create',
     displayName: 'tickets create',
-    description: 'Create complimentary tickets for an event (no payment required). Assigns by email.',
+    description: 'Create complimentary tickets (no payment). The ticket type determines the event. Assignments are by email.',
     params: [
       { name: 'ticket_type', type: 'string', description: 'Ticket type ID', required: true },
       { name: 'assignments', type: 'string', description: 'JSON array of assignments: [{email, count}]', required: true },
@@ -4466,9 +4466,13 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     execute: async (args) => {
       let ticketAssignments: unknown[];
       try {
-        ticketAssignments = JSON.parse(args.assignments as string);
-      } catch {
-        throw new Error('Invalid JSON in assignments parameter. Expected: [{email, count}]');
+        const parsed = JSON.parse(args.assignments as string);
+        if (!Array.isArray(parsed)) throw new Error('assignments must be a JSON array');
+        ticketAssignments = parsed;
+      } catch (e) {
+        throw e instanceof SyntaxError
+          ? new Error('Invalid JSON in assignments parameter. Expected: [{email, count}]')
+          : e;
       }
       const result = await graphqlRequest<{ createTickets: unknown }>(
         `mutation($ticket_type: MongoID!, $ticket_assignments: [TicketAssignment!]!) {
@@ -4503,12 +4507,12 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         `mutation($input: CancelTicketsInput!) {
           cancelTickets(input: $input)
         }`,
-        { input: { event: args.event_id, tickets: (args.ticket_ids as string).split(',').map(s => s.trim()) } },
+        { input: { event: args.event_id, tickets: (args.ticket_ids as string).split(',').map(s => s.trim()).filter(s => s.length > 0) } },
       );
       return result.cancelTickets;
     },
     formatResult: (result) => {
-      return `Tickets cancelled: ${JSON.stringify(result)}`;
+      return result ? 'Tickets cancelled successfully.' : 'Cancellation failed.';
     },
   });
 
@@ -4520,13 +4524,17 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
       { name: 'assignments', type: 'string', description: 'JSON array of assignments: [{ticket, email}] or [{ticket, user}]', required: true },
     ],
-    destructive: false,
+    destructive: true,
     execute: async (args) => {
       let assignees: unknown[];
       try {
-        assignees = JSON.parse(args.assignments as string);
-      } catch {
-        throw new Error('Invalid JSON in assignments parameter. Expected: [{ticket, email}] or [{ticket, user}]');
+        const parsed = JSON.parse(args.assignments as string);
+        if (!Array.isArray(parsed)) throw new Error('assignments must be a JSON array');
+        assignees = parsed;
+      } catch (e) {
+        throw e instanceof SyntaxError
+          ? new Error('Invalid JSON in assignments parameter. Expected: [{ticket, email}] or [{ticket, user}]')
+          : e;
       }
       const result = await graphqlRequest<{ assignTickets: unknown }>(
         `mutation($input: AssignTicketsInput!) {
@@ -4537,7 +4545,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.assignTickets;
     },
     formatResult: (result) => {
-      return `Tickets assigned: ${JSON.stringify(result)}`;
+      return result ? 'Tickets assigned successfully.' : 'Assignment failed.';
     },
   });
 
@@ -4550,7 +4558,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'ticket_id', type: 'string', description: 'Ticket ID to upgrade', required: true },
       { name: 'to_type', type: 'string', description: 'Target ticket type ID', required: true },
     ],
-    destructive: false,
+    destructive: true,
     execute: async (args) => {
       const result = await graphqlRequest<{ upgradeTicket: unknown }>(
         `mutation($input: UpgradeTicketInput!) {
@@ -4561,7 +4569,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.upgradeTicket;
     },
     formatResult: (result) => {
-      return `Ticket upgraded: ${JSON.stringify(result)}`;
+      return result ? 'Ticket upgraded successfully.' : 'Upgrade failed.';
     },
   });
 
@@ -4574,7 +4582,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'emails', type: 'string', description: 'Comma-separated email addresses', required: true },
       { name: 'payment_id', type: 'string', description: 'Payment ID (optional, to email specific payment tickets)', required: false },
     ],
-    destructive: false,
+    destructive: true,
     execute: async (args) => {
       const result = await graphqlRequest<{ mailEventTicket: unknown }>(
         `mutation($event: MongoID!, $emails: [String!]!, $payment: MongoID) {
@@ -4582,14 +4590,14 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         }`,
         {
           event: args.event_id,
-          emails: (args.emails as string).split(',').map(s => s.trim()),
-          payment: args.payment_id !== undefined ? args.payment_id : undefined,
+          emails: (args.emails as string).split(',').map(s => s.trim()).filter(s => s.length > 0),
+          payment: args.payment_id as string | undefined,
         },
       );
       return result.mailEventTicket;
     },
     formatResult: (result) => {
-      return `Ticket email sent: ${JSON.stringify(result)}`;
+      return result ? 'Ticket emails sent successfully.' : 'Failed to send ticket emails.';
     },
   });
 
@@ -4600,7 +4608,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     params: [
       { name: 'ticket_id', type: 'string', description: 'Ticket ID', required: true },
     ],
-    destructive: false,
+    destructive: true,
     execute: async (args) => {
       const result = await graphqlRequest<{ mailTicketPaymentReceipt: unknown }>(
         `mutation($ticket: MongoID!) {
@@ -4611,7 +4619,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.mailTicketPaymentReceipt;
     },
     formatResult: (result) => {
-      return `Receipt email sent: ${JSON.stringify(result)}`;
+      return result ? 'Payment receipt sent.' : 'Failed to send receipt.';
     },
   });
 
@@ -4633,12 +4641,12 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       let limit = 25;
       if (args.limit !== undefined) {
         const n = Number(args.limit);
-        if (!isNaN(n)) limit = n;
+        if (!isNaN(n)) limit = Math.max(0, n);
       }
       let skip = 0;
       if (args.skip !== undefined) {
         const n = Number(args.skip);
-        if (!isNaN(n)) skip = n;
+        if (!isNaN(n)) skip = Math.max(0, n);
       }
       const result = await graphqlRequest<{ listEventPayments: unknown }>(
         `query($event: MongoID!, $search: String, $provider: NewPaymentProvider, $limit: Int!, $skip: Int!) {
@@ -4654,8 +4662,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         }`,
         {
           event: args.event_id,
-          search: args.search !== undefined ? args.search : undefined,
-          provider: args.provider !== undefined ? args.provider : undefined,
+          search: args.search as string | undefined,
+          provider: args.provider as string | undefined,
           limit,
           skip,
         },
@@ -4724,17 +4732,17 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.getEventPaymentSummary;
     },
     formatResult: (result) => {
-      const summaries = result as Array<{ currency: string; amount: number }>;
+      const summaries = result as Array<{ currency: string; amount: string; transfer_amount: string; pending_transfer_amount: string }>;
       if (Array.isArray(summaries)) {
-        return summaries.map(s => `${s.currency}: ${s.amount}`).join(', ');
+        return summaries.map(s => `${s.currency}: ${s.amount} (transfers: ${s.transfer_amount}, pending: ${s.pending_transfer_amount})`).join(', ');
       }
       return JSON.stringify(result);
     },
   });
 
   register({
-    name: 'event_payment_stats',
-    displayName: 'event payment stats',
+    name: 'event_payment_statistics',
+    displayName: 'event payment statistics',
     description: 'Get payment statistics for an event (total, by provider).',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },

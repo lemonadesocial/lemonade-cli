@@ -30,17 +30,373 @@ Durability requirement:
 
 ## Active Branch
 
-- Branch: (none — merged to main)
-- Status: MERGED
-- Scope: API key error styling and guidance
-- Current gate: Complete
+- Branch: feat/ticket-lifecycle-operations
+- Status: GATE A
+- Scope: Add 10 ticket lifecycle + payment tools
+- Current gate: A
+
+## Current Program Mode
+
+- Mode: architecture/features (PRODUCT-POWER PROGRAM)
+- Reason: Mission is domain power for Claude Code/Codex operators. CLI covers ~55% of operator-relevant backend surface. Systematic expansion needed.
 
 ## Current Loop State
 
-- Last merged PR: #146
-- Last merge commit: bee50c5
-- Current next-issue status: session complete — remaining items are low-value polish
-- Current recommended next branch: none (see deferred items)
+- Last merged PR: #155
+- Last merge commit: 6b7d78b
+- Program: PRODUCT-POWER PROGRAM for Claude Code/Codex operators
+- Roadmap: see below
+
+---
+
+## Product-Power Program Roadmap
+
+Discovery date: 2026-04-06
+CLI tools: 156 | Commands: ~50 | Slash commands: 20 | Backend coverage: ~55%
+
+### Ranked Initiatives
+
+| # | Initiative | Domain | Type | Operator Value | Backend Exists | Dependency | Branch Scope |
+|---|-----------|--------|------|---------------|---------------|------------|-------------|
+| 1 | **Event Config Completeness** | Event lifecycle | Domain power | 9/10 — operators can't fully configure events via CLI | YES | None | Expand event_create/event_update params (guest_limit, private, approval_required, timezone, virtual_url, sessions, speakers, registration_disabled, terms, etc.) |
+| 2 | **Ticket Lifecycle Operations** | Ticketing | Domain power | 9/10 — assign, cancel, comp, upgrade, mail tickets | YES | None | Add 6 new tools: assign_tickets, cancel_tickets, create_tickets, upgrade_ticket, redeem_tickets, mail_event_ticket |
+| 3 | **Payment Operations Visibility** | Ticketing | Domain power | 8/10 — operators need financial visibility | YES | None | Add tools: list_event_payments, get_payment_detail |
+| 4 | **Tool Registry Modularization** | Architecture | Enabling | 7/10 — registry.ts is 2000+ lines, blocks maintainability | N/A | Before wave of new tools | Split registry.ts into per-category module files |
+| 5 | **Space Newsletter Operations** | Community | Domain power | 8/10 — operator comms, zero coverage | YES | None | Add 8 tools: newsletter CRUD + send + stats |
+| 6 | **Space Event Moderation** | Community | Domain power | 7/10 — approve/reject event submissions | YES | None | Add tools: get_space_event_requests, decide_space_event_requests |
+| 7 | **Space Role Permissions** | Community | Domain power | 7/10 — access control management | YES | None | Add tools: list/update space role features |
+| 8 | **Store/Merch Subsystem** | Revenue | Domain power | 7/10 — entire subsystem, ~25 ops | YES | None | Multi-branch: store CRUD, products, orders, promotions |
+| 9 | **Event Sessions & Voting** | Event lifecycle | Domain power | 6/10 — interactive event features | YES | None | Add session reservation + voting tools |
+| 10 | **Advanced Analytics** | Analytics | Domain power | 6/10 — CubeJS token, member growth charts | YES | None | Add analytics generation tools |
+| 11 | **File Upload Pipeline + Image Management** | Enabling arch | Enabling | 5/10 — unblocks space/event image uploads | YES (createFileUploads, confirmFileUploads) | None | Build upload flow, then wire space avatar/cover + event cover/photos. MUST NOT be dropped — user flagged. |
+| 12 | **Payment Account CRUD** | Revenue | Domain power | 6/10 — create/update/delete payment accounts (Stripe, crypto) | YES (createNewPaymentAccount, updateNewPaymentAccount) | #11 may help (account_info varies by provider) | Multi-step workflow per provider type. MUST NOT be dropped. |
+| 13 | **Theme Data Management** | Branding | Domain power | 4/10 — space AND event theming via JSON | YES (theme_data: JSON scalar on both SpaceInput and EventInput) | None | Covers both space and event themes. Requires JSON blob input design. Lower priority but tracked. MUST NOT be dropped. |
+
+### Deferred (Low Priority)
+- Rooms/video (real-time, not CLI-suitable)
+- Posts/social feed (not core operator workflow)
+- Badges, lemonheads, passports (niche)
+- User discovery/social (not operator-facing)
+- Farcaster/Telegram integrations (niche)
+
+## Session 6 — Product-Power Program (2026-04-06)
+
+### Branch: feat/event-config-completeness
+
+#### Gate A
+
+- Date: 2026-04-06
+- Branch: feat/event-config-completeness
+- Initiative: #1 — Event Configuration Completeness
+- Why highest-leverage: Operators cannot fully configure events through the CLI. Missing fields include guest_limit, private, approval_required, timezone, virtual_url, registration_disabled, terms_text, application_required, guest_limit_per, ticket_limit_per, subevent_enabled, speaker_emails, speaker_users, welcome_text, frequent_questions. These are daily-use configuration needs. Backend already supports all via EventInput.
+- Scope: Expand event_create and event_update tools AND event create/update commands to accept all missing EventInput fields. Update params definitions in registry.ts and command options in src/commands/event/index.ts.
+- Key files:
+  - src/chat/tools/registry.ts — event_create and event_update tool param definitions
+  - src/commands/event/index.ts — event create and event update command options
+  - Backend reference: lemonade-backend schema.generated.graphql EventInput type
+- Operator value: 9/10 — completes event configuration surface
+- Architectural value: None (pure feature expansion)
+- Backend capability: All fields already exist in EventInput, just not passed through by CLI
+- Agent plan: implementation → audit → remediation → PR → Karen → final audit → merge
+
+#### Implementation
+
+- Commit: 38e92c0
+- Files: src/chat/tools/registry.ts, src/commands/event/index.ts, tests/unit/chat/schema-validation.test.ts
+- Checks: tsc clean, vitest (1032 tests), build clean
+
+#### Hostile Audit Round 1
+
+- 2 HIGH (truthy guards in update, formatResult guest_limit:0), 4 MEDIUM (display truthy, negatable flags, CLI parity gap, parseInt NaN), 3 LOW, 2 NIT
+- Verdict: CHANGES_REQUESTED
+
+#### Remediation
+
+- Commit: c3bd58e
+- All 11 findings fixed: truthy→!== undefined, != null for numerics, negatable flags, 9 missing CLI options added, NaN guards, tags description, stale schema entries removed, description in update return
+- Checks: tsc clean, vitest (1032 tests), build clean
+
+#### Hostile Audit Round 2
+
+- All round 1 findings RESOLVED
+- 4 advisory notes (N1: incomplete response selection, N2: stale codegen refs, N3: silent NaN drop, N4: create no --no- flags) — all non-blocking
+- Verdict: SAFE TO MERGE
+
+#### Gate B
+
+- Status: PASS
+- Files changed: src/chat/tools/registry.ts, src/commands/event/index.ts, tests/unit/chat/schema-validation.test.ts
+- Commits: 38e92c0, c3bd58e
+- Checks: tsc clean, build clean, 1032 tests pass
+- Residual risks: response selection incomplete for new fields (N1), codegen drift (N2)
+- Deferred: N1-N4 advisory notes for follow-up
+
+#### PR
+
+- PR number: #154
+- PR title: feat: expand event create/update to full EventInput configuration
+- PR URL: https://github.com/lemonadesocial/lemonade-cli/pull/154
+- Base: main
+- Head: feat/event-config-completeness
+- Commits: 38e92c0, c3bd58e, c1d9b66, 60a6dcc
+
+#### Karen Review
+
+- Verdict: REQUEST_CHANGES → remediated → all findings fixed
+- MAJOR-001: stale codegen refs → fixed (c1d9b66)
+- MINOR-001: inconsistent undefined guards → fixed (60a6dcc)
+- NIT-001: create negatable flags → fixed (60a6dcc)
+- NIT-002: tool NaN guards → fixed (60a6dcc)
+
+#### Final Zero-Findings Audit
+
+- All 17 findings verified resolved
+- Zero new findings
+- Verdict: SAFE TO MERGE
+
+#### Gate C
+
+- Status: PASS
+- Ready to merge: YES
+
+#### Merge
+
+- Merged at: 2026-04-06
+- Merge commit: 3f413ce
+- Local main synced: yes
+- Remote branch deleted: yes
+- CI: all 3 checks green (lint, build, test)
+
+---
+
+### Branch: feat/space-config-completeness
+
+#### Gate A
+
+- Date: 2026-04-06
+- Branch: feat/space-config-completeness
+- Initiative: #2a — Space Configuration Completeness (user-requested, slotted after #1)
+- Why highest-leverage: Space create/update use AISpaceInput with only 3 fields (title, description, private). Full SpaceInput has 23 fields. BUG: slug is silently dropped because AISpaceInput doesn't accept it. Operators cannot configure social handles, website, brand color, address, or space state. Payment account visibility missing.
+- Scope:
+  1. Switch space_create tool from aiCreateSpace/AISpaceInput to createSpace/SpaceInput
+  2. Switch space_update tool from aiUpdateSpace/AISpaceInput to updateSpace/SpaceInput
+  3. Add params: slug, handle_twitter, handle_instagram, handle_linkedin, handle_youtube, handle_tiktok, website, tint_color, address, state, private (on update)
+  4. Expand space_stats or add space_get to return new config fields
+  5. Add list_payment_accounts tool (listNewPaymentAccounts query)
+  6. Fix slug silent-drop bug
+- Key files: src/chat/tools/registry.ts (space tools ~line 962), src/commands/space/ (may not exist)
+- Operator value: 9/10 — completes space configuration surface, fixes slug bug, adds payment visibility
+- Backend capability: All fields already in SpaceInput, listNewPaymentAccounts query exists
+- Deferred: image uploads (need upload flow), role features (#7), theme_data (complex JSON), payment account CRUD (separate)
+- Agent plan: implementation → audit → remediation → PR → Karen → final audit → merge
+
+#### Implementation
+
+- Commit: dd02c77
+- Files: src/chat/tools/registry.ts, src/codegen/tool-resolver-map.ts, src/codegen/generate-from-graphql.ts, tests/unit/chat/schema-validation.test.ts
+- Checks: tsc clean, vitest (1033 tests), build clean
+
+#### Hostile Audit Round 1
+
+- 3 MEDIUM, 3 LOW, 3 NIT
+- Verdict: CHANGES_REQUESTED
+
+#### Remediation
+
+- Commits: 20ee8c6 (round 1), dde8050 (round 2 NITs)
+- All findings fixed
+- Checks: tsc clean, vitest (1033 tests), build clean
+
+#### Hostile Audit Round 2
+
+- All findings RESOLVED, 4 LOW/NIT → fixed in dde8050
+- Verdict: SAFE TO MERGE
+
+#### Gate B
+
+- Status: PASS
+- Commits: dd02c77, 20ee8c6, dde8050
+- Checks: tsc clean, build clean, 1033 tests pass
+
+#### PR
+
+- PR number: #155
+- PR title: feat: expand space create/update to full SpaceInput and add payment accounts tool
+- PR URL: https://github.com/lemonadesocial/lemonade-cli/pull/155
+- Base: main
+- Head: feat/space-config-completeness
+- Commits: dd02c77, 20ee8c6, dde8050, 76dd99a
+
+#### Karen Review
+
+- Verdict: APPROVE — 2 MINOR, 2 NIT, all fixed in 76dd99a
+
+#### Final Zero-Findings Audit
+
+- All 14 findings resolved, 1 NIT non-blocking
+- Verdict: SAFE TO MERGE
+
+#### Gate C
+
+- Status: PASS
+- Ready to merge: YES
+
+#### Merge
+
+- Merged at: 2026-04-06
+- Merge commit: 6b7d78b
+- Local main synced: yes
+- Remote branch deleted: yes
+- CI: all 3 checks green
+
+---
+
+### Branch: feat/ticket-lifecycle-operations
+
+#### Gate A
+
+- Date: 2026-04-06
+- Branch: feat/ticket-lifecycle-operations
+- Initiative: #3 — Ticket Lifecycle Operations + #4 — Payment Operations (combined)
+- Why highest-leverage: Core daily operator workflows — comp tickets, cancel tickets, assign tickets, upgrade tickets, email tickets, view payments. All backend operations exist, zero CLI coverage.
+- Scope: Add 10 new tools:
+  1. tickets_create (comp tickets) — createTickets mutation
+  2. tickets_cancel — cancelTickets mutation
+  3. tickets_assign — assignTickets mutation
+  4. tickets_upgrade — upgradeTicket mutation
+  5. tickets_email — mailEventTicket mutation
+  6. tickets_email_receipt — mailTicketPaymentReceipt mutation
+  7. event_payments_list — listEventPayments query
+  8. event_payment_detail — getEventPayment query
+  9. event_payment_summary — getEventPaymentSummary query
+  10. event_payment_statistics — getEventPaymentStatistics query
+- Deferred: tickets_redeem (complex wallet/passcode paths, lower priority)
+- Key files: src/chat/tools/registry.ts, src/codegen/tool-resolver-map.ts, src/codegen/generate-from-graphql.ts, tests/unit/chat/schema-validation.test.ts
+- Operator value: 9/10 — completes ticket lifecycle + financial visibility
+- Backend: All mutations/queries exist, none AI-prefixed, direct backend operations
+- Agent plan: implementation → audit → remediation → PR → Karen → final audit → merge
+
+---
+
+### Post-Merge Discovery (session 5)
+
+Remaining backlog ranked:
+1. atlasRequest unconditional response.json() — MEDIUM, crash on non-JSON error responses (src/api/atlas.ts:66)
+2. OAuth login server race between timeout and callback — HIGH edge-case (src/auth/oauth.ts:92-160)
+3. sanitizeToolArgs array recursion gap — MEDIUM security (src/chat/stream/handler.ts:79-91)
+4. new Date() on AI-provided date strings — MEDIUM (src/chat/tools/registry.ts)
+5. clearSession stale turn write-after-clear — MEDIUM race condition
+6. config get key validation — LOW
+7. /history hardcodes "Zesty" — LOW cosmetic
+
+Feature candidates:
+1. `lemonade doctor` health-check command (operator value 7/10, ~20-25 min cycle)
+2. Tool categorization & discoverability UX
+3. Batch mode progress/streaming visibility
+4. Config schema expansion
+
+Consolidated `src/chat/stream/handler.ts` SENSITIVE_KEYS into shared module — deferred (out of scope for #152)
+
+### Branch: feat/status-command
+
+#### Gate A
+
+- Date: 2026-04-05
+- Branch: feat/status-command
+- Chosen issue: No `lemonade status` command — operators must run multiple commands to understand CLI state
+- Why it is next: Highest-ROI narrow feature from architecture/features discovery (operator value 8/10, purely client-side, 2-3 files)
+- Scope: Add top-level `lemonade status` showing auth method, token expiry, default space, config, env overrides. Support --json.
+- Key files: src/commands/status/index.ts (new), src/index.ts (register), tests/unit/commands/status/status.test.ts (new)
+- Agent plan: implementation → audit → remediation → PR → Karen → final audit → merge
+
+#### Implementation
+
+- Commit: 737c5fd
+- Files: src/commands/status/index.ts, src/index.ts, tests/unit/commands/status/status.test.ts
+- Checks: tsc clean, vitest (987 tests), build clean
+
+#### Hostile Audit Round 1
+
+- 2 MAJOR (fragile env redaction, divergent redact functions), 3 MEDIUM, 4 LOW, 3 NIT
+- Verdict: FIX BEFORE CONTINUING
+
+#### Remediation
+
+- Commit: 4e959fc
+- Created shared src/output/redact.ts, updated config and status to use it, exported DEFAULT_API_URL from store, added 3 tests
+- Files: src/output/redact.ts (new), src/commands/status/index.ts, src/commands/config/index.ts, src/auth/store.ts, tests/unit/commands/status/status.test.ts
+- Checks: tsc clean, vitest (990 tests), build clean
+
+#### Hostile Audit Round 2
+
+- All 12 actionable findings RESOLVED, 3 accepted risk (documented)
+- No new findings
+- Verdict: SAFE TO MERGE
+
+#### Gate B
+
+- Status: PASS
+- Files changed: src/output/redact.ts, src/commands/status/index.ts, src/commands/config/index.ts, src/auth/store.ts, src/index.ts, tests/unit/commands/status/status.test.ts
+- Commits: 737c5fd, 4e959fc
+- Checks: tsc clean, build clean, 990 tests pass
+- Residual risks: URL credential embedding (accepted), JSON key omission (accepted)
+
+#### PR
+
+- PR number: #152
+- PR title: feat: add status command for at-a-glance CLI state overview
+- PR URL: https://github.com/lemonadesocial/lemonade-cli/pull/152
+- Base: main
+- Head: feat/status-command
+- Commits: 737c5fd, 4e959fc, ea42559
+
+#### Karen Review
+
+- Verdict: APPROVE
+- F-1 (MAJOR): PR description needed breaking behavior note for redaction threshold change → fixed (PR body updated)
+- F-5 (NIT): Add redact utility tests → fixed (ea42559)
+
+#### Final Zero-Findings Audit
+
+- Zero findings
+- Verdict: SAFE TO MERGE
+
+#### Gate C
+
+- Status: PASS
+- Ready to merge: YES
+
+#### Merge
+
+- Merged at: 2026-04-05
+- Merge commit: eb77abb
+- Local main synced: yes
+- Remote branch deleted: yes
+
+## Session Summary (2026-04-05, session 5)
+
+Two cycles completed:
+1. #152 — Add status command for at-a-glance CLI state overview (feat/status-command)
+2. #153 — Add doctor command for CLI health diagnostics (feat/doctor-command)
+
+### Branch: feat/doctor-command — MERGED as #153
+
+- Commit: 1515fb1
+- 9 health checks: config exists, config readable, output format, API URL, auth method, token status, refresh token, tool registry, API connectivity
+- Connectivity check opt-in via --check-connectivity, gated on URL validation
+- Shared formatRelativeTime extracted to src/output/format.ts
+- 3 audit rounds, 1 Karen review cycle, 1032 tests pass
+- Deferred: graphql.ts localhost check hardening (pre-existing, out of scope)
+
+### Branch: feat/status-command — MERGED as #152
+
+## Session Summary (2026-04-05, session 4)
+
+Four cycles completed:
+1. #148 — Replace ghost "space switch" command references with correct guidance (fix/ghost-space-switch-command)
+2. #149 — Warn on unknown CLI flags instead of silently ignoring them (fix/silent-unknown-flags)
+3. #150 — Add auth logout command to clear stored credentials (feat/auth-logout)
+4. #151 — Prevent API rejection from leading assistant messages after history truncation (fix/truncate-history-assistant-start)
 
 ## Session Summary (2026-04-05, session 3)
 
