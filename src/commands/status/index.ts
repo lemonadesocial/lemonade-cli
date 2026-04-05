@@ -3,16 +3,14 @@ import chalk from 'chalk';
 import { jsonSuccess } from '../../output/json.js';
 import { handleError } from '../../output/error.js';
 import { renderKeyValue } from '../../output/table.js';
+import { redactValue, SENSITIVE_ENV_VARS } from '../../output/redact.js';
 import {
   getConfig,
   getConfigPath,
   configExists,
+  DEFAULT_API_URL,
   type LemonadeConfig,
 } from '../../auth/store.js';
-
-const SENSITIVE_KEYS = new Set(['access_token', 'refresh_token', 'api_key']);
-
-const DEFAULT_API_URL = 'https://backend.lemonade.social';
 
 const ENV_OVERRIDES = [
   'LEMONADE_API_KEY',
@@ -20,11 +18,6 @@ const ENV_OVERRIDES = [
   'LEMONADE_HYDRA_URL',
   'LEMONADE_REGISTRY_URL',
 ] as const;
-
-function redact(value: string): string {
-  if (value.length <= 7) return '***';
-  return value.slice(0, 3) + '...' + value.slice(-4);
-}
 
 function formatRelativeTime(ms: number): string {
   const abs = Math.abs(ms);
@@ -35,6 +28,7 @@ function formatRelativeTime(ms: number): string {
 }
 
 function getTokenStatus(config: LemonadeConfig): string {
+  // Defensive guard — callers should only invoke when access_token is truthy
   if (!config.access_token) return 'n/a';
   if (!config.token_expires_at) return 'unknown (no expiry recorded)';
 
@@ -56,9 +50,9 @@ function getAuthMethod(config: LemonadeConfig): string {
 }
 
 function getAuthKeyDisplay(config: LemonadeConfig): string | undefined {
-  if (process.env.LEMONADE_API_KEY) return redact(process.env.LEMONADE_API_KEY);
-  if (config.access_token) return redact(config.access_token);
-  if (config.api_key) return redact(config.api_key);
+  if (process.env.LEMONADE_API_KEY) return redactValue('api_key', process.env.LEMONADE_API_KEY);
+  if (config.access_token) return redactValue('access_token', config.access_token);
+  if (config.api_key) return redactValue('api_key', config.api_key);
   return undefined;
 }
 
@@ -101,8 +95,8 @@ function collectStatus(): StatusData {
   for (const envVar of ENV_OVERRIDES) {
     const val = process.env[envVar];
     if (val) {
-      envOverrides[envVar] = SENSITIVE_KEYS.has('api_key') && envVar === 'LEMONADE_API_KEY'
-        ? redact(val)
+      envOverrides[envVar] = SENSITIVE_ENV_VARS.has(envVar)
+        ? redactValue('api_key', val)
         : val;
     }
   }
@@ -177,7 +171,7 @@ export function registerStatusCommands(program: Command): void {
     .command('status')
     .description('Show current CLI state at a glance')
     .option('--json', 'Output as JSON')
-    .action((opts) => {
+    .action(async (opts) => {
       try {
         const status = collectStatus();
 

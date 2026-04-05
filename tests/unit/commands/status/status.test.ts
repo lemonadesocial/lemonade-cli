@@ -4,6 +4,7 @@ vi.mock('../../../../src/auth/store.js', () => ({
   getConfig: vi.fn(),
   getConfigPath: vi.fn(),
   configExists: vi.fn(),
+  DEFAULT_API_URL: 'https://backend.lemonade.social',
 }));
 
 import { Command } from 'commander';
@@ -207,5 +208,51 @@ describe('status command', () => {
 
     const output = logSpy.mock.calls[0][0] as string;
     expect(output).toContain('credits');
+  });
+
+  it('shows "expiring soon" when token expires within 5 minutes', async () => {
+    mockGetConfig.mockReturnValue({
+      access_token: 'abc1234567890xyz',
+      token_expires_at: Date.now() + 120_000, // 2 minutes from now
+      output_format: 'table',
+      api_url: 'https://backend.lemonade.social',
+    });
+
+    await program.parseAsync(['node', 'test', 'status']);
+
+    const output = logSpy.mock.calls[0][0] as string;
+    expect(output).toContain('expiring soon');
+  });
+
+  it('handles getConfig errors gracefully', async () => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+    mockGetConfig.mockImplementation(() => {
+      throw new Error('Config read failed');
+    });
+
+    await program.parseAsync(['node', 'test', 'status']);
+
+    expect(stderrSpy).toHaveBeenCalled();
+    const written = stderrSpy.mock.calls[0][0] as string;
+    expect(written).toContain('Config read failed');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    exitSpy.mockRestore();
+  });
+
+  it('handles getConfig errors with --json flag', async () => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+    mockGetConfig.mockImplementation(() => {
+      throw new Error('Config read failed');
+    });
+
+    await program.parseAsync(['node', 'test', 'status', '--json']);
+
+    expect(stderrSpy).toHaveBeenCalled();
+    const written = stderrSpy.mock.calls[0][0] as string;
+    const parsed = JSON.parse(written.trim());
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.message).toContain('Config read failed');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    exitSpy.mockRestore();
   });
 });
