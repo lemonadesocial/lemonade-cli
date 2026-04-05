@@ -118,57 +118,116 @@ describe('ensureAuthHeader', () => {
 
   it('returns valid token without refreshing when not expired', async () => {
     const futureExpiry = Date.now() + 3_600_000; // 1 hour from now
+    const configJson = JSON.stringify({
+      access_token: 'valid-token',
+      token_expires_at: futureExpiry,
+    });
 
-    vi.doMock('../../../src/auth/store.js', async (importOriginal) => {
-      const actual = await importOriginal<typeof import('../../../src/auth/store.js')>();
+    vi.doMock('fs', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('fs')>();
       return {
         ...actual,
-        getAuthHeader: () => `Bearer valid-token`,
-        ensureAuthHeader: actual.ensureAuthHeader,
+        existsSync: () => true,
+        readFileSync: () => configJson,
       };
     });
 
-    // Mock readConfig via the store module internals — instead, test via
-    // the real module with env var bypass.
-    process.env.LEMONADE_API_KEY = 'env-key';
+    global.fetch = vi.fn();
+
     const { ensureAuthHeader } = await import('../../../src/auth/store.js');
-
     const result = await ensureAuthHeader();
-    expect(result).toBe('Bearer env-key');
 
-    delete process.env.LEMONADE_API_KEY;
+    expect(result).toBe('Bearer valid-token');
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('refreshes expired token and returns new bearer', async () => {
-    // This test verifies the integration between ensureAuthHeader and refreshAccessToken
-    // by mocking at the fetch level.
-    const store = await import('../../../src/auth/store.js');
-
-    // Simulate expired config state
-    const expiredConfig = {
+    const expiredConfig = JSON.stringify({
       access_token: 'expired-token',
       refresh_token: 'valid-refresh',
       token_expires_at: Date.now() - 3_600_000, // 1 hour ago
-      api_url: 'https://backend.lemonade.social',
       hydra_url: 'https://hydra.test',
-    };
+    });
 
-    // We need to write this config for readConfig to find it.
-    // Instead of filesystem manipulation, verify behavior through the
-    // graphql integration test path which we already validated live.
-    // For a unit test, use the env var path to prove ensureAuthHeader works.
-    process.env.LEMONADE_API_KEY = 'fallback-key';
-    const result = await store.ensureAuthHeader();
-    expect(result).toBe('Bearer fallback-key');
-    delete process.env.LEMONADE_API_KEY;
+    vi.doMock('fs', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('fs')>();
+      return {
+        ...actual,
+        existsSync: () => true,
+        readFileSync: () => expiredConfig,
+        writeFileSync: () => {},
+        mkdirSync: () => {},
+      };
+    });
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        access_token: 'refreshed-token',
+        refresh_token: 'new-refresh',
+        expires_in: 86400,
+      }),
+    });
+
+    const { ensureAuthHeader } = await import('../../../src/auth/store.js');
+    const result = await ensureAuthHeader();
+
+    expect(result).toBe('Bearer refreshed-token');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('concurrent calls share the same refresh promise', async () => {
-    // Verify the deduplication by checking that fetch is called only once
-    // when multiple ensureAuthHeader calls happen concurrently.
-    // This is verified structurally by the refreshInFlight guard in the code.
-    // A proper test would need filesystem mocking which is fragile.
-    // The live validation already confirmed this behavior.
-    expect(true).toBe(true);
+    const expiredConfig = JSON.stringify({
+      access_token: 'expired-token',
+      refresh_token: 'valid-refresh',
+      token_expires_at: Date.now() - 3_600_000,
+      hydra_url: 'https://hydra.test',
+    });
+
+    vi.doMock('fs', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('fs')>();
+      return {
+        ...actual,
+        existsSync: () => true,
+        readFileSync: () => expiredConfig,
+        writeFileSync: () => {},
+        mkdirSync: () => {},
+      };
+    });
+
+    // Resolve after a delay so concurrent callers can pile up
+    global.fetch = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => {
+            resolve({
+              ok: true,
+              json: async () => ({
+                access_token: 'shared-token',
+                refresh_token: 'new-refresh',
+                expires_in: 86400,
+              }),
+            });
+          }, 50),
+        ),
+    );
+
+    const { ensureAuthHeader } = await import('../../../src/auth/store.js');
+
+    // First call warms the lazy oauth import and sets refreshInFlight.
+    const p1 = ensureAuthHeader();
+    // Yield so p1 passes the `await import('./oauth.js')` and sets refreshInFlight.
+    await new Promise((r) => setTimeout(r, 5));
+    // These calls should reuse the in-flight promise.
+    const p2 = ensureAuthHeader();
+    const p3 = ensureAuthHeader();
+
+    const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+
+    expect(r1).toBe('Bearer shared-token');
+    expect(r2).toBe('Bearer shared-token');
+    expect(r3).toBe('Bearer shared-token');
+    // Only one fetch despite three concurrent calls
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });
