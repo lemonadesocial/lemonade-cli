@@ -6588,9 +6588,14 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
     formatResult: (result) => {
       if (result === null || result === undefined) return 'Error: no response from server.';
-      const items = result as Array<{ user: string; session: string; ticket_type?: string }>;
-      if (!items.length) return 'No session reservations found.';
-      return `${items.length} reservation(s) found.`;
+      const reservations = result as Array<Record<string, unknown>>;
+      if (!reservations.length) return 'No reservations found.';
+      const lines = reservations.map(r => {
+        const user = r.user_expanded as Record<string, unknown> | undefined;
+        const name = user?.name || r.user || 'unknown';
+        return `- ${name} → session ${r.session}`;
+      });
+      return `${reservations.length} reservation(s):\n${lines.join('\n')}`;
     },
   });
 
@@ -6618,9 +6623,13 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
     formatResult: (result) => {
       if (result === null || result === undefined) return 'Error: no response from server.';
-      const items = result as Array<{ session: string; count: number }>;
-      if (!items.length) return 'No reservation summary data.';
-      return `${items.length} summary row(s).`;
+      const summaries = result as Array<Record<string, unknown>>;
+      if (!summaries.length) return 'No reservation data found.';
+      const lines = summaries.map(s => {
+        const ticketInfo = s.ticket_type ? ` (ticket type: ${s.ticket_type})` : '';
+        return `- Session ${s.session}: ${s.count} reservation(s)${ticketInfo}`;
+      });
+      return `${summaries.length} summary record(s):\n${lines.join('\n')}`;
     },
   });
 
@@ -6686,10 +6695,12 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async (args) => {
       const variables: Record<string, unknown> = { event: args.event_id };
+      // param 'voting_ids' maps to backend arg 'votings' (array of MongoID)
       if (args.voting_ids !== undefined) {
         variables.votings = (args.voting_ids as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       }
       if (args.hidden !== undefined) variables.hidden = args.hidden;
+      // listEventVotings uses separate args (not an input wrapper) per backend schema
       const result = await graphqlRequest<{ listEventVotings: unknown }>(
         `query($event: MongoID!, $votings: [MongoID!], $hidden: Boolean) {
           listEventVotings(event: $event, votings: $votings, hidden: $hidden) {
