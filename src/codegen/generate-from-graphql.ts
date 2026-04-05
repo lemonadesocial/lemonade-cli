@@ -115,6 +115,8 @@ const MANUAL_RESOLVERS = new Set([
   // Advanced analytics
   'getSpaceMemberAmountByDate', 'getTopSpaceEventAttendees', 'getSpaceEventLocationsLeaderboard',
   'generateCubejsToken', 'getSpaceRewardStatistics', 'getEventLatestViews',
+  // File upload & image management
+  'createFileUploads', 'confirmFileUploads', 'createFile',
 ]);
 
 function unwrapType(type: IntrospectionType): {

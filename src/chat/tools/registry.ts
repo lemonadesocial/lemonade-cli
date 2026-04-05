@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { extname } from 'path';
 import { ToolDef } from '../providers/interface.js';
 import { graphqlRequest } from '../../api/graphql.js';
 import { atlasRequest } from '../../api/atlas.js';
@@ -6144,6 +6146,254 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (result === null || result === undefined) return 'Error: no response from server.';
       const r = result as Record<string, unknown>;
       return `Page config created: ${r._id} "${r.name || '(unnamed)'}" [${r.status}]`;
+    },
+  });
+
+  // --- File Upload & Image Management ---
+
+  const MIME_TYPES: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    svg: 'image/svg+xml',
+    webp: 'image/webp',
+  };
+
+  const VALID_EXTENSIONS = Object.keys(MIME_TYPES);
+
+  async function uploadLocalFile(
+    filePath: string,
+    directory: string,
+    description?: string,
+  ): Promise<{ _id: string; url: string }> {
+    const fileBuffer = readFileSync(filePath);
+    const ext = extname(filePath).slice(1).toLowerCase();
+    if (!VALID_EXTENSIONS.includes(ext)) {
+      throw new Error(`Unsupported file type: .${ext}. Supported: ${VALID_EXTENSIONS.join(', ')}`);
+    }
+    const mimeType = MIME_TYPES[ext];
+
+    const uploadInfo: Record<string, unknown> = { extension: ext };
+    if (description) uploadInfo.description = description;
+
+    const createResult = await graphqlRequest<{
+      createFileUploads: Array<{ _id: string; url: string; presigned_url: string; type: string; key: string }>;
+    }>(
+      `mutation($upload_infos: [FileUploadInfo!]!, $directory: String!) {
+        createFileUploads(upload_infos: $upload_infos, directory: $directory) {
+          _id url presigned_url type key
+        }
+      }`,
+      { upload_infos: [uploadInfo], directory },
+    );
+
+    const fileRecord = createResult.createFileUploads[0];
+    if (!fileRecord) throw new Error('No file record returned from createFileUploads');
+
+    const response = await fetch(fileRecord.presigned_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': mimeType },
+      body: fileBuffer,
+    });
+    if (!response.ok) throw new Error(`S3 upload failed: ${response.status} ${response.statusText}`);
+
+    await graphqlRequest<{ confirmFileUploads: boolean }>(
+      `mutation($ids: [MongoID!]!) {
+        confirmFileUploads(ids: $ids)
+      }`,
+      { ids: [fileRecord._id] },
+    );
+
+    return { _id: fileRecord._id, url: fileRecord.url };
+  }
+
+  register({
+    name: 'file_upload',
+    displayName: 'file upload',
+    description:
+      'Upload an image file from a local path. Returns the file ID for use with space/event image fields. Recommended dimensions: 800x800 pixels for event covers and space avatars.',
+    params: [
+      {
+        name: 'file_path',
+        type: 'string',
+        description: 'Local file path to upload (supports: png, jpg, jpeg, gif, svg, webp)',
+        required: true,
+      },
+      {
+        name: 'directory',
+        type: 'string',
+        description: 'Upload directory context',
+        required: false,
+        enum: ['event', 'user', 'space'],
+      },
+      { name: 'description', type: 'string', description: 'File description', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const filePath = args.file_path as string;
+      const directory = (args.directory as string) || 'event';
+      const description = args.description as string | undefined;
+      return uploadLocalFile(filePath, directory, description);
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; url: string };
+      return `File uploaded — ID: ${r._id}\nURL: ${r.url}\nUse this file ID with space_set_avatar, space_set_cover (image_avatar/image_cover) or event_set_photos (new_new_photos).`;
+    },
+  });
+
+  register({
+    name: 'file_upload_url',
+    displayName: 'file upload url',
+    description:
+      'Upload an image from a URL (the server downloads it). Returns the file ID. Recommended: 800x800 pixels for event covers and space avatars.',
+    params: [
+      { name: 'url', type: 'string', description: 'URL of the image to upload', required: true },
+      { name: 'description', type: 'string', description: 'File description', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const url = args.url as string;
+      const input: Record<string, unknown> = {};
+      if (args.description) input.description = args.description;
+
+      const result = await graphqlRequest<{
+        createFile: { _id: string; url: string; type: string; size: number };
+      }>(
+        `mutation($url: String!, $input: FileInput) {
+          createFile(url: $url, input: $input) {
+            _id url type size
+          }
+        }`,
+        { url, input: Object.keys(input).length > 0 ? input : undefined },
+      );
+      return result.createFile;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; url: string };
+      return `File uploaded from URL — ID: ${r._id}\nURL: ${r.url}\nUse this file ID with space_set_avatar, space_set_cover (image_avatar/image_cover) or event_set_photos (new_new_photos).`;
+    },
+  });
+
+  register({
+    name: 'space_set_avatar',
+    displayName: 'space set avatar',
+    description:
+      'Set a space profile photo from a local file or existing file ID. Recommended: 800x800 pixels for best display.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'file_id', type: 'string', description: 'Existing file ID (from file_upload)', required: false },
+      { name: 'file_path', type: 'string', description: 'Local file path to upload and set as avatar', required: false },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const spaceId = args.space_id as string;
+      const fileId = args.file_id as string | undefined;
+      const filePath = args.file_path as string | undefined;
+
+      if (fileId && filePath) throw new Error('Provide either file_id or file_path, not both.');
+      if (!fileId && !filePath) throw new Error('Provide either file_id or file_path.');
+
+      let resolvedFileId = fileId;
+      if (filePath) {
+        const uploaded = await uploadLocalFile(filePath, 'space');
+        resolvedFileId = uploaded._id;
+      }
+
+      const result = await graphqlRequest<{ updateSpace: unknown }>(
+        `mutation($input: SpaceInput!, $_id: MongoID!) {
+          updateSpace(input: $input, _id: $_id) {
+            _id title image_avatar
+          }
+        }`,
+        { _id: spaceId, input: { image_avatar: resolvedFileId } },
+      );
+      return result.updateSpace;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; title: string; image_avatar: string };
+      return `Avatar set for space "${r.title}" (${r._id}).`;
+    },
+  });
+
+  register({
+    name: 'space_set_cover',
+    displayName: 'space set cover',
+    description:
+      'Set a space cover image from a local file or existing file ID. Recommended: 800x800 pixels for best display.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'file_id', type: 'string', description: 'Existing file ID (from file_upload)', required: false },
+      { name: 'file_path', type: 'string', description: 'Local file path to upload and set as cover', required: false },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const spaceId = args.space_id as string;
+      const fileId = args.file_id as string | undefined;
+      const filePath = args.file_path as string | undefined;
+
+      if (fileId && filePath) throw new Error('Provide either file_id or file_path, not both.');
+      if (!fileId && !filePath) throw new Error('Provide either file_id or file_path.');
+
+      let resolvedFileId = fileId;
+      if (filePath) {
+        const uploaded = await uploadLocalFile(filePath, 'space');
+        resolvedFileId = uploaded._id;
+      }
+
+      const result = await graphqlRequest<{ updateSpace: unknown }>(
+        `mutation($input: SpaceInput!, $_id: MongoID!) {
+          updateSpace(input: $input, _id: $_id) {
+            _id title image_cover
+          }
+        }`,
+        { _id: spaceId, input: { image_cover: resolvedFileId } },
+      );
+      return result.updateSpace;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; title: string; image_cover: string };
+      return `Cover image set for space "${r.title}" (${r._id}).`;
+    },
+  });
+
+  register({
+    name: 'event_set_photos',
+    displayName: 'event set photos',
+    description:
+      'Set event photos from file IDs (from file_upload). The first photo becomes the event cover automatically. Recommended: 800x800 pixels for best display.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'file_ids', type: 'string', description: 'Comma-separated file IDs', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const eventId = args.event_id as string;
+      const fileIds = (args.file_ids as string)
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+
+      if (fileIds.length === 0) throw new Error('At least one file ID is required.');
+
+      const result = await graphqlRequest<{ updateEvent: unknown }>(
+        `mutation($input: EventInput!, $_id: MongoID!) {
+          updateEvent(input: $input, _id: $_id) {
+            _id title
+          }
+        }`,
+        { _id: eventId, input: { new_new_photos: fileIds } },
+      );
+      return result.updateEvent;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as { _id: string; title: string };
+      return `Photos set for event "${r.title}" (${r._id}). The first photo is used as the event cover.`;
     },
   });
 

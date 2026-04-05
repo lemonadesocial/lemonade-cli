@@ -54,7 +54,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetMyTickets: ['items', 'event_title', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],
   aiListMySpaces: ['items', '_id', 'title', 'slug', 'description', 'private', 'personal', 'image_avatar_url', 'member_count', 'event_count'],
   createSpace: ['_id', 'title', 'slug', 'description', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'address', 'title', 'city', 'country'],
-  updateSpace: ['_id', 'title', 'slug', 'description', 'state', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'address', 'title', 'city', 'country'],
+  updateSpace: ['_id', 'title', 'slug', 'description', 'state', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'address', 'title', 'city', 'country', 'image_avatar', 'image_cover'],
   listNewPaymentAccounts: ['_id', 'active', 'type', 'title', 'provider', 'created_at', 'account_info', 'currencies', 'address', 'network', 'StripeAccount', 'SolanaAccount', 'EthereumAccount', 'DigitalAccount', 'SafeAccount', 'EthereumEscrowAccount', 'EthereumRelayAccount', 'EthereumStakeAccount'],
   createNewPaymentAccount: ['_id', 'active', 'type', 'title', 'provider', 'created_at'],
   updateNewPaymentAccount: ['_id', 'active', 'type', 'title', 'provider', 'created_at'],
@@ -251,6 +251,10 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   generateCubejsToken: [], // scalar String
   getSpaceRewardStatistics: ['events_count', 'checkin_settings_count', 'ticket_settings_count', 'unique_recipients_count'],
   getEventLatestViews: ['views', 'date', 'geoip_country', 'geoip_region', 'geoip_city', 'user_agent'],
+  // File upload & image management
+  createFileUploads: ['_id', 'url', 'presigned_url', 'type', 'key'],
+  confirmFileUploads: [], // Boolean
+  createFile: ['_id', 'url', 'type', 'size'],
 };
 
 /**

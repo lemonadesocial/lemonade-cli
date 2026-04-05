@@ -89,6 +89,11 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   cubejs_token: 'generateCubejsToken',
   space_reward_stats: 'getSpaceRewardStatistics',
   event_latest_views: 'getEventLatestViews',
+  file_upload: 'createFileUploads',
+  file_upload_url: 'createFile',
+  space_set_avatar: 'updateSpace',
+  space_set_cover: 'updateSpace',
+  event_set_photos: 'updateEvent',
 };
 
 // Maps MCP tool names to CLI command group + subcommand

@@ -530,4 +530,41 @@ describe('Tool Registry', () => {
     expect(destructiveNames).not.toContain('subscription_plans');
     expect(destructiveNames).not.toContain('subscription_upgrade');
   });
+
+  // --- File upload & image management tools ---
+
+  it('includes file upload tools', () => {
+    expect(registry.file_upload).toBeDefined();
+    expect(registry.file_upload.destructive).toBe(false);
+    expect(registry.file_upload.params.find((p) => p.name === 'file_path')?.required).toBe(true);
+    expect(registry.file_upload.params.find((p) => p.name === 'directory')?.enum).toContain('event');
+    expect(registry.file_upload.params.find((p) => p.name === 'directory')?.enum).toContain('space');
+    expect(registry.file_upload.params.find((p) => p.name === 'directory')?.required).toBe(false);
+
+    expect(registry.file_upload_url).toBeDefined();
+    expect(registry.file_upload_url.destructive).toBe(false);
+    expect(registry.file_upload_url.params.find((p) => p.name === 'url')?.required).toBe(true);
+    expect(registry.file_upload_url.params.find((p) => p.name === 'description')?.required).toBe(false);
+  });
+
+  it('includes space image tools', () => {
+    expect(registry.space_set_avatar).toBeDefined();
+    expect(registry.space_set_avatar.destructive).toBe(true);
+    expect(registry.space_set_avatar.params.find((p) => p.name === 'space_id')?.required).toBe(true);
+    expect(registry.space_set_avatar.params.find((p) => p.name === 'file_id')?.required).toBe(false);
+    expect(registry.space_set_avatar.params.find((p) => p.name === 'file_path')?.required).toBe(false);
+
+    expect(registry.space_set_cover).toBeDefined();
+    expect(registry.space_set_cover.destructive).toBe(true);
+    expect(registry.space_set_cover.params.find((p) => p.name === 'space_id')?.required).toBe(true);
+    expect(registry.space_set_cover.params.find((p) => p.name === 'file_id')?.required).toBe(false);
+    expect(registry.space_set_cover.params.find((p) => p.name === 'file_path')?.required).toBe(false);
+  });
+
+  it('includes event photo tool', () => {
+    expect(registry.event_set_photos).toBeDefined();
+    expect(registry.event_set_photos.destructive).toBe(true);
+    expect(registry.event_set_photos.params.find((p) => p.name === 'event_id')?.required).toBe(true);
+    expect(registry.event_set_photos.params.find((p) => p.name === 'file_ids')?.required).toBe(true);
+  });
 });
