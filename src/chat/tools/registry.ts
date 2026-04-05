@@ -1,5 +1,5 @@
-import { readFileSync } from 'fs';
-import { extname } from 'path';
+import { existsSync, statSync, readFileSync } from 'fs';
+import { extname, resolve } from 'path';
 import { ToolDef } from '../providers/interface.js';
 import { graphqlRequest } from '../../api/graphql.js';
 import { atlasRequest } from '../../api/atlas.js';
@@ -6162,17 +6162,59 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   const VALID_EXTENSIONS = Object.keys(MIME_TYPES);
 
+  const MAGIC_BYTES: Record<string, number[][]> = {
+    png: [[0x89, 0x50, 0x4E, 0x47]],
+    jpg: [[0xFF, 0xD8, 0xFF]],
+    jpeg: [[0xFF, 0xD8, 0xFF]],
+    gif: [[0x47, 0x49, 0x46]],
+    webp: [[0x52, 0x49, 0x46, 0x46]],
+  };
+
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
   async function uploadLocalFile(
     filePath: string,
     directory: string,
     description?: string,
   ): Promise<{ _id: string; url: string }> {
-    const fileBuffer = readFileSync(filePath);
-    const ext = extname(filePath).slice(1).toLowerCase();
+    const resolvedPath = resolve(filePath);
+
+    // H4: Block sensitive directories
+    const blockedPrefixes = ['/etc/', '/var/', '/proc/', '/sys/'];
+    const homeDir = process.env.HOME || '';
+    const blockedHomePaths = ['.ssh', '.gnupg', '.aws', '.config/gcloud'];
+    for (const prefix of blockedPrefixes) {
+      if (resolvedPath.startsWith(prefix)) throw new Error(`Cannot upload files from ${prefix}`);
+    }
+    for (const sensitive of blockedHomePaths) {
+      if (homeDir && resolvedPath.startsWith(`${homeDir}/${sensitive}`)) {
+        throw new Error(`Cannot upload files from ~/${sensitive}`);
+      }
+    }
+
+    // H1/H2: File existence, size, and emptiness checks
+    if (!existsSync(resolvedPath)) throw new Error(`File not found: ${resolvedPath}`);
+    const stats = statSync(resolvedPath);
+    if (stats.size > MAX_FILE_SIZE) throw new Error(`File too large: ${(stats.size / 1024 / 1024).toFixed(1)}MB (max 50MB)`);
+    if (stats.size === 0) throw new Error('File is empty');
+
+    const ext = extname(resolvedPath).slice(1).toLowerCase();
     if (!VALID_EXTENSIONS.includes(ext)) {
       throw new Error(`Unsupported file type: .${ext}. Supported: ${VALID_EXTENSIONS.join(', ')}`);
     }
     const mimeType = MIME_TYPES[ext];
+
+    const fileBuffer = readFileSync(resolvedPath);
+
+    // M1: Magic byte validation (skip for SVG which is text-based)
+    if (ext !== 'svg') {
+      const header = fileBuffer.slice(0, 8);
+      const expected = MAGIC_BYTES[ext];
+      if (expected) {
+        const matches = expected.some(magic => magic.every((byte, i) => header[i] === byte));
+        if (!matches) throw new Error(`File content does not match ${ext} format — file may be misnamed`);
+      }
+    }
 
     const uploadInfo: Record<string, unknown> = { extension: ext };
     if (description) uploadInfo.description = description;
@@ -6191,12 +6233,27 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     const fileRecord = createResult.createFileUploads[0];
     if (!fileRecord) throw new Error('No file record returned from createFileUploads');
 
-    const response = await fetch(fileRecord.presigned_url, {
-      method: 'PUT',
-      headers: { 'Content-Type': mimeType },
-      body: fileBuffer,
-    });
-    if (!response.ok) throw new Error(`S3 upload failed: ${response.status} ${response.statusText}`);
+    // L4: Abort after 60 seconds
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    let response: Response;
+    try {
+      response = await fetch(fileRecord.presigned_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: fileBuffer,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+    } catch (e) {
+      clearTimeout(timeout);
+      if ((e as Error).name === 'AbortError') throw new Error('S3 upload timed out after 60 seconds');
+      throw e;
+    }
+    // H3: Inform user that a record was created if S3 PUT fails
+    if (!response.ok) {
+      throw new Error(`S3 upload failed (${response.status}). A file record was created but not confirmed — retry with a new upload.`);
+    }
 
     await graphqlRequest<{ confirmFileUploads: boolean }>(
       `mutation($ids: [MongoID!]!) {
@@ -6255,8 +6312,14 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async (args) => {
       const url = args.url as string;
-      const input: Record<string, unknown> = {};
-      if (args.description) input.description = args.description;
+      // M2: URL validation
+      if (!url.startsWith('https://') && !url.startsWith('http://')) {
+        throw new Error('URL must start with https:// or http://');
+      }
+
+      // L1: Only pass input variable if description is defined
+      const variables: Record<string, unknown> = { url };
+      if (args.description !== undefined) variables.input = { description: args.description };
 
       const result = await graphqlRequest<{
         createFile: { _id: string; url: string; type: string; size: number };
@@ -6266,7 +6329,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
             _id url type size
           }
         }`,
-        { url, input: Object.keys(input).length > 0 ? input : undefined },
+        variables,
       );
       return result.createFile;
     },
@@ -6276,6 +6339,37 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return `File uploaded from URL — ID: ${r._id}\nURL: ${r.url}\nUse this file ID with space_set_avatar, space_set_cover (image_avatar/image_cover) or event_set_photos (new_new_photos).`;
     },
   });
+
+  // L2: Shared helper for space image updates
+  const SPACE_IMAGE_QUERIES: Record<'image_avatar' | 'image_cover', string> = {
+    image_avatar: `mutation($input: SpaceInput!, $_id: MongoID!) {
+      updateSpace(input: $input, _id: $_id) {
+        _id title image_avatar
+      }
+    }`,
+    image_cover: `mutation($input: SpaceInput!, $_id: MongoID!) {
+      updateSpace(input: $input, _id: $_id) {
+        _id title image_cover
+      }
+    }`,
+  };
+
+  async function setSpaceImage(spaceId: string, field: 'image_avatar' | 'image_cover', fileId?: string, filePath?: string): Promise<unknown> {
+    if (!fileId && !filePath) throw new Error('Provide either file_id or file_path.');
+    if (fileId && filePath) throw new Error('Provide either file_id or file_path, not both.');
+
+    let id = fileId;
+    if (filePath) {
+      const uploaded = await uploadLocalFile(filePath, 'space');
+      id = uploaded._id;
+    }
+
+    const result = await graphqlRequest<Record<string, unknown>>(
+      SPACE_IMAGE_QUERIES[field],
+      { input: { [field]: id }, _id: spaceId },
+    );
+    return result.updateSpace;
+  }
 
   register({
     name: 'space_set_avatar',
@@ -6289,28 +6383,12 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: true,
     execute: async (args) => {
-      const spaceId = args.space_id as string;
-      const fileId = args.file_id as string | undefined;
-      const filePath = args.file_path as string | undefined;
-
-      if (fileId && filePath) throw new Error('Provide either file_id or file_path, not both.');
-      if (!fileId && !filePath) throw new Error('Provide either file_id or file_path.');
-
-      let resolvedFileId = fileId;
-      if (filePath) {
-        const uploaded = await uploadLocalFile(filePath, 'space');
-        resolvedFileId = uploaded._id;
-      }
-
-      const result = await graphqlRequest<{ updateSpace: unknown }>(
-        `mutation($input: SpaceInput!, $_id: MongoID!) {
-          updateSpace(input: $input, _id: $_id) {
-            _id title image_avatar
-          }
-        }`,
-        { _id: spaceId, input: { image_avatar: resolvedFileId } },
+      return setSpaceImage(
+        args.space_id as string,
+        'image_avatar',
+        args.file_id as string | undefined,
+        args.file_path as string | undefined,
       );
-      return result.updateSpace;
     },
     formatResult: (result) => {
       if (result === null || result === undefined) return 'Error: no response from server.';
@@ -6331,28 +6409,12 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: true,
     execute: async (args) => {
-      const spaceId = args.space_id as string;
-      const fileId = args.file_id as string | undefined;
-      const filePath = args.file_path as string | undefined;
-
-      if (fileId && filePath) throw new Error('Provide either file_id or file_path, not both.');
-      if (!fileId && !filePath) throw new Error('Provide either file_id or file_path.');
-
-      let resolvedFileId = fileId;
-      if (filePath) {
-        const uploaded = await uploadLocalFile(filePath, 'space');
-        resolvedFileId = uploaded._id;
-      }
-
-      const result = await graphqlRequest<{ updateSpace: unknown }>(
-        `mutation($input: SpaceInput!, $_id: MongoID!) {
-          updateSpace(input: $input, _id: $_id) {
-            _id title image_cover
-          }
-        }`,
-        { _id: spaceId, input: { image_cover: resolvedFileId } },
+      return setSpaceImage(
+        args.space_id as string,
+        'image_cover',
+        args.file_id as string | undefined,
+        args.file_path as string | undefined,
       );
-      return result.updateSpace;
     },
     formatResult: (result) => {
       if (result === null || result === undefined) return 'Error: no response from server.';
@@ -6365,7 +6427,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     name: 'event_set_photos',
     displayName: 'event set photos',
     description:
-      'Set event photos from file IDs (from file_upload). The first photo becomes the event cover automatically. Recommended: 800x800 pixels for best display.',
+      'Set event photos from file IDs (from file_upload). WARNING: This REPLACES all existing photos. The first photo becomes the event cover automatically. Recommended: 800x800 pixels for best display.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
       { name: 'file_ids', type: 'string', description: 'Comma-separated file IDs', required: true },
@@ -6383,7 +6445,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ updateEvent: unknown }>(
         `mutation($input: EventInput!, $_id: MongoID!) {
           updateEvent(input: $input, _id: $_id) {
-            _id title
+            _id title cover
           }
         }`,
         { _id: eventId, input: { new_new_photos: fileIds } },
