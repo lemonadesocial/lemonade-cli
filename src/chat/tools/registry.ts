@@ -1128,14 +1128,20 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.updateSpace;
     },
     formatResult: (result) => {
-      const r = result as { _id: string; title: string; slug?: string; private?: boolean; state?: string };
-      let msg = `Space "${r.title}" updated.`;
-      const config: string[] = [];
-      if (r.slug) config.push(`slug: ${r.slug}`);
-      if (r.private != null) config.push(r.private ? 'private' : 'public');
-      if (r.state) config.push(`state: ${r.state}`);
-      if (config.length) msg += ` (${config.join(', ')})`;
-      return msg;
+      const r = result as Record<string, unknown>;
+      const parts = [`Space "${r.title}" updated`];
+      if (r.slug) parts.push(`slug: ${r.slug}`);
+      if (r.private != null) parts.push(r.private ? '(private)' : '(public)');
+      if (r.state) parts.push(`state: ${r.state}`);
+      if (r.website) parts.push(`website: ${r.website}`);
+      if (r.tint_color) parts.push(`brand color: ${r.tint_color}`);
+      const addr = r.address as { title?: string } | undefined;
+      if (addr?.title) parts.push(`location: ${addr.title}`);
+      const socials = ['handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok']
+        .filter(k => r[k])
+        .map(k => `${k.replace('handle_', '')}: ${r[k]}`);
+      if (socials.length) parts.push(`socials: ${socials.join(', ')}`);
+      return parts.join(' | ');
     },
   });
 
@@ -1336,12 +1342,24 @@ export function buildToolRegistry(): Record<string, ToolDef> {
           }
         }`,
         {
-          type: args.type !== undefined ? args.type : undefined,
-          provider: args.provider !== undefined ? args.provider : undefined,
+          type: args.type as string | undefined,
+          provider: args.provider as string | undefined,
           limit: args.limit !== undefined ? Number(args.limit) : 25,
         },
       );
       return result.listNewPaymentAccounts;
+    },
+    formatResult: (result) => {
+      const accounts = result as Array<{ _id: string; type: string; title?: string; provider?: string; active: boolean }>;
+      if (!accounts.length) return 'No payment accounts configured.';
+      const lines = accounts.map(a => {
+        const parts = [a.type];
+        if (a.provider) parts.push(`(${a.provider})`);
+        if (a.title) parts.push(`"${a.title}"`);
+        parts.push(a.active ? '✓ active' : '✗ inactive');
+        return `  ${parts.join(' ')}`;
+      });
+      return `${accounts.length} payment account(s):\n${lines.join('\n')}`;
     },
   });
 
