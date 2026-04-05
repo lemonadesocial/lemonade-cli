@@ -11,6 +11,32 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     tools[t.name] = t;
   }
 
+  function parseJsonObject(value: string, fieldName: string): Record<string, unknown> {
+    try {
+      const parsed = JSON.parse(value);
+      if (typeof parsed !== 'object' || parsed === null) {
+        throw new Error(`${fieldName} must be a JSON object`);
+      }
+      return parsed as Record<string, unknown>;
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error(`Invalid JSON for ${fieldName}`);
+      throw e;
+    }
+  }
+
+  function parseJsonArray(value: string, fieldName: string): unknown[] {
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) {
+        throw new Error(`${fieldName} must be a JSON array`);
+      }
+      return parsed;
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error(`Invalid JSON for ${fieldName}`);
+      throw e;
+    }
+  }
+
   // --- Auth ---
 
   register({
@@ -2178,24 +2204,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       };
       if (args.name !== undefined) input.name = args.name;
       if (args.template_id !== undefined) input.template_id = args.template_id;
-      if (args.theme !== undefined) {
-        try {
-          const parsed = JSON.parse(args.theme as string);
-          if (typeof parsed !== 'object' || parsed === null) throw new Error('theme must be a JSON object');
-          input.theme = parsed;
-        } catch (e) {
-          throw new Error(`Invalid theme JSON: ${(e as Error).message}`);
-        }
-      }
-      if (args.sections !== undefined) {
-        try {
-          const parsed = JSON.parse(args.sections as string);
-          if (!Array.isArray(parsed)) throw new Error('sections must be a JSON array');
-          input.sections = parsed;
-        } catch (e) {
-          throw new Error(`Invalid sections JSON: ${(e as Error).message}`);
-        }
-      }
+      if (args.theme !== undefined) input.theme = parseJsonObject(args.theme as string, 'theme');
+      if (args.sections !== undefined) input.sections = parseJsonArray(args.sections as string, 'sections');
 
       const result = await graphqlRequest<{ aiCreatePageConfig: unknown }>(
         `mutation($input: AICreatePageConfigInput!) {
@@ -2225,15 +2235,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ],
     destructive: true,
     execute: async (args) => {
-      let parsedUpdates: unknown;
-      try {
-        parsedUpdates = JSON.parse(args.updates as string);
-        if (typeof parsedUpdates !== 'object' || parsedUpdates === null) {
-          throw new Error('updates must be a JSON object');
-        }
-      } catch (e) {
-        throw new Error(`Invalid updates JSON: ${(e as Error).message}`);
-      }
+      const parsedUpdates = parseJsonObject(args.updates as string, 'updates');
 
       const result = await graphqlRequest<{ aiUpdatePageConfigSection: unknown }>(
         `mutation($input: AIUpdatePageConfigSectionInput!, $section_id: String!, $config_id: MongoID!) {
@@ -5980,8 +5982,14 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.getPageConfig;
     },
     formatResult: (result) => {
-      if (!result) return 'Page config not found.';
-      return JSON.stringify(result);
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as Record<string, unknown>;
+      const sections = r.sections as Array<Record<string, unknown>> | undefined;
+      const lines = [`Page "${r.name || '(unnamed)'}" [${r.status}] v${r.version}`];
+      lines.push(`Owner: ${r.owner_type} ${r.owner_id}`);
+      if (sections?.length) lines.push(`Sections: ${sections.length} (${sections.map((s: Record<string, unknown>) => s.type).join(', ')})`);
+      if (r.template_id) lines.push(`Template: ${r.template_id}`);
+      return lines.join('\n');
     },
   });
 
@@ -6001,24 +6009,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const input: Record<string, unknown> = {};
       if (args.name !== undefined) input.name = args.name;
       if (args.description !== undefined) input.description = args.description;
-      if (args.theme !== undefined) {
-        try {
-          const parsed = JSON.parse(args.theme as string);
-          if (typeof parsed !== 'object' || parsed === null) throw new Error('theme must be a JSON object');
-          input.theme = parsed;
-        } catch (e) {
-          throw new Error(`Invalid theme JSON: ${(e as Error).message}`);
-        }
-      }
-      if (args.sections !== undefined) {
-        try {
-          const parsed = JSON.parse(args.sections as string);
-          if (!Array.isArray(parsed)) throw new Error('sections must be a JSON array');
-          input.sections = parsed;
-        } catch (e) {
-          throw new Error(`Invalid sections JSON: ${(e as Error).message}`);
-        }
-      }
+      if (args.theme !== undefined) input.theme = parseJsonObject(args.theme as string, 'theme');
+      if (args.sections !== undefined) input.sections = parseJsonArray(args.sections as string, 'sections');
 
       if (Object.keys(input).length === 0) throw new Error('At least one field to update is required (name, description, theme, or sections)');
 
@@ -6033,8 +6025,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.updatePageConfig;
     },
     formatResult: (result) => {
-      if (!result) return 'Failed to update page config.';
-      return JSON.stringify(result);
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as Record<string, unknown>;
+      return `Page "${r.name || '(unnamed)'}" updated [${r.status}] v${r.version}`;
     },
   });
 
@@ -6061,8 +6054,13 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.getPublishedConfig;
     },
     formatResult: (result) => {
-      if (!result) return 'No published page config found.';
-      return JSON.stringify(result);
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as Record<string, unknown>;
+      const sections = r.sections as Array<Record<string, unknown>> | undefined;
+      const lines = [`Page "${r.name || '(unnamed)'}" [${r.status}] v${r.version}`];
+      lines.push(`Owner: ${r.owner_type} ${r.owner_id}`);
+      if (sections?.length) lines.push(`Sections: ${sections.length} (${sections.map((s: Record<string, unknown>) => s.type).join(', ')})`);
+      return lines.join('\n');
     },
   });
 
@@ -6102,7 +6100,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.generatePreviewLink;
     },
     formatResult: (result) => {
-      if (!result) return 'Failed to generate preview link.';
+      if (result === null || result === undefined) return 'Error: no response from server.';
       const r = result as { url: string; expires_at?: string };
       return r.expires_at ? `Preview: ${r.url} (expires ${r.expires_at})` : `Preview: ${r.url}`;
     },
@@ -6129,24 +6127,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       };
       if (args.name !== undefined) input.name = args.name;
       if (args.template_id !== undefined) input.template_id = args.template_id;
-      if (args.theme !== undefined) {
-        try {
-          const parsed = JSON.parse(args.theme as string);
-          if (typeof parsed !== 'object' || parsed === null) throw new Error('theme must be a JSON object');
-          input.theme = parsed;
-        } catch (e) {
-          throw new Error(`Invalid theme JSON: ${(e as Error).message}`);
-        }
-      }
-      if (args.sections !== undefined) {
-        try {
-          const parsed = JSON.parse(args.sections as string);
-          if (!Array.isArray(parsed)) throw new Error('sections must be a JSON array');
-          input.sections = parsed;
-        } catch (e) {
-          throw new Error(`Invalid sections JSON: ${(e as Error).message}`);
-        }
-      }
+      if (args.theme !== undefined) input.theme = parseJsonObject(args.theme as string, 'theme');
+      if (args.sections !== undefined) input.sections = parseJsonArray(args.sections as string, 'sections');
 
       const result = await graphqlRequest<{ createPageConfig: unknown }>(
         `mutation($input: CreatePageConfigInput!) {
@@ -6159,8 +6141,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.createPageConfig;
     },
     formatResult: (result) => {
-      if (!result) return 'Failed to create page config.';
-      return JSON.stringify(result);
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const r = result as Record<string, unknown>;
+      return `Page config created: ${r._id} "${r.name || '(unnamed)'}" [${r.status}]`;
     },
   });
 
