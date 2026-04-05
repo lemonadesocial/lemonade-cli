@@ -4177,6 +4177,13 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       );
       return result.getEventPaymentSummary;
     },
+    formatResult: (result) => {
+      const summaries = result as Array<{ currency: string; amount: string; transfer_amount: string; pending_transfer_amount: string }>;
+      if (Array.isArray(summaries)) {
+        return summaries.map(s => `${s.currency}: ${s.amount} (transfers: ${s.transfer_amount}, pending: ${s.pending_transfer_amount})`).join(', ');
+      }
+      return JSON.stringify(result);
+    },
   });
 
   // --- User Tools ---
@@ -4707,34 +4714,6 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const r = result as { _id: string; amount: number; currency: string; state: string; formatted_total_amount: string };
       if (r && r._id) {
         return `Payment ${r._id}: ${r.formatted_total_amount || r.amount} ${r.currency} (${r.state})`;
-      }
-      return JSON.stringify(result);
-    },
-  });
-
-  register({
-    name: 'event_payment_summary',
-    displayName: 'event payment summary',
-    description: 'Get payment summary by currency for an event.',
-    params: [
-      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
-    ],
-    destructive: false,
-    execute: async (args) => {
-      const result = await graphqlRequest<{ getEventPaymentSummary: unknown }>(
-        `query($event: MongoID!) {
-          getEventPaymentSummary(event: $event) {
-            currency decimals amount transfer_amount pending_transfer_amount
-          }
-        }`,
-        { event: args.event_id },
-      );
-      return result.getEventPaymentSummary;
-    },
-    formatResult: (result) => {
-      const summaries = result as Array<{ currency: string; amount: string; transfer_amount: string; pending_transfer_amount: string }>;
-      if (Array.isArray(summaries)) {
-        return summaries.map(s => `${s.currency}: ${s.amount} (transfers: ${s.transfer_amount}, pending: ${s.pending_transfer_amount})`).join(', ');
       }
       return JSON.stringify(result);
     },
