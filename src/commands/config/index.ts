@@ -49,6 +49,7 @@ export function registerConfigCommands(program: Command): void {
   config
     .command('set <key> <value>')
     .description('Set a config value')
+    .addHelpText('after', `\nValid keys:\n  ${VALID_CONFIG_KEYS.join('\n  ')}`)
     .option('--json', 'Output as JSON')
     .action((key: string, value: string, opts) => {
       try {
