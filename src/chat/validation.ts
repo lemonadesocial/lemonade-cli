@@ -6,6 +6,6 @@ export function validateMode(mode: string | undefined): void {
   if (mode && !(VALID_MODES as readonly string[]).includes(mode)) {
     console.error(chalk.red(`  Unknown mode "${mode}". Supported: ${VALID_MODES.join(', ')}`));
     process.exit(2);
-    return;
+    return; // guard for test environments where process.exit is mocked
   }
 }
