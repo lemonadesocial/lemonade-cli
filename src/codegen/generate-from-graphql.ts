@@ -105,6 +105,9 @@ const MANUAL_RESOLVERS = new Set([
   'getSpaceSendingQuota', 'getMySpaceEventRequests',
   // Space role permissions
   'listSpaceRoleFeatures', 'updateSpaceRoleFeatures',
+  // Advanced analytics
+  'getSpaceMemberAmountByDate', 'getTopSpaceEventAttendees', 'getSpaceEventLocationsLeaderboard',
+  'generateCubejsToken', 'getSpaceRewardStatistics', 'getEventLatestViews',
 ]);
 
 function unwrapType(type: IntrospectionType): {

@@ -5295,5 +5295,201 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
+  // --- Advanced Analytics ---
+
+  register({
+    name: 'space_member_growth',
+    displayName: 'space member growth',
+    description: 'Get member growth time series for a space by role over a date range.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'role', type: 'string', description: 'Role to track', required: true,
+        enum: ['unsubscriber', 'subscriber', 'ambassador', 'admin', 'creator'] },
+      { name: 'start', type: 'string', description: 'Start date (ISO 8601)', required: true },
+      { name: 'end', type: 'string', description: 'End date (ISO 8601)', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const startDate = new Date(args.start as string);
+      if (isNaN(startDate.getTime())) throw new Error('Invalid start date');
+      const endDate = new Date(args.end as string);
+      if (isNaN(endDate.getTime())) throw new Error('Invalid end date');
+      const result = await graphqlRequest<{ getSpaceMemberAmountByDate: unknown }>(
+        `query($space: MongoID!, $role: SpaceRole!, $start: DateTimeISO!, $end: DateTimeISO!) {
+          getSpaceMemberAmountByDate(space: $space, role: $role, start: $start, end: $end) {
+            _id total
+          }
+        }`,
+        { space: args.space_id, role: args.role, start: startDate.toISOString(), end: endDate.toISOString() },
+      );
+      return result.getSpaceMemberAmountByDate;
+    },
+    formatResult: (result) => {
+      const items = result as Array<{ _id: string; total: number }>;
+      if (!Array.isArray(items)) return JSON.stringify(result);
+      const lines = items.map((p) => `- ${p._id}: ${p.total}`);
+      return `${items.length} data point(s):\n${lines.join('\n')}`;
+    },
+  });
+
+  register({
+    name: 'space_top_attendees',
+    displayName: 'space top attendees',
+    description: 'Get top event attendees leaderboard for a space.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'limit', type: 'number', description: 'Max results', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const limit = args.limit !== undefined ? Math.max(1, Number(args.limit)) : 10;
+      const result = await graphqlRequest<{ getTopSpaceEventAttendees: unknown }>(
+        `query($space: MongoID!, $limit: Float!) {
+          getTopSpaceEventAttendees(space: $space, limit: $limit) {
+            attended_event_count
+            user_expanded { _id name email }
+            non_login_user { _id name email }
+          }
+        }`,
+        { space: args.space_id, limit },
+      );
+      return result.getTopSpaceEventAttendees;
+    },
+    formatResult: (result) => {
+      const items = result as Array<{ attended_event_count: number; user_expanded?: { name: string; email: string }; non_login_user?: { name: string; email: string } }>;
+      if (!Array.isArray(items)) return JSON.stringify(result);
+      const lines = items.map((a) => {
+        const user = a.user_expanded || a.non_login_user;
+        const name = user?.name || 'Unknown';
+        const email = user?.email || '';
+        return `- ${name} (${email}): ${a.attended_event_count} event(s)`;
+      });
+      return `${items.length} attendee(s):\n${lines.join('\n')}`;
+    },
+  });
+
+  register({
+    name: 'space_location_leaderboard',
+    displayName: 'space location leaderboard',
+    description: 'Get geographic distribution of events in a space.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'by_city', type: 'boolean', description: 'Group by city instead of country', required: false },
+      { name: 'limit', type: 'number', description: 'Max results', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const limit = args.limit !== undefined ? Math.max(1, Number(args.limit)) : 10;
+      const variables: Record<string, unknown> = { space: args.space_id, limit };
+      if (args.by_city !== undefined) variables.city = args.by_city;
+      const result = await graphqlRequest<{ getSpaceEventLocationsLeaderboard: unknown }>(
+        `query($space: MongoID!, $city: Boolean, $limit: Float!) {
+          getSpaceEventLocationsLeaderboard(space: $space, city: $city, limit: $limit) {
+            country city total
+          }
+        }`,
+        variables,
+      );
+      return result.getSpaceEventLocationsLeaderboard;
+    },
+    formatResult: (result) => {
+      const items = result as Array<{ country: string; city: string | null; total: number }>;
+      if (!Array.isArray(items)) return JSON.stringify(result);
+      const lines = items.map((loc) => {
+        const label = loc.city ? `${loc.city}, ${loc.country}` : loc.country;
+        return `- ${label}: ${loc.total}`;
+      });
+      return `${items.length} location(s):\n${lines.join('\n')}`;
+    },
+  });
+
+  register({
+    name: 'cubejs_token',
+    displayName: 'cubejs token',
+    description: 'Generate a CubeJS analytics token for external BI dashboard access.',
+    params: [
+      { name: 'events', type: 'string', description: 'Comma-separated event IDs to scope the token', required: false },
+      { name: 'site_id', type: 'string', description: 'Site ID to scope the token', required: false },
+      { name: 'user_id', type: 'string', description: 'User ID to scope the token', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const variables: Record<string, unknown> = {};
+      if (args.events !== undefined) {
+        variables.events = (args.events as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      }
+      if (args.site_id !== undefined) variables.site = args.site_id;
+      if (args.user_id !== undefined) variables.user = args.user_id;
+      const result = await graphqlRequest<{ generateCubejsToken: unknown }>(
+        `mutation($events: [MongoID!], $site: MongoID, $user: MongoID) {
+          generateCubejsToken(events: $events, site: $site, user: $user)
+        }`,
+        variables,
+      );
+      return result.generateCubejsToken;
+    },
+    formatResult: (result) => {
+      return 'CubeJS token generated: ' + String(result);
+    },
+  });
+
+  register({
+    name: 'space_reward_stats',
+    displayName: 'space reward stats',
+    description: 'Get token reward program statistics for a space.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getSpaceRewardStatistics: unknown }>(
+        `query($space: MongoID!) {
+          getSpaceRewardStatistics(space: $space) {
+            events_count checkin_settings_count ticket_settings_count unique_recipients_count
+          }
+        }`,
+        { space: args.space_id },
+      );
+      return result.getSpaceRewardStatistics;
+    },
+    formatResult: (result) => {
+      const r = result as { events_count: number; checkin_settings_count: number; ticket_settings_count: number; unique_recipients_count: number };
+      if (!r || typeof r !== 'object') return JSON.stringify(result);
+      return `Reward stats: ${r.events_count} event(s), ${r.checkin_settings_count} checkin setting(s), ${r.ticket_settings_count} ticket setting(s), ${r.unique_recipients_count} unique recipient(s)`;
+    },
+  });
+
+  register({
+    name: 'event_latest_views',
+    displayName: 'event latest views',
+    description: 'Get the most recent individual page views for an event with geographic and device data.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'limit', type: 'number', description: 'Max results', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const limit = args.limit !== undefined ? Math.max(1, Number(args.limit)) : 20;
+      const result = await graphqlRequest<{ getEventLatestViews: unknown }>(
+        `query($event: MongoID!, $limit: Int!) {
+          getEventLatestViews(event: $event, limit: $limit) {
+            views { date geoip_country geoip_region geoip_city user_agent }
+          }
+        }`,
+        { event: args.event_id, limit },
+      );
+      return result.getEventLatestViews;
+    },
+    formatResult: (result) => {
+      const r = result as { views: Array<{ date: string; geoip_country: string; geoip_region: string; geoip_city: string; user_agent: string }> };
+      if (!r || !Array.isArray(r.views)) return JSON.stringify(result);
+      const lines = r.views.map((v) => {
+        const location = [v.geoip_city, v.geoip_region, v.geoip_country].filter(Boolean).join(', ');
+        return `- ${v.date} | ${location} | ${v.user_agent || 'unknown agent'}`;
+      });
+      return `${r.views.length} view(s):\n${lines.join('\n')}`;
+    },
+  });
+
   return tools;
 }

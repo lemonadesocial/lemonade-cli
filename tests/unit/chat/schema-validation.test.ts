@@ -233,6 +233,14 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   // === Space role permissions endpoints ===
   listSpaceRoleFeatures: ['features', 'code', 'title', 'codes'],
   updateSpaceRoleFeatures: [], // Boolean
+
+  // === Advanced analytics endpoints ===
+  getSpaceMemberAmountByDate: ['_id', 'total'],
+  getTopSpaceEventAttendees: ['attended_event_count', 'user_expanded', '_id', 'name', 'email', 'non_login_user'],
+  getSpaceEventLocationsLeaderboard: ['country', 'city', 'total'],
+  generateCubejsToken: [], // scalar String
+  getSpaceRewardStatistics: ['events_count', 'checkin_settings_count', 'ticket_settings_count', 'unique_recipients_count'],
+  getEventLatestViews: ['views', 'date', 'geoip_country', 'geoip_region', 'geoip_city', 'user_agent'],
 };
 
 /**
