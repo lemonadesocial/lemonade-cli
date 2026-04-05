@@ -29,7 +29,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetHostingEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count'],
   aiGetEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'city', 'country', 'latitude', 'longitude', 'cover', 'attending_count', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'ticket_limit_per', 'timezone', 'approval_required', 'application_required', 'registration_disabled', 'currency', 'tags', 'guest_directory_enabled', 'subevent_enabled', 'terms_text', 'welcome_text'],
   createEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required', 'address', 'city', 'country', 'latitude', 'longitude'],
-  updateEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required'],
+  updateEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required', 'cover'],
   aiPublishEvent: ['_id', 'title', 'published', 'shortid'],
   aiCancelEvent: [], // Returns Boolean
   aiSearchEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count', 'city', 'country', 'latitude', 'longitude'],
@@ -54,7 +54,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetMyTickets: ['items', 'event_title', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],
   aiListMySpaces: ['items', '_id', 'title', 'slug', 'description', 'private', 'personal', 'image_avatar_url', 'member_count', 'event_count'],
   createSpace: ['_id', 'title', 'slug', 'description', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'address', 'title', 'city', 'country'],
-  updateSpace: ['_id', 'title', 'slug', 'description', 'state', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'address', 'title', 'city', 'country'],
+  updateSpace: ['_id', 'title', 'slug', 'description', 'state', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'address', 'title', 'city', 'country', 'image_avatar', 'image_cover'],
   listNewPaymentAccounts: ['_id', 'active', 'type', 'title', 'provider', 'created_at', 'account_info', 'currencies', 'address', 'network', 'StripeAccount', 'SolanaAccount', 'EthereumAccount', 'DigitalAccount', 'SafeAccount', 'EthereumEscrowAccount', 'EthereumRelayAccount', 'EthereumStakeAccount'],
   createNewPaymentAccount: ['_id', 'active', 'type', 'title', 'provider', 'created_at'],
   updateNewPaymentAccount: ['_id', 'active', 'type', 'title', 'provider', 'created_at'],
@@ -251,6 +251,10 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   generateCubejsToken: [], // scalar String
   getSpaceRewardStatistics: ['events_count', 'checkin_settings_count', 'ticket_settings_count', 'unique_recipients_count'],
   getEventLatestViews: ['views', 'date', 'geoip_country', 'geoip_region', 'geoip_city', 'user_agent'],
+  // File upload & image management
+  createFileUploads: ['_id', 'url', 'presigned_url', 'type', 'key'],
+  confirmFileUploads: [], // Boolean
+  createFile: ['_id', 'url', 'type', 'size'],
 };
 
 /**
