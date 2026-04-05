@@ -101,6 +101,76 @@ describe('Tool Registry', () => {
     expect(registry.site_generate).toBeDefined();
     expect(registry.site_deploy).toBeDefined();
     expect(registry.site_templates).toBeDefined();
+    expect(registry.site_create_page).toBeDefined();
+    expect(registry.site_update_section).toBeDefined();
+  });
+
+  it('site_templates requires owner_type and owner_id', () => {
+    const tool = registry.site_templates;
+    const requiredParams = tool.params.filter((p) => p.required).map((p) => p.name);
+    expect(requiredParams).toContain('owner_type');
+    expect(requiredParams).toContain('owner_id');
+    expect(tool.params.find((p) => p.name === 'context')?.required).toBe(false);
+  });
+
+  it('site_update_section requires updates as JSON string', () => {
+    const tool = registry.site_update_section;
+    expect(tool.params.find((p) => p.name === 'page_id')?.required).toBe(true);
+    expect(tool.params.find((p) => p.name === 'section_id')?.required).toBe(true);
+    expect(tool.params.find((p) => p.name === 'updates')?.required).toBe(true);
+    expect(tool.params.find((p) => p.name === 'updates')?.type).toBe('string');
+  });
+
+  it('site_create_page uses correct AI input type params', () => {
+    const tool = registry.site_create_page;
+    expect(tool.params.find((p) => p.name === 'owner_id')?.required).toBe(true);
+    expect(tool.params.find((p) => p.name === 'owner_type')?.required).toBe(true);
+    expect(tool.params.find((p) => p.name === 'theme')?.required).toBe(false);
+    expect(tool.params.find((p) => p.name === 'sections')?.required).toBe(false);
+    expect(tool.params.find((p) => p.name === 'template_id')?.required).toBe(false);
+  });
+
+  it('includes page config management tools', () => {
+    expect(registry.page_config_get).toBeDefined();
+    expect(registry.page_config_get.destructive).toBe(false);
+    expect(registry.page_config_get.params.find((p) => p.name === 'config_id')?.required).toBe(true);
+
+    expect(registry.page_config_update).toBeDefined();
+    expect(registry.page_config_update.destructive).toBe(true);
+    expect(registry.page_config_update.params.find((p) => p.name === 'config_id')?.required).toBe(true);
+    expect(registry.page_config_update.params.find((p) => p.name === 'name')?.required).toBe(false);
+    expect(registry.page_config_update.params.find((p) => p.name === 'theme')?.required).toBe(false);
+    expect(registry.page_config_update.params.find((p) => p.name === 'sections')?.required).toBe(false);
+
+    expect(registry.page_config_published).toBeDefined();
+    expect(registry.page_config_published.destructive).toBe(false);
+    expect(registry.page_config_published.params.find((p) => p.name === 'owner_type')?.required).toBe(true);
+    expect(registry.page_config_published.params.find((p) => p.name === 'owner_type')?.enum).toContain('event');
+    expect(registry.page_config_published.params.find((p) => p.name === 'owner_id')?.required).toBe(true);
+
+    expect(registry.page_preview_link).toBeDefined();
+    expect(registry.page_preview_link.destructive).toBe(false);
+    expect(registry.page_preview_link.params.find((p) => p.name === 'config_id')?.required).toBe(true);
+    expect(registry.page_preview_link.params.find((p) => p.name === 'password')?.required).toBe(false);
+    expect(registry.page_preview_link.params.find((p) => p.name === 'expires_in_hours')?.type).toBe('number');
+
+    expect(registry.page_config_create).toBeDefined();
+    expect(registry.page_config_create.destructive).toBe(false);
+    expect(registry.page_config_create.params.find((p) => p.name === 'owner_type')?.required).toBe(true);
+    expect(registry.page_config_create.params.find((p) => p.name === 'owner_type')?.enum).toContain('event');
+    expect(registry.page_config_create.params.find((p) => p.name === 'owner_id')?.required).toBe(true);
+    expect(registry.page_config_create.params.find((p) => p.name === 'template_id')?.required).toBe(false);
+  });
+
+  it('marks page_config_update as destructive and others as non-destructive', () => {
+    const destructiveTools = tools.filter((t) => t.destructive);
+    const destructiveNames = destructiveTools.map((t) => t.name);
+
+    expect(destructiveNames).toContain('page_config_update');
+    expect(destructiveNames).not.toContain('page_config_get');
+    expect(destructiveNames).not.toContain('page_config_published');
+    expect(destructiveNames).not.toContain('page_preview_link');
+    expect(destructiveNames).not.toContain('page_config_create');
   });
 
   it('includes notification tools', () => {
