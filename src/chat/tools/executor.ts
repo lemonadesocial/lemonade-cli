@@ -12,45 +12,44 @@ import { ChatEngine } from '../engine/ChatEngine.js';
 interface ClassifiedError {
   fatal: boolean;
   message: string;
-  retryable: boolean;
 }
 
 function classifyError(err: unknown): ClassifiedError {
   if (err instanceof GraphQLError) {
     if (err.code === 'UNAUTHENTICATED') {
-      return { fatal: true, message: 'Authentication failed. Run "lemonade auth login".', retryable: false };
+      return { fatal: true, message: 'Authentication failed. Run "lemonade auth login".' };
     }
-    return { fatal: false, message: err.message, retryable: false };
+    return { fatal: false, message: err.message };
   }
 
   if (err instanceof AtlasError) {
     if (err.statusCode === 401 || err.statusCode === 403) {
-      return { fatal: true, message: 'Authentication failed.', retryable: false };
+      return { fatal: true, message: 'Authentication failed.' };
     }
-    return { fatal: false, message: err.message, retryable: false };
+    return { fatal: false, message: err.message };
   }
 
   if (err instanceof TypeError && err.message.includes('fetch')) {
-    return { fatal: true, message: 'Network error. Check your connection.', retryable: true };
+    return { fatal: true, message: 'Network error. Check your connection.' };
   }
 
   if (err && typeof err === 'object' && 'status' in err) {
     const status = (err as { status: number }).status;
     if (status === 429) {
-      return { fatal: false, message: 'Rate limited. Wait a moment and try again.', retryable: true };
+      return { fatal: false, message: 'Rate limited. Wait a moment and try again.' };
     }
     if (status === 401) {
-      return { fatal: true, message: 'API key is invalid.', retryable: false };
+      return { fatal: true, message: 'API key is invalid.' };
     }
     if (status >= 500) {
-      return { fatal: true, message: 'AI service error. Try again shortly.', retryable: true };
+      return { fatal: true, message: 'AI service error. Try again shortly.' };
     }
   }
 
   if (err instanceof Error) {
-    return { fatal: false, message: err.message, retryable: false };
+    return { fatal: false, message: err.message };
   }
-  return { fatal: false, message: 'Unknown error', retryable: false };
+  return { fatal: false, message: 'Unknown error' };
 }
 
 function formatDestructiveDescription(tool: ToolDef, args: Record<string, unknown>): string {
