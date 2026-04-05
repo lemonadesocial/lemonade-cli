@@ -44,6 +44,16 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   accept_event: 'aiAcceptEvent',
   decline_event: 'aiDeclineEvent',
   list_payment_accounts: 'listNewPaymentAccounts',
+  tickets_create: 'createTickets',
+  tickets_cancel: 'cancelTickets',
+  tickets_assign: 'assignTickets',
+  tickets_upgrade: 'upgradeTicket',
+  tickets_email: 'mailEventTicket',
+  tickets_email_receipt: 'mailTicketPaymentReceipt',
+  event_payments_list: 'listEventPayments',
+  event_payment_detail: 'getEventPayment',
+  event_payment_summary: 'getEventPaymentSummary',
+  event_payment_stats: 'getEventPaymentStatistics',
 };
 
 // Maps MCP tool names to CLI command group + subcommand
@@ -88,4 +98,14 @@ export const TOOL_TO_COMMAND: Record<string, { group: string; subcommand: string
   list_chains: { group: 'system', subcommand: 'chains' },
   accept_event: { group: 'event', subcommand: 'accept' },
   decline_event: { group: 'event', subcommand: 'decline' },
+  tickets_create: { group: 'tickets', subcommand: 'create' },
+  tickets_cancel: { group: 'tickets', subcommand: 'cancel' },
+  tickets_assign: { group: 'tickets', subcommand: 'assign' },
+  tickets_upgrade: { group: 'tickets', subcommand: 'upgrade' },
+  tickets_email: { group: 'tickets', subcommand: 'email' },
+  tickets_email_receipt: { group: 'tickets', subcommand: 'email-receipt' },
+  event_payments_list: { group: 'payments', subcommand: 'list' },
+  event_payment_detail: { group: 'payments', subcommand: 'detail' },
+  event_payment_summary: { group: 'payments', subcommand: 'summary' },
+  event_payment_stats: { group: 'payments', subcommand: 'stats' },
 };
