@@ -1,16 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { validateMode, VALID_MODES } from '../../../src/chat/index.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { validateMode, VALID_MODES } from '../../../src/chat/validation.js';
 
 describe('--mode flag validation', () => {
   const mockExit = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
   const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
   beforeEach(() => {
-    mockExit.mockClear();
-    mockError.mockClear();
-  });
-
-  afterEach(() => {
     mockExit.mockClear();
     mockError.mockClear();
   });

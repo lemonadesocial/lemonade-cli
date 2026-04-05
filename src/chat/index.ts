@@ -21,18 +21,11 @@ import { createByokProvider, isValidProvider, VALID_PROVIDERS } from './provider
 import { resolveCreditsStartupMode } from './startupRecovery.js';
 import { registerCrashHandlers } from './crashHandlers.js';
 import { safeErrorMessage } from './utils/errorMessages.js';
+import { validateMode } from './validation.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
-
-export const VALID_MODES = ['credits', 'own_key'] as const;
-
-export function validateMode(mode: string | undefined): void {
-  if (mode && !VALID_MODES.includes(mode as any)) {
-    console.error(chalk.red(`  Unknown mode "${mode}". Supported: ${VALID_MODES.join(', ')}`));
-    process.exit(2);
-  }
-}
+export { VALID_MODES, validateMode } from './validation.js';
 
 function printHelp(): void {
   console.log(`
