@@ -220,6 +220,16 @@ async function main(): Promise<void> {
   }
 }
 
+process.on('unhandledRejection', (reason) => {
+  console.error(chalk.red(`Fatal (unhandled rejection): ${safeErrorMessage(reason)}`));
+  process.exit(1);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error(chalk.red(`Fatal (uncaught exception): ${err.message}`));
+  process.exit(1);
+});
+
 main().catch((err) => {
   console.error(chalk.red(`Fatal: ${safeErrorMessage(err)}`));
   process.exit(1);
