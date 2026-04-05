@@ -71,11 +71,11 @@ describe('batchMode', () => {
     expect(errorSpy).toHaveBeenCalledWith('Error: provider exploded');
 
     // stdout should get the JSON error envelope
-    const logCalls = logSpy.mock.calls.map((c) => c[0]);
-    const jsonCall = logCalls.find((c) => typeof c === 'string' && c.includes('"error"'));
-    expect(jsonCall).toBeDefined();
-    const parsed = JSON.parse(jsonCall as string);
-    expect(parsed).toEqual({ error: 'provider exploded' });
+    const jsonCalls = logSpy.mock.calls
+      .map((c) => { try { return JSON.parse(c[0]); } catch { return null; } })
+      .filter(Boolean);
+    const errorCall = jsonCalls.find((j) => 'error' in j);
+    expect(errorCall).toEqual({ error: 'provider exploded' });
   });
 
   it('does not emit JSON to stdout when jsonOutput=false and handleTurn throws', async () => {
@@ -113,5 +113,49 @@ describe('batchMode', () => {
     expect(jsonCall).toBeDefined();
     const parsed = JSON.parse(jsonCall as string);
     expect(parsed).toEqual({ text: 'Hello back!' });
+  });
+
+  it('continues processing after an error: first line errors, second line succeeds', async () => {
+    mockHandleTurn
+      .mockRejectedValueOnce(new Error('first line fails'))
+      .mockImplementationOnce(
+        async (
+          _provider: AIProvider,
+          messages: Message[],
+        ) => {
+          messages.push({
+            role: 'assistant',
+            content: [{ type: 'text', text: 'second ok' }],
+          });
+        },
+      );
+
+    await runBatch(['bad', 'good'], true);
+
+    const jsonCalls = logSpy.mock.calls
+      .map((c) => { try { return JSON.parse(c[0]); } catch { return null; } })
+      .filter(Boolean);
+
+    const errorCall = jsonCalls.find((j) => 'error' in j);
+    expect(errorCall).toEqual({ error: 'first line fails' });
+
+    const successCall = jsonCalls.find((j) => 'text' in j);
+    expect(successCall).toEqual({ text: 'second ok' });
+
+    expect(mockHandleTurn).toHaveBeenCalledTimes(2);
+  });
+
+  it('emits "Unknown error" when handleTurn throws a non-Error value', async () => {
+    mockHandleTurn.mockRejectedValueOnce('string error');
+
+    await runBatch(['hello'], true);
+
+    expect(errorSpy).toHaveBeenCalledWith('Error: Unknown error');
+
+    const jsonCalls = logSpy.mock.calls
+      .map((c) => { try { return JSON.parse(c[0]); } catch { return null; } })
+      .filter(Boolean);
+    const errorCall = jsonCalls.find((j) => 'error' in j);
+    expect(errorCall).toEqual({ error: 'Unknown error' });
   });
 });

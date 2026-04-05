@@ -42,6 +42,7 @@ export async function batchMode(
         false,
       );
     } catch (err) {
+      messages.pop(); // Remove the failed user message to preserve user/assistant alternation
       console.error(`Error: ${safeErrorMessage(err)}`);
       if (jsonOutput) {
         console.log(JSON.stringify({ error: safeErrorMessage(err) }));
