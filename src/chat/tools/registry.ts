@@ -1117,7 +1117,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ updateSpace: unknown }>(
         `mutation($id: MongoID!, $input: SpaceInput!) {
           updateSpace(_id: $id, input: $input) {
-            _id title slug description
+            _id title slug description state
             handle_twitter handle_instagram handle_linkedin handle_youtube handle_tiktok
             website tint_color private
             address { title city country }
@@ -1126,6 +1126,16 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         { id: args.space_id, input },
       );
       return result.updateSpace;
+    },
+    formatResult: (result) => {
+      const r = result as { _id: string; title: string; slug?: string; private?: boolean; state?: string };
+      let msg = `Space "${r.title}" updated.`;
+      const config: string[] = [];
+      if (r.slug) config.push(`slug: ${r.slug}`);
+      if (r.private != null) config.push(r.private ? 'private' : 'public');
+      if (r.state) config.push(`state: ${r.state}`);
+      if (config.length) msg += ` (${config.join(', ')})`;
+      return msg;
     },
   });
 
@@ -1143,7 +1153,6 @@ export function buildToolRegistry(): Record<string, ToolDef> {
           aiGetSpaceStats(space: $space) {
             total_members admins ambassadors subscribers
             total_events total_attendees average_event_rating
-            slug handle_twitter handle_instagram handle_linkedin website tint_color private
           }
         }`,
         { space: args.space_id },
@@ -1320,13 +1329,16 @@ export function buildToolRegistry(): Record<string, ToolDef> {
               ... on EthereumAccount { currencies }
               ... on DigitalAccount { currencies }
               ... on SafeAccount { currencies }
+              ... on EthereumEscrowAccount { currencies }
+              ... on EthereumRelayAccount { currencies }
+              ... on EthereumStakeAccount { currencies }
             }
           }
         }`,
         {
           type: args.type || undefined,
           provider: args.provider || undefined,
-          limit: (args.limit as number) || 25,
+          limit: args.limit !== undefined ? Number(args.limit) : 25,
         },
       );
       return result.listNewPaymentAccounts;

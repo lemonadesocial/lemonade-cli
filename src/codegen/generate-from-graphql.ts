@@ -87,6 +87,8 @@ const MANUAL_RESOLVERS = new Set([
   // Site commands
   'aiGeneratePageFromDescription', 'aiCreatePageConfig',
   'aiUpdatePageConfigSection', 'aiSuggestSections',
+  // Payment accounts
+  'listNewPaymentAccounts',
   // Config/system
   'aiGetBackendVersion',
 ]);

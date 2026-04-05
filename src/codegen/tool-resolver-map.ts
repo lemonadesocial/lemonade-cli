@@ -43,6 +43,7 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   list_chains: 'aiListChains',
   accept_event: 'aiAcceptEvent',
   decline_event: 'aiDeclineEvent',
+  list_payment_accounts: 'listNewPaymentAccounts',
 };
 
 // Maps MCP tool names to CLI command group + subcommand
