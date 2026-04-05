@@ -561,6 +561,56 @@ describe('Tool Registry', () => {
     expect(registry.space_set_cover.params.find((p) => p.name === 'file_path')?.required).toBe(false);
   });
 
+  // --- Theme data management ---
+
+  it('includes theme_build tool', () => {
+    expect(registry.theme_build).toBeDefined();
+    expect(registry.theme_build.destructive).toBe(false);
+    expect(registry.theme_build.params.find((p) => p.name === 'preset')?.enum).toContain('shader');
+    expect(registry.theme_build.params.find((p) => p.name === 'preset')?.enum).toContain('pattern');
+    expect(registry.theme_build.params.find((p) => p.name === 'mode')?.enum).toContain('dark');
+    expect(registry.theme_build.params.find((p) => p.name === 'mode')?.enum).toContain('light');
+    expect(registry.theme_build.params.find((p) => p.name === 'color')?.enum).toContain('violet');
+    expect(registry.theme_build.params.find((p) => p.name === 'shader')?.enum).toContain('dreamy');
+    expect(registry.theme_build.params.find((p) => p.name === 'pattern')?.enum).toContain('zigzag');
+    expect(registry.theme_build.params.find((p) => p.name === 'font_title')?.required).toBe(false);
+    expect(registry.theme_build.params.find((p) => p.name === 'font_body')?.required).toBe(false);
+  });
+
+  it('event_create accepts theme params', () => {
+    const tool = registry.event_create;
+    expect(tool.params.find((p) => p.name === 'theme_data')).toBeDefined();
+    expect(tool.params.find((p) => p.name === 'theme_data')?.required).toBe(false);
+    expect(tool.params.find((p) => p.name === 'dark_theme_image')).toBeDefined();
+    expect(tool.params.find((p) => p.name === 'light_theme_image')).toBeDefined();
+  });
+
+  it('event_update accepts theme params', () => {
+    const tool = registry.event_update;
+    expect(tool.params.find((p) => p.name === 'theme_data')).toBeDefined();
+    expect(tool.params.find((p) => p.name === 'theme_data')?.required).toBe(false);
+    expect(tool.params.find((p) => p.name === 'dark_theme_image')).toBeDefined();
+    expect(tool.params.find((p) => p.name === 'light_theme_image')).toBeDefined();
+  });
+
+  it('space_create accepts theme params', () => {
+    const tool = registry.space_create;
+    expect(tool.params.find((p) => p.name === 'theme_data')).toBeDefined();
+    expect(tool.params.find((p) => p.name === 'theme_data')?.required).toBe(false);
+    expect(tool.params.find((p) => p.name === 'theme_name')).toBeDefined();
+    expect(tool.params.find((p) => p.name === 'dark_theme_image')).toBeDefined();
+    expect(tool.params.find((p) => p.name === 'light_theme_image')).toBeDefined();
+  });
+
+  it('space_update accepts theme params', () => {
+    const tool = registry.space_update;
+    expect(tool.params.find((p) => p.name === 'theme_data')).toBeDefined();
+    expect(tool.params.find((p) => p.name === 'theme_data')?.required).toBe(false);
+    expect(tool.params.find((p) => p.name === 'theme_name')).toBeDefined();
+    expect(tool.params.find((p) => p.name === 'dark_theme_image')).toBeDefined();
+    expect(tool.params.find((p) => p.name === 'light_theme_image')).toBeDefined();
+  });
+
   it('includes event photo tool', () => {
     expect(registry.event_set_photos).toBeDefined();
     expect(registry.event_set_photos.destructive).toBe(true);
