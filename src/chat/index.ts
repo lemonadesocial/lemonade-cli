@@ -37,6 +37,7 @@ function printHelp(): void {
   ${chalk.bold('Options:')}
     --provider <name>   AI provider: anthropic (default), openai
     --model <model>     Model override (e.g. claude-sonnet-4-6, gpt-4o)
+    --mode <mode>       AI mode: credits, own_key (default: auto-detect)
     --json              Output as JSON (batch mode)
     -h, --help          Show this help
 
@@ -66,6 +67,11 @@ async function main(): Promise<void> {
   if (args.help) {
     printHelp();
     process.exit(0);
+  }
+
+  if (args.mode && args.mode !== 'credits' && args.mode !== 'own_key') {
+    console.error(chalk.red(`  Unknown mode "${args.mode}". Supported: credits, own_key`));
+    process.exit(2);
   }
 
   // Check Lemonade auth (attempt token refresh if expired)
