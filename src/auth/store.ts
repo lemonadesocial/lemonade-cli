@@ -43,19 +43,18 @@ function readConfig(): LemonadeConfig {
   }
   try {
     const raw = readFileSync(CONFIG_FILE, 'utf-8');
-    return { ...DEFAULTS, ...JSON.parse(raw) };
-  } catch {
-    // Config file is corrupted or unreadable — attempt recovery from temp file.
+    const config = { ...DEFAULTS, ...JSON.parse(raw) };
+    // Clean up any leftover temp file from a previously interrupted write
     const tmpFile = CONFIG_FILE + '.tmp';
     if (existsSync(tmpFile)) {
-      try {
-        const tmpRaw = readFileSync(tmpFile, 'utf-8');
-        const tmpConfig = { ...DEFAULTS, ...JSON.parse(tmpRaw) };
-        try { renameSync(tmpFile, CONFIG_FILE); } catch { /* ignore */ }
-        return tmpConfig;
-      } catch {
-        try { unlinkSync(tmpFile); } catch { /* ignore */ }
-      }
+      try { unlinkSync(tmpFile); } catch { /* ignore */ }
+    }
+    return config;
+  } catch {
+    // Config file is corrupted or unreadable — clean up and fall back to defaults
+    const tmpFile = CONFIG_FILE + '.tmp';
+    if (existsSync(tmpFile)) {
+      try { unlinkSync(tmpFile); } catch { /* ignore */ }
     }
     return { ...DEFAULTS };
   }

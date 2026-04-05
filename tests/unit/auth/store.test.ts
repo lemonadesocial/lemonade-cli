@@ -51,21 +51,30 @@ describe('Auth Store — atomic writes', () => {
     expect(existsSync(testTmpFile)).toBe(false);
   });
 
-  it('readConfig recovers from corrupted config.json when .tmp is valid', async () => {
-    // Set up: corrupted main file + valid temp file
+  it('returns defaults when config.json is corrupted (no .tmp recovery)', async () => {
     mkdirSync(testConfigDir, { recursive: true });
     writeFileSync(testConfigFile, '{{{corrupted', 'utf-8');
-    writeFileSync(testTmpFile, JSON.stringify({ api_key: 'recovered-key' }), 'utf-8');
+    writeFileSync(testTmpFile, JSON.stringify({ api_key: 'should-not-recover' }), 'utf-8');
 
     const { getConfig } = await import('../../../src/auth/store.js');
     const config = getConfig();
 
-    expect(config.api_key).toBe('recovered-key');
-    // After recovery the temp file should be renamed to config.json
+    expect(config.api_key).toBeUndefined();
+    expect(config.api_url).toBe('https://backend.lemonade.social');
     expect(existsSync(testTmpFile)).toBe(false);
-    expect(existsSync(testConfigFile)).toBe(true);
   });
 
+  it('readConfig cleans up leftover .tmp file on successful read', async () => {
+    const { setApiKey, getConfig } = await import('../../../src/auth/store.js');
+    setApiKey('test-key');
+
+    writeFileSync(testTmpFile, '{"stale": true}', 'utf-8');
+    expect(existsSync(testTmpFile)).toBe(true);
+
+    const config = getConfig();
+    expect(config.api_key).toBe('test-key');
+    expect(existsSync(testTmpFile)).toBe(false);
+  });
 
   it('readConfig falls back to defaults when both files are corrupted', async () => {
     mkdirSync(testConfigDir, { recursive: true });
