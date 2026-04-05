@@ -1,7 +1,7 @@
 export interface SlashCommandResult {
   handled: boolean;
   output?: string;
-  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history' | 'export' | 'connectors' | 'tempo';
+  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history' | 'export' | 'connectors' | 'tempo' | 'tools';
   args?: string;
 }
 
@@ -26,6 +26,7 @@ export const SLASH_COMMANDS = [
   { name: '/export', description: 'Export data as CSV file' },
   { name: '/connectors', description: 'Manage space integrations' },
   { name: '/tempo', description: 'Manage Tempo wallet and payments' },
+  { name: '/tools', description: 'List available AI tools' },
 ] as const;
 
 const HELP_TABLE = `
@@ -62,6 +63,9 @@ Commands:
   /tempo logout      Disconnect wallet
   /tempo balance     Check USDC balance
   /tempo fund        Fund wallet
+  /tools             List all available AI tools
+  /tools <category>  List tools in a category (e.g. event, space)
+  /tools info <name> Show details for a specific tool
   /exit, /quit       Exit the app
 
 Keyboard shortcuts:
@@ -156,6 +160,9 @@ export function parseSlashCommand(input: string): SlashCommandResult {
 
     case '/tempo':
       return { handled: true, action: 'tempo', args: rest || undefined };
+
+    case '/tools':
+      return { handled: true, action: 'tools', args: rest || undefined };
 
     case '/exit':
     case '/quit':
