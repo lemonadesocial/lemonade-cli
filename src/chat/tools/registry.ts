@@ -4785,7 +4785,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const lines = items.map((n) => {
         const status = n.disabled ? 'disabled' : n.sent_at ? 'sent' : n.scheduled_at ? 'scheduled' : 'draft';
         const date = n.sent_at || n.scheduled_at || n.created_at || '';
-        return `- ${n.subject_preview || '(no subject)'} [${status}] ${date}`;
+        return `- [${n._id}] ${n.subject_preview || '(no subject)'} [${status}] ${date}`;
       });
       return `${items.length} newsletter(s):\n${lines.join('\n')}`;
     },
@@ -4815,11 +4815,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       return result.getSpaceNewsletter;
     },
     formatResult: (result) => {
-      const r = result as { _id: string; subject_preview: string; draft: boolean; sent_at: string | null; scheduled_at: string | null; failed_at: string | null; failed_reason: string | null };
+      const r = result as { _id: string; subject_preview: string; draft: boolean; disabled: boolean; sent_at: string | null; scheduled_at: string | null; failed_at: string | null; failed_reason: string | null };
       if (r && r._id) {
-        let status = 'draft';
-        if (r.sent_at) status = 'sent';
-        else if (r.scheduled_at) status = 'scheduled';
+        let status = r.disabled ? 'disabled' : r.sent_at ? 'sent' : r.scheduled_at ? 'scheduled' : 'draft';
         if (r.failed_at) status = `failed: ${r.failed_reason || 'unknown'}`;
         return `Newsletter ${r._id}: "${r.subject_preview || '(no subject)'}" [${status}]`;
       }
@@ -4962,8 +4960,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.newsletter_id !== undefined) input._id = args.newsletter_id;
       if (args.subject !== undefined) input.custom_subject_html = args.subject;
       if (args.body !== undefined) input.custom_body_html = args.body;
-      if (!input._id && !input.custom_subject_html) {
-        throw new Error('Provide either newsletter_id (existing newsletter) or subject + body (inline content)');
+      if (!input._id && (!input.custom_subject_html || !input.custom_body_html)) {
+        throw new Error('Provide either newsletter_id (existing newsletter) or both subject and body (inline content)');
       }
       const result = await graphqlRequest<{ sendSpaceNewsletterTestEmails: unknown }>(
         `mutation($input: SendSpaceNewsletterTestEmailsInput!) {
