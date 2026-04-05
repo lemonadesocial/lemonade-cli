@@ -20,14 +20,10 @@ import { createCreditsProvider } from './creditsProvider.js';
 import { createByokProvider, isValidProvider, VALID_PROVIDERS } from './providerFactory.js';
 import { resolveCreditsStartupMode } from './startupRecovery.js';
 import { registerCrashHandlers } from './crashHandlers.js';
+import { safeErrorMessage } from './utils/errorMessages.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
-
-function safeErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Unknown error';
-}
 
 function printHelp(): void {
   console.log(`
