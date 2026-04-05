@@ -229,6 +229,10 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   getSpaceEventSummary: ['all_events', 'virtual_events', 'irl_events', 'live_events', 'upcoming_events', 'past_events'],
   getSpaceSendingQuota: ['type', 'reset_frequency', 'remain', 'total', 'used'],
   getMySpaceEventRequests: ['total', 'records', '_id', 'state', 'created_at', 'decided_at', 'event_expanded', 'title', 'shortid', 'start'],
+
+  // === Space role permissions endpoints ===
+  listSpaceRoleFeatures: ['features', 'code', 'title', 'codes'],
+  updateSpaceRoleFeatures: [], // Boolean
 };
 
 /**

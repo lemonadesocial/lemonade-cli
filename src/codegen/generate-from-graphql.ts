@@ -103,6 +103,8 @@ const MANUAL_RESOLVERS = new Set([
   // Space event moderation & quota
   'getSpaceEventRequests', 'decideSpaceEventRequests', 'getSpaceEventSummary',
   'getSpaceSendingQuota', 'getMySpaceEventRequests',
+  // Space role permissions
+  'listSpaceRoleFeatures', 'updateSpaceRoleFeatures',
 ]);
 
 function unwrapType(type: IntrospectionType): {
