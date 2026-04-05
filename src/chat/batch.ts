@@ -4,6 +4,7 @@ import { AIProvider } from './providers/interface.js';
 import { SessionState } from './session/state.js';
 import { handleTurn } from './stream/handler.js';
 import { safeErrorMessage } from './utils/errorMessages.js';
+import { jsonSuccess, jsonError } from '../output/json.js';
 
 // NOTE: batch mode intentionally manages its own message array rather than
 // using ConversationStore. Batch mode is a stateless pipe (stdin lines →
@@ -43,7 +44,7 @@ export async function batchMode(
       // stderr for debugging; stdout JSON for programmatic consumers
       console.error(`Error: ${safeErrorMessage(err)}`);
       if (jsonOutput) {
-        console.log(JSON.stringify({ error: safeErrorMessage(err) }));
+        console.log(jsonError('CHAT_ERROR', safeErrorMessage(err), undefined, { compact: true }));
       }
       continue;
     }
@@ -55,7 +56,7 @@ export async function batchMode(
           (b) => b.type === 'text',
         );
         if (textBlock) {
-          console.log(JSON.stringify({ text: textBlock.text }));
+          console.log(jsonSuccess({ text: textBlock.text }, undefined, { compact: true }));
         }
       }
     }
