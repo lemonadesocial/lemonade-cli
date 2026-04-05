@@ -11,10 +11,14 @@ const SCOPES = ['openid', 'offline_access'];
 
 /**
  * Attempt to refresh the access token using the stored refresh_token.
- * Returns the new access_token on success, or null if refresh fails
- * (expired refresh token, revoked, network error, etc.).
- * On failure, stale tokens are cleared so subsequent calls fall through
+ * Returns the new access_token on success, or null on failure.
+ *
+ * On authoritative rejection (400/401/403 — invalid, expired, or revoked
+ * refresh token), stale tokens are cleared so subsequent calls fall through
  * to api_key or return unauthenticated.
+ *
+ * On transient failures (429, 5xx, network errors, timeouts), tokens are
+ * preserved so the next request can retry without forcing a re-login.
  */
 export async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   const hydraUrl = getHydraUrl();
@@ -32,7 +36,12 @@ export async function refreshAccessToken(refreshToken: string): Promise<string |
     });
 
     if (!response.ok) {
-      clearTokens();
+      // Only clear tokens on authoritative rejection (invalid/expired/revoked token).
+      // Preserve tokens on transient server errors (429, 5xx) so retries work.
+      const status = response.status;
+      if (status === 400 || status === 401 || status === 403) {
+        clearTokens();
+      }
       return null;
     }
 

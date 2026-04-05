@@ -1,4 +1,4 @@
-import { getApiUrl, getAuthHeader, ensureAuthHeader } from '../auth/store.js';
+import { getApiUrl, ensureAuthHeader } from '../auth/store.js';
 
 export interface GraphQLResponse<T> {
   data?: T;
@@ -26,8 +26,7 @@ export async function graphqlRequest<T>(
     throw new GraphQLError('API URL must use HTTPS for security. Set LEMONADE_API_URL to an https:// URL.', 'INSECURE_URL', 400);
   }
 
-  // Attempt token refresh if expired, then fall back to sync header.
-  const auth = await ensureAuthHeader() || getAuthHeader();
+  const auth = await ensureAuthHeader();
 
   if (!auth) {
     throw new GraphQLError('Not authenticated. Run "lemonade auth login" or set LEMONADE_API_KEY.', 'UNAUTHENTICATED', 401);

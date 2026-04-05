@@ -3,7 +3,7 @@
 import chalk from 'chalk';
 import readline from 'readline';
 import { graphqlRequest } from '../api/graphql.js';
-import { getAuthHeader, ensureAuthHeader, getDefaultSpace, setConfigValue } from '../auth/store.js';
+import { ensureAuthHeader, getDefaultSpace, setConfigValue } from '../auth/store.js';
 import { AIProvider } from './providers/interface.js';
 import { buildToolRegistry } from './tools/registry.js';
 import { createSessionState } from './session/state.js';
@@ -72,7 +72,7 @@ async function main(): Promise<void> {
   }
 
   // Check Lemonade auth (attempt token refresh if expired)
-  const auth = await ensureAuthHeader() || getAuthHeader();
+  const auth = await ensureAuthHeader();
   if (!auth) {
     console.error(chalk.red('  Not authenticated. Run "lemonade auth login" first.'));
     process.exit(2);

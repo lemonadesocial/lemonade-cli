@@ -1,4 +1,4 @@
-import { getApiUrl, getAuthHeader, ensureAuthHeader } from '../auth/store.js';
+import { getApiUrl, ensureAuthHeader } from '../auth/store.js';
 
 const ATLAS_AGENT_ID = 'cli:lemonade-cli';
 const ATLAS_VERSION = '1.0';
@@ -36,7 +36,7 @@ export async function atlasRequest<T>(options: {
   };
 
   if (authenticated) {
-    const auth = await ensureAuthHeader() || getAuthHeader();
+    const auth = await ensureAuthHeader();
     if (!auth) {
       throw new AtlasError('Not authenticated', 401);
     }
