@@ -68,6 +68,12 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   space_my_event_requests: 'getMySpaceEventRequests',
   space_role_features: 'listSpaceRoleFeatures',
   space_role_features_update: 'updateSpaceRoleFeatures',
+  space_member_growth: 'getSpaceMemberAmountByDate',
+  space_top_attendees: 'getTopSpaceEventAttendees',
+  space_location_leaderboard: 'getSpaceEventLocationsLeaderboard',
+  cubejs_token: 'generateCubejsToken',
+  space_reward_stats: 'getSpaceRewardStatistics',
+  event_latest_views: 'getEventLatestViews',
 };
 
 // Maps MCP tool names to CLI command group + subcommand
