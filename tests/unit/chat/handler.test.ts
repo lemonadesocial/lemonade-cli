@@ -318,4 +318,224 @@ describe('handleTurn', () => {
 
     consoleSpy.mockRestore();
   });
+
+  describe('streaming error recovery', () => {
+    it('rolls back user message when stream throws before any content', async () => {
+      const provider: AIProvider = {
+        name: 'error-test',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          throw new Error('429 Too Many Requests');
+        },
+      };
+
+      const messages: Message[] = [
+        { role: 'user', content: 'first message' },
+        { role: 'assistant', content: 'first reply' },
+        { role: 'user', content: 'second message' },
+      ];
+
+      await handleTurn(
+        provider,
+        messages,
+        [],
+        systemPrompt,
+        session,
+        {},
+        null,
+        false,
+      );
+
+      // The last user message should be rolled back
+      expect(messages).toHaveLength(2);
+      expect(messages[0].role).toBe('user');
+      expect(messages[1].role).toBe('assistant');
+    });
+
+    it('does NOT roll back user message if some text was already streamed', async () => {
+      let yieldCount = 0;
+      const provider: AIProvider = {
+        name: 'partial-error-test',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          yield { type: 'text_delta' as const, text: 'partial' };
+          yieldCount++;
+          throw new Error('connection reset');
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'hi' }];
+
+      await handleTurn(
+        provider,
+        messages,
+        [],
+        systemPrompt,
+        session,
+        {},
+        null,
+        false,
+      );
+
+      // User message should still be present (text was partially streamed)
+      expect(messages).toHaveLength(1);
+      expect(messages[0].role).toBe('user');
+      expect(yieldCount).toBe(1);
+    });
+
+    it('emits actionable rate-limit error via engine', async () => {
+      const engine = new ChatEngine();
+      let errorMsg = '';
+
+      engine.on('error', (payload) => { errorMsg = (payload as { message: string }).message; });
+
+      const provider: AIProvider = {
+        name: 'rate-limit-test',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          throw new Error('429 Too Many Requests');
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'hi' }];
+
+      await handleTurn(
+        provider,
+        messages,
+        [],
+        systemPrompt,
+        session,
+        {},
+        null,
+        true,
+        engine,
+      );
+
+      expect(errorMsg).toContain('Rate limited');
+      expect(errorMsg).toContain('send it again');
+    });
+
+    it('emits actionable overloaded error via engine', async () => {
+      const engine = new ChatEngine();
+      let errorMsg = '';
+
+      engine.on('error', (payload) => { errorMsg = (payload as { message: string }).message; });
+
+      const provider: AIProvider = {
+        name: 'overloaded-test',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          throw new Error('529 overloaded');
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'hi' }];
+
+      await handleTurn(
+        provider,
+        messages,
+        [],
+        systemPrompt,
+        session,
+        {},
+        null,
+        true,
+        engine,
+      );
+
+      expect(errorMsg).toContain('overloaded');
+      expect(errorMsg).toContain('retry');
+    });
+
+    it('preserves committed messages when error occurs on iteration > 0', async () => {
+      const tool = mockTool();
+      const registry = { test_tool: tool };
+
+      let callCount = 0;
+      const provider: AIProvider = {
+        name: 'iter-error-test',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          callCount++;
+          if (callCount === 1) {
+            // Iteration 0: succeed with a tool call
+            yield { type: 'text_delta' as const, text: 'Calling tool.' };
+            yield { type: 'tool_call' as const, toolCall: { id: 'tc1', name: 'test_tool', arguments: {} } };
+            yield { type: 'done' as const, stopReason: 'tool_use' as const };
+          } else {
+            // Iteration 1: throw before producing any content
+            throw new Error('connection reset');
+          }
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'do something' }];
+
+      await handleTurn(
+        provider,
+        messages,
+        [],
+        systemPrompt,
+        session,
+        registry,
+        null,
+        false,
+      );
+
+      // Iteration 0 committed: assistant (tool_use) + user (tool_result)
+      // Iteration 1 failed but should NOT roll back the original user message.
+      // Expected: user, assistant (tool_use), user (tool_result) — all preserved
+      expect(messages).toHaveLength(3);
+      expect(messages[0].role).toBe('user');
+      expect(messages[0].content).toBe('do something');
+      expect(messages[1].role).toBe('assistant');
+      expect(messages[2].role).toBe('user'); // tool_result
+    });
+
+    it('allows normal turn after streaming error recovery', async () => {
+      // First call: throws an error (simulating 429)
+      // Second call: succeeds normally
+      let callCount = 0;
+      const provider: AIProvider = {
+        name: 'recovery-test',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          callCount++;
+          if (callCount === 1) {
+            throw new Error('429 rate limit');
+          }
+          yield { type: 'text_delta' as const, text: 'recovered!' };
+          yield { type: 'done' as const, stopReason: 'end_turn' as const };
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'first attempt' }];
+
+      // First turn: error — user message rolled back
+      await handleTurn(provider, messages, [], systemPrompt, session, {}, null, false);
+      expect(messages).toHaveLength(0); // rolled back
+
+      // User retries
+      messages.push({ role: 'user', content: 'retry attempt' });
+
+      // Second turn: succeeds
+      await handleTurn(provider, messages, [], systemPrompt, session, {}, null, false);
+
+      expect(messages).toHaveLength(2);
+      expect(messages[0].role).toBe('user');
+      expect(messages[1].role).toBe('assistant');
+    });
+  });
 });

@@ -30,6 +30,36 @@ function safeErrorMessage(err: unknown): string {
   return 'Unknown error';
 }
 
+function formatStreamingErrorMessage(err: unknown): string {
+  // Cast to a generic record so we can probe for structured fields like `status`
+  // without assuming a specific error class (e.g. Anthropic SDK's APIError).
+  const errRecord = err as Record<string, unknown>;
+  const status = typeof errRecord?.status === 'number'
+    ? errRecord.status as number
+    : undefined;
+
+  if (status === 429) {
+    return 'Rate limited by the API. Your message was not lost — just send it again in a few seconds.';
+  }
+  if (status === 529) {
+    return 'The API is temporarily overloaded. Your message was not lost — please retry shortly.';
+  }
+
+  // Fall back to string matching for errors without a status property
+  const rawMsg = safeErrorMessage(err);
+  const lower = rawMsg.toLowerCase();
+  if (lower.includes('429') || lower.includes('rate limit')) {
+    return 'Rate limited by the API. Your message was not lost — just send it again in a few seconds.';
+  }
+  if (lower.includes('529') || lower.includes('overloaded')) {
+    return 'The API is temporarily overloaded. Your message was not lost — please retry shortly.';
+  }
+  if (lower.includes('econnreset') || lower.includes('etimedout') || lower.includes('enotfound') || lower.includes('econnrefused') || lower.includes('fetch failed') || lower.includes('network') || lower.includes('socket')) {
+    return 'Network error — connection was interrupted. Your message was not lost — check your connection and retry.';
+  }
+  return `Streaming error: ${rawMsg}. Your message was not lost — you can retry.`;
+}
+
 // Dual-mode function: when `engine` is provided, all output is emitted as typed
 // events (consumed by the Ink UI via useChatEngine). When `engine` is omitted,
 // output falls back to direct stdout writes via display.ts (batch mode and tests).
@@ -118,8 +148,21 @@ export async function handleTurn(
         emitAbortDone();
         return;
       }
+
+      // Roll back the user message only on the first iteration, and only when
+      // this iteration hasn't accumulated any text or tool calls (i.e., the
+      // stream failed before producing any content).
+      if (iteration === 0 && !accumulatedText && toolCalls.length === 0) {
+        const lastIdx = messages.length - 1;
+        if (lastIdx >= 0 && messages[lastIdx].role === 'user') {
+          messages.splice(lastIdx, 1);
+        }
+      }
+
+      const userMessage = formatStreamingErrorMessage(err);
+
       if (engine) {
-        engine.emit('error', { message: `Streaming error: ${safeErrorMessage(err)}`, fatal: false, turnId });
+        engine.emit('error', { message: userMessage, fatal: false, turnId });
         engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
       } else {
         if (textStarted) {
@@ -127,7 +170,7 @@ export async function handleTurn(
           writeNewline();
         }
         const { printWarning } = await import('./display.js');
-        printWarning(`Streaming error: ${safeErrorMessage(err)}`);
+        printWarning(userMessage);
       }
       return;
     }
