@@ -88,6 +88,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'subevent_enabled', type: 'boolean', description: 'Enable sub-events', required: false },
       { name: 'terms_text', type: 'string', description: 'Terms and conditions text', required: false },
       { name: 'welcome_text', type: 'string', description: 'Welcome message for attendees', required: false },
+      { name: 'theme_data', type: 'string', description: 'Theme configuration as JSON (use theme_build tool to generate)', required: false },
+      { name: 'dark_theme_image', type: 'string', description: 'File ID for dark mode background image (from file_upload)', required: false },
+      { name: 'light_theme_image', type: 'string', description: 'File ID for light mode background image (from file_upload)', required: false },
     ],
     destructive: false,
     execute: async (args) => {
@@ -125,6 +128,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.subevent_enabled !== undefined) input.subevent_enabled = args.subevent_enabled;
       if (args.terms_text !== undefined) input.terms_text = args.terms_text;
       if (args.welcome_text !== undefined) input.welcome_text = args.welcome_text;
+      if (args.theme_data !== undefined) input.theme_data = parseJsonObject(args.theme_data as string, 'theme_data');
+      if (args.dark_theme_image !== undefined) input.dark_theme_image = args.dark_theme_image;
+      if (args.light_theme_image !== undefined) input.light_theme_image = args.light_theme_image;
 
       const result = await graphqlRequest<{ createEvent: unknown }>(
         `mutation($input: EventInput!) {
@@ -132,6 +138,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
             _id title shortid start end published description
             virtual virtual_url private guest_limit guest_limit_per timezone approval_required
             address { title city country latitude longitude }
+            theme_data dark_theme_image light_theme_image
           }
         }`,
         { input },
@@ -231,6 +238,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
             virtual virtual_url private guest_limit guest_limit_per ticket_limit_per
             timezone approval_required application_required registration_disabled
             currency tags guest_directory_enabled subevent_enabled terms_text welcome_text
+            theme_data dark_theme_image light_theme_image
             address { title city country latitude longitude }
           }
         }`,
@@ -267,6 +275,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'subevent_enabled', type: 'boolean', description: 'Enable sub-events', required: false },
       { name: 'terms_text', type: 'string', description: 'Terms and conditions text', required: false },
       { name: 'welcome_text', type: 'string', description: 'Welcome message for attendees', required: false },
+      { name: 'theme_data', type: 'string', description: 'Theme configuration as JSON (use theme_build tool to generate)', required: false },
+      { name: 'dark_theme_image', type: 'string', description: 'File ID for dark mode background image (from file_upload)', required: false },
+      { name: 'light_theme_image', type: 'string', description: 'File ID for light mode background image (from file_upload)', required: false },
     ],
     destructive: false,
     execute: async (args) => {
@@ -301,12 +312,16 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.subevent_enabled !== undefined) input.subevent_enabled = args.subevent_enabled;
       if (args.terms_text !== undefined) input.terms_text = args.terms_text;
       if (args.welcome_text !== undefined) input.welcome_text = args.welcome_text;
+      if (args.theme_data !== undefined) input.theme_data = parseJsonObject(args.theme_data as string, 'theme_data');
+      if (args.dark_theme_image !== undefined) input.dark_theme_image = args.dark_theme_image;
+      if (args.light_theme_image !== undefined) input.light_theme_image = args.light_theme_image;
 
       const result = await graphqlRequest<{ updateEvent: unknown }>(
         `mutation($id: MongoID!, $input: EventInput!) {
           updateEvent(_id: $id, input: $input) {
             _id title shortid start end published description
             virtual virtual_url private guest_limit guest_limit_per timezone approval_required
+            theme_data dark_theme_image light_theme_image
           }
         }`,
         { id: args.event_id, input },
@@ -1006,6 +1021,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'website', type: 'string', description: 'Community website URL', required: false },
       { name: 'tint_color', type: 'string', description: 'Brand color (hex, e.g. #FF5500)', required: false },
       { name: 'address', type: 'string', description: 'Community location', required: false },
+      { name: 'theme_data', type: 'string', description: 'Theme configuration as JSON (use theme_build tool to generate)', required: false },
+      { name: 'theme_name', type: 'string', description: 'Theme preset name', required: false },
+      { name: 'dark_theme_image', type: 'string', description: 'File ID for dark mode background image (from file_upload)', required: false },
+      { name: 'light_theme_image', type: 'string', description: 'File ID for light mode background image (from file_upload)', required: false },
     ],
     destructive: false,
     execute: async (args) => {
@@ -1021,6 +1040,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.website !== undefined) input.website = args.website;
       if (args.tint_color !== undefined) input.tint_color = args.tint_color;
       if (args.address !== undefined) input.address = { title: args.address };
+      if (args.theme_data !== undefined) input.theme_data = parseJsonObject(args.theme_data as string, 'theme_data');
+      if (args.theme_name !== undefined) input.theme_name = args.theme_name;
+      if (args.dark_theme_image !== undefined) input.dark_theme_image = args.dark_theme_image;
+      if (args.light_theme_image !== undefined) input.light_theme_image = args.light_theme_image;
 
       const result = await graphqlRequest<{ createSpace: unknown }>(
         `mutation($input: SpaceInput!) {
@@ -1028,6 +1051,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
             _id title slug description
             handle_twitter handle_instagram handle_linkedin handle_youtube handle_tiktok
             website tint_color private
+            theme_data theme_name dark_theme_image light_theme_image
             address { title city country }
           }
         }`,
@@ -1124,6 +1148,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'tint_color', type: 'string', description: 'Brand color (hex, e.g. #FF5500)', required: false },
       { name: 'address', type: 'string', description: 'Community location', required: false },
       { name: 'state', type: 'string', description: 'Space state (active or archived)', required: false, enum: ['active', 'archived'] },
+      { name: 'theme_data', type: 'string', description: 'Theme configuration as JSON (use theme_build tool to generate)', required: false },
+      { name: 'theme_name', type: 'string', description: 'Theme preset name', required: false },
+      { name: 'dark_theme_image', type: 'string', description: 'File ID for dark mode background image (from file_upload)', required: false },
+      { name: 'light_theme_image', type: 'string', description: 'File ID for light mode background image (from file_upload)', required: false },
     ],
     destructive: false,
     execute: async (args) => {
@@ -1141,6 +1169,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.tint_color !== undefined) input.tint_color = args.tint_color;
       if (args.address !== undefined) input.address = { title: args.address };
       if (args.state !== undefined) input.state = args.state;
+      if (args.theme_data !== undefined) input.theme_data = parseJsonObject(args.theme_data as string, 'theme_data');
+      if (args.theme_name !== undefined) input.theme_name = args.theme_name;
+      if (args.dark_theme_image !== undefined) input.dark_theme_image = args.dark_theme_image;
+      if (args.light_theme_image !== undefined) input.light_theme_image = args.light_theme_image;
 
       const result = await graphqlRequest<{ updateSpace: unknown }>(
         `mutation($id: MongoID!, $input: SpaceInput!) {
@@ -1148,6 +1180,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
             _id title slug description state
             handle_twitter handle_instagram handle_linkedin handle_youtube handle_tiktok
             website tint_color private
+            theme_data theme_name dark_theme_image light_theme_image
             address { title city country }
           }
         }`,
@@ -6475,6 +6508,59 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (result === null || result === undefined) return 'Error: no response from server.';
       const r = result as { _id: string; title: string };
       return `Photos set for event "${r.title}" (${r._id}). The first photo is used as the event cover.`;
+    },
+  });
+
+  // --- Theme Builder ---
+
+  register({
+    name: 'theme_build',
+    displayName: 'theme build',
+    description: 'Build a theme_data JSON object from named parameters. Returns JSON to use with event/space create or update tools.',
+    params: [
+      { name: 'preset', type: 'string', description: 'Theme preset', required: false, default: 'default', enum: ['default', 'minimal', 'shader', 'pattern', 'image', 'passport'] },
+      { name: 'mode', type: 'string', description: 'Color mode', required: false, default: 'dark', enum: ['dark', 'light', 'auto'] },
+      { name: 'color', type: 'string', description: 'Accent color', required: false, enum: ['violet', 'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'purple', 'fuchsia', 'pink', 'rose'] },
+      { name: 'shader', type: 'string', description: 'Shader name (when preset is shader)', required: false, enum: ['dreamy', 'summer', 'melon', 'barbie', 'sunset', 'ocean', 'forest', 'lavender'] },
+      { name: 'pattern', type: 'string', description: 'Pattern name (when preset is pattern)', required: false, enum: ['cross', 'hypnotic', 'plus', 'polkadot', 'wave', 'zigzag'] },
+      { name: 'font_title', type: 'string', description: 'Title font', required: false, default: 'default' },
+      { name: 'font_body', type: 'string', description: 'Body font', required: false, default: 'default' },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const themeData: Record<string, unknown> = {
+        theme: (args.preset as string) || 'default',
+        config: {
+          mode: (args.mode as string) || 'dark',
+        },
+        font_title: (args.font_title as string) || 'default',
+        font_body: (args.font_body as string) || 'default',
+      };
+
+      const config = themeData.config as Record<string, unknown>;
+      if (args.color !== undefined) config.color = args.color;
+
+      const preset = themeData.theme as string;
+      if (args.shader !== undefined && preset !== 'shader') {
+        throw new Error('shader param only applies when preset is "shader"');
+      }
+      if (args.pattern !== undefined && preset !== 'pattern') {
+        throw new Error('pattern param only applies when preset is "pattern"');
+      }
+      if (preset === 'shader' && args.shader === undefined) {
+        throw new Error('shader name is required when preset is "shader" (options: dreamy, summer, melon, barbie, sunset, ocean, forest, lavender)');
+      }
+      if (preset === 'pattern' && args.pattern === undefined) {
+        throw new Error('pattern name is required when preset is "pattern" (options: cross, hypnotic, plus, polkadot, wave, zigzag)');
+      }
+      if (preset === 'shader' && args.shader !== undefined) config.name = args.shader;
+      if (preset === 'pattern' && args.pattern !== undefined) config.name = args.pattern;
+
+      return themeData;
+    },
+    formatResult: (result) => {
+      const json = JSON.stringify(result, null, 2);
+      return `Theme data built:\n${json}\n\nUse this JSON as the theme_data parameter when creating or updating an event or space.`;
     },
   });
 
