@@ -43,6 +43,9 @@ export async function batchMode(
       );
     } catch (err) {
       console.error(`Error: ${safeErrorMessage(err)}`);
+      if (jsonOutput) {
+        console.log(JSON.stringify({ error: safeErrorMessage(err) }));
+      }
       continue;
     }
 
