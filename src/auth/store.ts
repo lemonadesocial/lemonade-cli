@@ -111,9 +111,12 @@ export async function ensureAuthHeader(): Promise<string | undefined> {
   const refreshToken = config.refresh_token;
   if (refreshToken) {
     if (!refreshInFlight) {
-      // Lazy import to avoid circular dependency (oauth imports store).
-      const { refreshAccessToken } = await import('./oauth.js');
-      refreshInFlight = refreshAccessToken(refreshToken).finally(() => {
+      // Claim the slot synchronously before any await, then lazy-import.
+      // This closes the race where two callers both see null before either assigns.
+      const slot = import('./oauth.js').then(({ refreshAccessToken }) =>
+        refreshAccessToken(refreshToken),
+      );
+      refreshInFlight = slot.finally(() => {
         refreshInFlight = null;
       });
     }

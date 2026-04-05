@@ -20,7 +20,6 @@ vi.mock('openai', () => {
 });
 
 vi.mock('../../../src/auth/store', () => ({
-  getAuthHeader: () => 'Bearer test',
   ensureAuthHeader: async () => 'Bearer test',
 }));
 

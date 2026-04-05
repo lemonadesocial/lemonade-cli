@@ -29,7 +29,6 @@ describe('GraphQL Client', () => {
       delete process.env.LEMONADE_API_KEY;
 
       const store = await import('../../../src/auth/store.js');
-      vi.spyOn(store, 'getAuthHeader').mockReturnValue(undefined);
       vi.spyOn(store, 'ensureAuthHeader').mockResolvedValue(undefined);
 
       const { graphqlRequest } = await import('../../../src/api/graphql.js');

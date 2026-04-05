@@ -69,6 +69,23 @@ describe('refreshAccessToken', () => {
     expect(clearTokensSpy).toHaveBeenCalled();
   });
 
+  it('clears tokens on 403 (forbidden / revoked)', async () => {
+    const store = await import('../../../src/auth/store.js');
+    const clearTokensSpy = vi.spyOn(store, 'clearTokens').mockImplementation(() => {});
+    vi.spyOn(store, 'getHydraUrl').mockReturnValue('https://hydra.test');
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+    });
+
+    const { refreshAccessToken } = await import('../../../src/auth/oauth.js');
+    const result = await refreshAccessToken('revoked-refresh');
+
+    expect(result).toBeNull();
+    expect(clearTokensSpy).toHaveBeenCalled();
+  });
+
   it('preserves tokens on 500 (transient server error)', async () => {
     const store = await import('../../../src/auth/store.js');
     const clearTokensSpy = vi.spyOn(store, 'clearTokens').mockImplementation(() => {});
@@ -214,15 +231,13 @@ describe('ensureAuthHeader', () => {
 
     const { ensureAuthHeader } = await import('../../../src/auth/store.js');
 
-    // First call warms the lazy oauth import and sets refreshInFlight.
-    const p1 = ensureAuthHeader();
-    // Yield so p1 passes the `await import('./oauth.js')` and sets refreshInFlight.
-    await new Promise((r) => setTimeout(r, 5));
-    // These calls should reuse the in-flight promise.
-    const p2 = ensureAuthHeader();
-    const p3 = ensureAuthHeader();
-
-    const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+    // All three fire before any await yields — the synchronous guard
+    // ensures only one fetch despite concurrent callers.
+    const [r1, r2, r3] = await Promise.all([
+      ensureAuthHeader(),
+      ensureAuthHeader(),
+      ensureAuthHeader(),
+    ]);
 
     expect(r1).toBe('Bearer shared-token');
     expect(r2).toBe('Bearer shared-token');
