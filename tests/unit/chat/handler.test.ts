@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleTurn } from '../../../src/chat/stream/handler';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { handleTurn, getRetryDelay, MAX_STREAM_RETRIES } from '../../../src/chat/stream/handler';
 import { AIProvider, StreamEvent, Message, ToolDef, SystemMessage } from '../../../src/chat/providers/interface';
 import { createSessionState } from '../../../src/chat/session/state';
 import { ChatEngine } from '../../../src/chat/engine/ChatEngine';
@@ -321,6 +321,8 @@ describe('handleTurn', () => {
 
   describe('streaming error recovery', () => {
     it('rolls back user message when stream throws before any content', async () => {
+      vi.useFakeTimers();
+
       const provider: AIProvider = {
         name: 'error-test',
         model: 'test',
@@ -337,7 +339,7 @@ describe('handleTurn', () => {
         { role: 'user', content: 'second message' },
       ];
 
-      await handleTurn(
+      const turnPromise = handleTurn(
         provider,
         messages,
         [],
@@ -348,10 +350,19 @@ describe('handleTurn', () => {
         false,
       );
 
-      // The last user message should be rolled back
+      // Advance timers through all retry delays
+      for (let i = 0; i < MAX_STREAM_RETRIES; i++) {
+        await vi.advanceTimersByTimeAsync(60_000);
+      }
+
+      await turnPromise;
+
+      // The last user message should be rolled back after exhausting retries
       expect(messages).toHaveLength(2);
       expect(messages[0].role).toBe('user');
       expect(messages[1].role).toBe('assistant');
+
+      vi.useRealTimers();
     });
 
     it('does NOT roll back user message if some text was already streamed', async () => {
@@ -388,6 +399,8 @@ describe('handleTurn', () => {
     });
 
     it('emits actionable rate-limit error via engine', async () => {
+      vi.useFakeTimers();
+
       const engine = new ChatEngine();
       let errorMsg = '';
 
@@ -405,7 +418,7 @@ describe('handleTurn', () => {
 
       const messages: Message[] = [{ role: 'user', content: 'hi' }];
 
-      await handleTurn(
+      const turnPromise = handleTurn(
         provider,
         messages,
         [],
@@ -417,11 +430,21 @@ describe('handleTurn', () => {
         engine,
       );
 
+      for (let i = 0; i < MAX_STREAM_RETRIES; i++) {
+        await vi.advanceTimersByTimeAsync(60_000);
+      }
+
+      await turnPromise;
+
       expect(errorMsg).toContain('Rate limited');
-      expect(errorMsg).toContain('send it again');
+      expect(errorMsg).toContain('retries');
+
+      vi.useRealTimers();
     });
 
     it('emits actionable overloaded error via engine', async () => {
+      vi.useFakeTimers();
+
       const engine = new ChatEngine();
       let errorMsg = '';
 
@@ -439,7 +462,7 @@ describe('handleTurn', () => {
 
       const messages: Message[] = [{ role: 'user', content: 'hi' }];
 
-      await handleTurn(
+      const turnPromise = handleTurn(
         provider,
         messages,
         [],
@@ -451,8 +474,16 @@ describe('handleTurn', () => {
         engine,
       );
 
+      for (let i = 0; i < MAX_STREAM_RETRIES; i++) {
+        await vi.advanceTimersByTimeAsync(60_000);
+      }
+
+      await turnPromise;
+
       expect(errorMsg).toContain('overloaded');
       expect(errorMsg).toContain('retry');
+
+      vi.useRealTimers();
     });
 
     it('preserves committed messages when error occurs on iteration > 0', async () => {
@@ -502,9 +533,20 @@ describe('handleTurn', () => {
       expect(messages[2].role).toBe('user'); // tool_result
     });
 
+    it('getRetryDelay produces increasing delays', () => {
+      const err = new Error('429');
+      const d0 = getRetryDelay(0, err);
+      const d1 = getRetryDelay(1, err);
+      const d2 = getRetryDelay(2, err);
+      expect(d1).toBeGreaterThan(d0);
+      expect(d2).toBeGreaterThan(d1);
+    });
+
     it('allows normal turn after streaming error recovery', async () => {
-      // First call: throws an error (simulating 429)
-      // Second call: succeeds normally
+      vi.useFakeTimers();
+
+      // First stream call: throws retryable 429
+      // Second stream call (automatic retry): succeeds
       let callCount = 0;
       const provider: AIProvider = {
         name: 'recovery-test',
@@ -523,19 +565,21 @@ describe('handleTurn', () => {
 
       const messages: Message[] = [{ role: 'user', content: 'first attempt' }];
 
-      // First turn: error — user message rolled back
-      await handleTurn(provider, messages, [], systemPrompt, session, {}, null, false);
-      expect(messages).toHaveLength(0); // rolled back
+      // The retry mechanism will automatically retry after the first 429
+      const turnPromise = handleTurn(provider, messages, [], systemPrompt, session, {}, null, false);
 
-      // User retries
-      messages.push({ role: 'user', content: 'retry attempt' });
+      // Advance past the retry delay so the automatic retry fires
+      await vi.advanceTimersByTimeAsync(60_000);
 
-      // Second turn: succeeds
-      await handleTurn(provider, messages, [], systemPrompt, session, {}, null, false);
+      await turnPromise;
 
+      // Retry succeeded — user message kept, assistant response added
       expect(messages).toHaveLength(2);
       expect(messages[0].role).toBe('user');
       expect(messages[1].role).toBe('assistant');
+      expect(callCount).toBe(2);
+
+      vi.useRealTimers();
     });
   });
 });

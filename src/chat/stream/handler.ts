@@ -8,6 +8,70 @@ import { ChatEngine } from '../engine/ChatEngine.js';
 const TOKEN_WARN_THRESHOLD_ANTHROPIC = 150_000;
 const TOKEN_WARN_THRESHOLD_OPENAI = 90_000;
 const MAX_TOOL_ITERATIONS = 25;
+/** @internal — exported for testing only */
+export const MAX_STREAM_RETRIES = 3;
+
+/** @internal — exported for testing only */
+export let RETRY_BASE_DELAY_MS = 1000;
+const RETRY_MAX_DELAY_MS = 30_000;
+const RETRY_AFTER_CAP_S = 60;
+
+export function isRetryableStreamingError(err: unknown): boolean {
+  const errRecord = err as Record<string, unknown>;
+  const status = typeof errRecord?.status === 'number' ? errRecord.status as number : undefined;
+
+  if (status === 429 || status === 529) return true;
+
+  const rawMsg = safeErrorMessage(err);
+  const lower = rawMsg.toLowerCase();
+  const retryablePatterns = [
+    '429', 'rate limit', '529', 'overloaded',
+    'econnreset', 'etimedout', 'enotfound', 'econnrefused',
+    'fetch failed', 'network', 'socket',
+  ];
+  return retryablePatterns.some((p) => lower.includes(p));
+}
+
+/** @internal — exported for testing only */
+export function getRetryDelay(attempt: number, err: unknown): number {
+  // Check for retry-after header
+  const errRecord = err as Record<string, unknown>;
+  const headers = errRecord?.headers as Record<string, string> | undefined;
+  if (headers && headers['retry-after']) {
+    const retryAfterSec = parseFloat(headers['retry-after']);
+    if (!isNaN(retryAfterSec) && retryAfterSec > 0) {
+      const capped = Math.min(retryAfterSec, RETRY_AFTER_CAP_S);
+      return capped * 1000;
+    }
+  }
+
+  const exponential = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+  const capped = Math.min(exponential, RETRY_MAX_DELAY_MS);
+  // Add ±20% jitter
+  const jitter = capped * (0.8 + Math.random() * 0.4);
+  return Math.round(jitter);
+}
+
+export function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (signal) signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+
+    function onAbort() {
+      clearTimeout(timer);
+      reject(new DOMException('Aborted', 'AbortError'));
+    }
+
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 const SENSITIVE_KEYS = ['api_key', 'apiKey', 'api_key_value', 'password', 'secret', 'token', 'access_token', 'refresh_token'];
 
@@ -30,7 +94,7 @@ function safeErrorMessage(err: unknown): string {
   return 'Unknown error';
 }
 
-function formatStreamingErrorMessage(err: unknown): string {
+function formatStreamingErrorMessage(err: unknown, retriesAttempted = 0): string {
   // Cast to a generic record so we can probe for structured fields like `status`
   // without assuming a specific error class (e.g. Anthropic SDK's APIError).
   const errRecord = err as Record<string, unknown>;
@@ -38,26 +102,30 @@ function formatStreamingErrorMessage(err: unknown): string {
     ? errRecord.status as number
     : undefined;
 
+  const retrySuffix = retriesAttempted > 0
+    ? ` after ${retriesAttempted} ${retriesAttempted === 1 ? 'retry' : 'retries'}`
+    : '';
+
   if (status === 429) {
-    return 'Rate limited by the API. Your message was not lost — just send it again in a few seconds.';
+    return `Rate limited by the API${retrySuffix}. Your message was not lost — please wait a moment and try again.`;
   }
   if (status === 529) {
-    return 'The API is temporarily overloaded. Your message was not lost — please retry shortly.';
+    return `The API is temporarily overloaded${retrySuffix}. Your message was not lost — please retry shortly.`;
   }
 
   // Fall back to string matching for errors without a status property
   const rawMsg = safeErrorMessage(err);
   const lower = rawMsg.toLowerCase();
   if (lower.includes('429') || lower.includes('rate limit')) {
-    return 'Rate limited by the API. Your message was not lost — just send it again in a few seconds.';
+    return `Rate limited by the API${retrySuffix}. Your message was not lost — please wait a moment and try again.`;
   }
   if (lower.includes('529') || lower.includes('overloaded')) {
-    return 'The API is temporarily overloaded. Your message was not lost — please retry shortly.';
+    return `The API is temporarily overloaded${retrySuffix}. Your message was not lost — please retry shortly.`;
   }
   if (lower.includes('econnreset') || lower.includes('etimedout') || lower.includes('enotfound') || lower.includes('econnrefused') || lower.includes('fetch failed') || lower.includes('network') || lower.includes('socket')) {
-    return 'Network error — connection was interrupted. Your message was not lost — check your connection and retry.';
+    return `Network error — connection was interrupted${retrySuffix}. Your message was not lost — check your connection and retry.`;
   }
-  return `Streaming error: ${rawMsg}. Your message was not lost — you can retry.`;
+  return `Streaming error${retrySuffix}: ${rawMsg}. Your message was not lost — you can retry.`;
 }
 
 // Dual-mode function: when `engine` is provided, all output is emitted as typed
@@ -87,6 +155,8 @@ export async function handleTurn(
       engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
     }
   };
+
+  let streamRetryCount = 0;
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     if (iteration > 0 && engine) {
@@ -149,6 +219,48 @@ export async function handleTurn(
         return;
       }
 
+      // Retry logic for iteration-0 transient errors before any content was produced
+      if (
+        iteration === 0 &&
+        !accumulatedText &&
+        toolCalls.length === 0 &&
+        isRetryableStreamingError(err) &&
+        streamRetryCount < MAX_STREAM_RETRIES
+      ) {
+        streamRetryCount++;
+        const delay = getRetryDelay(streamRetryCount - 1, err);
+        const delaySec = (delay / 1000).toFixed(1);
+        const retryMsg = `Transient error — retrying in ${delaySec}s (attempt ${streamRetryCount}/${MAX_STREAM_RETRIES})...`;
+
+        if (engine) {
+          engine.emit('warning', { message: retryMsg, turnId });
+        } else {
+          const { printWarning } = await import('./display.js');
+          printWarning(retryMsg);
+        }
+
+        try {
+          await sleepWithAbort(delay, signal);
+        } catch {
+          // Signal was aborted during sleep
+          emitAbortDone();
+          return;
+        }
+
+        if (signal?.aborted) {
+          emitAbortDone();
+          return;
+        }
+
+        // Decrement iteration so the for-loop's `iteration++` brings it back
+        // to 0, effectively re-entering iteration 0 for a retry attempt.
+        // The retry count is tracked by `streamRetryCount` (checked above)
+        // to prevent infinite loops — this loop can repeat at most
+        // MAX_STREAM_RETRIES times before falling through to the error path.
+        iteration--;
+        continue;
+      }
+
       // Roll back the user message only on the first iteration, and only when
       // this iteration hasn't accumulated any text or tool calls (i.e., the
       // stream failed before producing any content).
@@ -159,7 +271,7 @@ export async function handleTurn(
         }
       }
 
-      const userMessage = formatStreamingErrorMessage(err);
+      const userMessage = formatStreamingErrorMessage(err, streamRetryCount);
 
       if (engine) {
         engine.emit('error', { message: userMessage, fatal: false, turnId });
@@ -174,6 +286,9 @@ export async function handleTurn(
       }
       return;
     }
+
+    // After a successful stream on iteration 0, reset retry count
+    if (iteration === 0) streamRetryCount = 0;
 
     if (!engine && textStarted) {
       const { writeNewline } = await import('./display.js');
