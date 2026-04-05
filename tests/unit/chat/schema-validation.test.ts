@@ -28,10 +28,8 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetBackendVersion: [], // scalar String
   aiGetHostingEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count'],
   aiGetEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'city', 'country', 'latitude', 'longitude', 'cover', 'attending_count', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'ticket_limit_per', 'timezone', 'approval_required', 'application_required', 'registration_disabled', 'currency', 'tags', 'guest_directory_enabled', 'subevent_enabled', 'terms_text', 'welcome_text'],
-  aiCreateEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'city', 'country', 'latitude', 'longitude'],
-  aiUpdateEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'city', 'country', 'latitude', 'longitude'],
   createEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required', 'address', 'city', 'country', 'latitude', 'longitude'],
-  updateEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required'],
+  updateEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required'],
   aiPublishEvent: ['_id', 'title', 'published', 'shortid'],
   aiCancelEvent: [], // Returns Boolean
   aiSearchEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count', 'city', 'country', 'latitude', 'longitude'],

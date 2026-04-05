@@ -106,7 +106,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const config: string[] = [];
       if (r.private) config.push('private');
       if (r.virtual) config.push('virtual');
-      if (r.guest_limit) config.push(`limit: ${r.guest_limit}`);
+      if (r.guest_limit != null) config.push(`limit: ${r.guest_limit}`);
       if (r.approval_required) config.push('approval required');
       const configStr = config.length > 0 ? ` [${config.join(', ')}]` : '';
       return `Event created: "${r.title}" (${r.published ? 'published' : 'draft'})${configStr}. Add tickets with /plan tickets_create_type.`;
@@ -234,11 +234,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     destructive: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {};
-      if (args.title) input.title = args.title;
-      if (args.start) input.start = new Date(args.start as string).toISOString();
-      if (args.end) input.end = new Date(args.end as string).toISOString();
-      if (args.description) input.description = args.description;
-      if (args.address) input.address = { title: args.address };
+      if (args.title !== undefined) input.title = args.title;
+      if (args.start !== undefined) input.start = new Date(args.start as string).toISOString();
+      if (args.end !== undefined) input.end = new Date(args.end as string).toISOString();
+      if (args.description !== undefined) input.description = args.description;
+      if (args.address !== undefined) input.address = { title: args.address };
       if (args.virtual !== undefined) input.virtual = args.virtual;
       if (args.guest_limit !== undefined) input.guest_limit = args.guest_limit;
       if (args.guest_limit_per !== undefined) input.guest_limit_per = args.guest_limit_per;
@@ -259,7 +259,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const result = await graphqlRequest<{ updateEvent: unknown }>(
         `mutation($id: MongoID!, $input: EventInput!) {
           updateEvent(_id: $id, input: $input) {
-            _id title shortid start end published
+            _id title shortid start end published description
             virtual virtual_url private guest_limit guest_limit_per timezone approval_required
           }
         }`,

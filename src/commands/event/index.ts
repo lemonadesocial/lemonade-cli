@@ -23,12 +23,19 @@ export function registerEventCommands(program: Command): void {
     .option('--virtual', 'Virtual event')
     .option('--private', 'Private event')
     .option('--guest-limit <n>', 'Maximum number of guests')
+    .option('--guest-limit-per <n>', 'Maximum guests per registration')
+    .option('--ticket-limit-per <n>', 'Maximum tickets per user')
     .option('--timezone <tz>', 'Event timezone')
     .option('--virtual-url <url>', 'Virtual event URL')
     .option('--approval-required', 'Require approval for registrations')
+    .option('--application-required', 'Require application form')
+    .option('--guest-directory', 'Enable guest directory')
+    .option('--subevent', 'Enable sub-events')
     .option('--currency <code>', 'Payment currency code')
-    .option('--tags <tags...>', 'Event tags (comma-separated)')
+    .option('--tags <tags...>', 'Event tags (space-separated)')
     .option('--registration-disabled', 'Disable registration')
+    .option('--terms-text <text>', 'Terms and conditions text')
+    .option('--welcome-text <text>', 'Welcome message for attendees')
     .option('--json', 'Output as JSON')
     .option('--api-key <key>', 'API key override')
     .action(async (opts) => {
@@ -46,13 +53,29 @@ export function registerEventCommands(program: Command): void {
         };
         if (opts.virtual !== undefined) input.virtual = opts.virtual;
         if (opts.private !== undefined) input.private = opts.private;
-        if (opts.guestLimit !== undefined) input.guest_limit = parseInt(opts.guestLimit, 10);
+        if (opts.guestLimit !== undefined) {
+          const n = parseInt(opts.guestLimit, 10);
+          if (!isNaN(n)) input.guest_limit = n;
+        }
+        if (opts.guestLimitPer !== undefined) {
+          const n = parseInt(opts.guestLimitPer, 10);
+          if (!isNaN(n)) input.guest_limit_per = n;
+        }
+        if (opts.ticketLimitPer !== undefined) {
+          const n = parseInt(opts.ticketLimitPer, 10);
+          if (!isNaN(n)) input.ticket_limit_per = n;
+        }
         if (opts.timezone !== undefined) input.timezone = opts.timezone;
         if (opts.virtualUrl !== undefined) input.virtual_url = opts.virtualUrl;
         if (opts.approvalRequired !== undefined) input.approval_required = opts.approvalRequired;
+        if (opts.applicationRequired !== undefined) input.application_required = opts.applicationRequired;
         if (opts.currency !== undefined) input.currency = opts.currency;
         if (opts.tags !== undefined) input.tags = opts.tags;
         if (opts.registrationDisabled !== undefined) input.registration_disabled = opts.registrationDisabled;
+        if (opts.guestDirectory !== undefined) input.guest_directory_enabled = opts.guestDirectory;
+        if (opts.subevent !== undefined) input.subevent_enabled = opts.subevent;
+        if (opts.termsText !== undefined) input.terms_text = opts.termsText;
+        if (opts.welcomeText !== undefined) input.welcome_text = opts.welcomeText;
 
         const result = await graphqlRequest<{ createEvent: Record<string, unknown> }>(
           `mutation($input: EventInput!) {
@@ -239,9 +262,9 @@ export function registerEventCommands(program: Command): void {
           if (ev.virtual) pairs.push(['Virtual', 'Yes']);
           if (ev.virtual_url) pairs.push(['Virtual URL', String(ev.virtual_url)]);
           if (ev.private) pairs.push(['Private', 'Yes']);
-          if (ev.guest_limit) pairs.push(['Guest Limit', String(ev.guest_limit)]);
-          if (ev.guest_limit_per) pairs.push(['Guest Limit Per', String(ev.guest_limit_per)]);
-          if (ev.ticket_limit_per) pairs.push(['Ticket Limit Per', String(ev.ticket_limit_per)]);
+          if (ev.guest_limit != null) pairs.push(['Guest Limit', String(ev.guest_limit)]);
+          if (ev.guest_limit_per != null) pairs.push(['Guest Limit Per', String(ev.guest_limit_per)]);
+          if (ev.ticket_limit_per != null) pairs.push(['Ticket Limit Per', String(ev.ticket_limit_per)]);
           if (ev.timezone) pairs.push(['Timezone', String(ev.timezone)]);
           if (ev.approval_required) pairs.push(['Approval Required', 'Yes']);
           if (ev.application_required) pairs.push(['Application Required', 'Yes']);
@@ -269,40 +292,69 @@ export function registerEventCommands(program: Command): void {
     .option('--description <text>', 'New description')
     .option('--address <text>', 'New address')
     .option('--virtual', 'Set as virtual')
+    .option('--no-virtual', 'Unset virtual')
     .option('--private', 'Set as private')
     .option('--no-private', 'Set as public')
     .option('--guest-limit <n>', 'Maximum number of guests')
+    .option('--guest-limit-per <n>', 'Maximum guests per registration')
+    .option('--ticket-limit-per <n>', 'Maximum tickets per user')
     .option('--timezone <tz>', 'Event timezone')
     .option('--virtual-url <url>', 'Virtual event URL')
     .option('--approval-required', 'Require approval for registrations')
+    .option('--no-approval-required', 'Remove approval requirement')
+    .option('--application-required', 'Require application form')
+    .option('--no-application-required', 'Remove application requirement')
+    .option('--guest-directory', 'Enable guest directory')
+    .option('--no-guest-directory', 'Disable guest directory')
+    .option('--subevent', 'Enable sub-events')
+    .option('--no-subevent', 'Disable sub-events')
     .option('--currency <code>', 'Payment currency code')
-    .option('--tags <tags...>', 'Event tags (comma-separated)')
+    .option('--tags <tags...>', 'Event tags (space-separated)')
     .option('--registration-disabled', 'Disable registration')
+    .option('--no-registration-disabled', 'Enable registration')
+    .option('--terms-text <text>', 'Terms and conditions text')
+    .option('--welcome-text <text>', 'Welcome message for attendees')
     .option('--json', 'Output as JSON')
     .option('--api-key <key>', 'API key override')
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
         const input: Record<string, unknown> = {};
-        if (opts.title) input.title = opts.title;
-        if (opts.start) input.start = new Date(opts.start).toISOString();
-        if (opts.end) input.end = new Date(opts.end).toISOString();
-        if (opts.description) input.description = opts.description;
-        if (opts.address) input.address = { title: opts.address };
+        if (opts.title !== undefined) input.title = opts.title;
+        if (opts.start !== undefined) input.start = new Date(opts.start).toISOString();
+        if (opts.end !== undefined) input.end = new Date(opts.end).toISOString();
+        if (opts.description !== undefined) input.description = opts.description;
+        if (opts.address !== undefined) input.address = { title: opts.address };
         if (opts.virtual !== undefined) input.virtual = opts.virtual;
         if (opts.private !== undefined) input.private = opts.private;
-        if (opts.guestLimit !== undefined) input.guest_limit = parseInt(opts.guestLimit, 10);
+        if (opts.guestLimit !== undefined) {
+          const n = parseInt(opts.guestLimit, 10);
+          if (!isNaN(n)) input.guest_limit = n;
+        }
+        if (opts.guestLimitPer !== undefined) {
+          const n = parseInt(opts.guestLimitPer, 10);
+          if (!isNaN(n)) input.guest_limit_per = n;
+        }
+        if (opts.ticketLimitPer !== undefined) {
+          const n = parseInt(opts.ticketLimitPer, 10);
+          if (!isNaN(n)) input.ticket_limit_per = n;
+        }
         if (opts.timezone !== undefined) input.timezone = opts.timezone;
         if (opts.virtualUrl !== undefined) input.virtual_url = opts.virtualUrl;
         if (opts.approvalRequired !== undefined) input.approval_required = opts.approvalRequired;
+        if (opts.applicationRequired !== undefined) input.application_required = opts.applicationRequired;
         if (opts.currency !== undefined) input.currency = opts.currency;
         if (opts.tags !== undefined) input.tags = opts.tags;
         if (opts.registrationDisabled !== undefined) input.registration_disabled = opts.registrationDisabled;
+        if (opts.guestDirectory !== undefined) input.guest_directory_enabled = opts.guestDirectory;
+        if (opts.subevent !== undefined) input.subevent_enabled = opts.subevent;
+        if (opts.termsText !== undefined) input.terms_text = opts.termsText;
+        if (opts.welcomeText !== undefined) input.welcome_text = opts.welcomeText;
 
         const result = await graphqlRequest<{ updateEvent: Record<string, unknown> }>(
           `mutation($id: MongoID!, $input: EventInput!) {
             updateEvent(_id: $id, input: $input) {
-              _id title shortid start end published
+              _id title shortid start end published description
               virtual virtual_url private guest_limit guest_limit_per timezone approval_required
             }
           }`,
