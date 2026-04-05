@@ -61,6 +61,11 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   newsletter_delete: 'deleteSpaceNewsletter',
   newsletter_test_send: 'sendSpaceNewsletterTestEmails',
   newsletter_stats: 'getSpaceNewsletterStatistics',
+  space_event_requests: 'getSpaceEventRequests',
+  space_event_requests_decide: 'decideSpaceEventRequests',
+  space_event_summary: 'getSpaceEventSummary',
+  space_sending_quota: 'getSpaceSendingQuota',
+  space_my_event_requests: 'getMySpaceEventRequests',
 };
 
 // Maps MCP tool names to CLI command group + subcommand

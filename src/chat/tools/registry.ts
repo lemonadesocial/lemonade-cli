@@ -5005,5 +5005,183 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
+  // --- Space Event Moderation & Quota ---
+
+  register({
+    name: 'space_event_requests',
+    displayName: 'space event requests',
+    description: 'List event requests submitted to a space for moderation.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'state', type: 'string', description: 'Filter by state', required: false,
+        enum: ['pending', 'approved', 'declined'] },
+      { name: 'limit', type: 'number', description: 'Max results', required: false },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const variables: Record<string, unknown> = {
+        space: args.space_id,
+        limit: args.limit !== undefined ? Math.max(1, Number(args.limit)) : 25,
+        skip: args.skip !== undefined ? Math.max(0, Number(args.skip)) : 0,
+      };
+      if (args.state !== undefined) variables.state = args.state;
+      const result = await graphqlRequest<{ getSpaceEventRequests: unknown }>(
+        `query($space: MongoID!, $state: SpaceEventRequestState, $limit: Int!, $skip: Int!) {
+          getSpaceEventRequests(space: $space, state: $state, limit: $limit, skip: $skip) {
+            total
+            records {
+              _id state created_at
+              event_expanded { _id title shortid start }
+              created_by_expanded { _id name }
+              decided_at decided_by_expanded { _id name }
+            }
+          }
+        }`,
+        variables,
+      );
+      return result.getSpaceEventRequests;
+    },
+    formatResult: (result) => {
+      const r = result as { total: number; records: Array<{ _id: string; state: string; created_at: string; event_expanded?: { title: string }; created_by_expanded?: { name: string } }> };
+      if (!r || !r.records) return JSON.stringify(result);
+      const lines = [`Total: ${r.total}`];
+      for (const rec of r.records) {
+        const event = rec.event_expanded?.title ?? 'Unknown';
+        const by = rec.created_by_expanded?.name ?? 'Unknown';
+        lines.push(`- [${rec.state}] "${event}" by ${by} (${rec.created_at})`);
+      }
+      return lines.join('\n');
+    },
+  });
+
+  register({
+    name: 'space_event_requests_decide',
+    displayName: 'space event requests decide',
+    description: 'Approve or decline event requests submitted to a space.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'request_ids', type: 'string', description: 'Comma-separated request IDs', required: true },
+      { name: 'decision', type: 'string', description: 'Decision', required: true,
+        enum: ['approved', 'declined'] },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ decideSpaceEventRequests: unknown }>(
+        `mutation($input: DecideSpaceEventRequestsInput!) {
+          decideSpaceEventRequests(input: $input)
+        }`,
+        {
+          input: {
+            space: args.space_id,
+            requests: (args.request_ids as string).split(',').map(s => s.trim()).filter(s => s.length > 0),
+            decision: args.decision,
+          },
+        },
+      );
+      return result.decideSpaceEventRequests;
+    },
+    formatResult: (result) => {
+      return result ? 'Event request decision applied successfully.' : 'Decision failed.';
+    },
+  });
+
+  register({
+    name: 'space_event_summary',
+    displayName: 'space event summary',
+    description: 'Get event count summary for a space (total, virtual, IRL, live, upcoming, past).',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getSpaceEventSummary: unknown }>(
+        `query($space: MongoID!) {
+          getSpaceEventSummary(space: $space) {
+            all_events virtual_events irl_events live_events upcoming_events past_events
+          }
+        }`,
+        { space: args.space_id },
+      );
+      return result.getSpaceEventSummary;
+    },
+    formatResult: (result) => {
+      const r = result as { all_events: number; virtual_events: number; irl_events: number; live_events: number; upcoming_events: number; past_events: number };
+      if (!r || r.all_events === undefined) return JSON.stringify(result);
+      return `All: ${r.all_events}, Virtual: ${r.virtual_events}, IRL: ${r.irl_events}, Live: ${r.live_events}, Upcoming: ${r.upcoming_events}, Past: ${r.past_events}`;
+    },
+  });
+
+  register({
+    name: 'space_sending_quota',
+    displayName: 'space sending quota',
+    description: 'Check newsletter/email sending quota for a space.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getSpaceSendingQuota: unknown }>(
+        `query($space: MongoID!) {
+          getSpaceSendingQuota(space: $space) {
+            type reset_frequency remain total used
+          }
+        }`,
+        { space: args.space_id },
+      );
+      return result.getSpaceSendingQuota;
+    },
+    formatResult: (result) => {
+      const r = result as { type: string; reset_frequency: string; remain: number; total: number; used: number };
+      if (!r || r.total === undefined) return JSON.stringify(result);
+      return `Quota type: ${r.type}, Used: ${r.used}/${r.total}, Remaining: ${r.remain}, Reset: ${r.reset_frequency}`;
+    },
+  });
+
+  register({
+    name: 'space_my_event_requests',
+    displayName: 'space my event requests',
+    description: 'List your own event requests submitted to a space.',
+    params: [
+      { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'state', type: 'string', description: 'Filter by state', required: false,
+        enum: ['pending', 'approved', 'declined'] },
+      { name: 'limit', type: 'number', description: 'Max results', required: false },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const variables: Record<string, unknown> = {
+        space: args.space_id,
+        limit: args.limit !== undefined ? Math.max(1, Number(args.limit)) : 25,
+        skip: args.skip !== undefined ? Math.max(0, Number(args.skip)) : 0,
+      };
+      if (args.state !== undefined) variables.state = args.state;
+      const result = await graphqlRequest<{ getMySpaceEventRequests: unknown }>(
+        `query($space: MongoID!, $state: SpaceEventRequestState, $limit: Int!, $skip: Int!) {
+          getMySpaceEventRequests(space: $space, state: $state, limit: $limit, skip: $skip) {
+            total
+            records {
+              _id state created_at decided_at
+              event_expanded { _id title shortid start }
+            }
+          }
+        }`,
+        variables,
+      );
+      return result.getMySpaceEventRequests;
+    },
+    formatResult: (result) => {
+      const r = result as { total: number; records: Array<{ _id: string; state: string; created_at: string; event_expanded?: { title: string } }> };
+      if (!r || !r.records) return JSON.stringify(result);
+      const lines = [`Total: ${r.total}`];
+      for (const rec of r.records) {
+        const event = rec.event_expanded?.title ?? 'Unknown';
+        lines.push(`- [${rec.state}] "${event}" (${rec.created_at})`);
+      }
+      return lines.join('\n');
+    },
+  });
+
   return tools;
 }
