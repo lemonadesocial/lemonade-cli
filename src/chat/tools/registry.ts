@@ -1,4 +1,4 @@
-import { existsSync, statSync, readFileSync } from 'fs';
+import { existsSync, statSync, readFileSync, realpathSync, openSync, readSync, closeSync } from 'fs';
 import { extname, resolve } from 'path';
 import { ToolDef } from '../providers/interface.js';
 import { graphqlRequest } from '../../api/graphql.js';
@@ -6167,7 +6167,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     jpg: [[0xFF, 0xD8, 0xFF]],
     jpeg: [[0xFF, 0xD8, 0xFF]],
     gif: [[0x47, 0x49, 0x46]],
-    webp: [[0x52, 0x49, 0x46, 0x46]],
+    // WebP is validated separately (RIFF header + WEBP signature)
   };
 
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -6179,42 +6179,61 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   ): Promise<{ _id: string; url: string }> {
     const resolvedPath = resolve(filePath);
 
+    // H1: File existence check (before realpath so we get a clear error)
+    if (!existsSync(resolvedPath)) throw new Error(`File not found: ${resolvedPath}`);
+
+    // Resolve symlinks so that symlinks pointing to sensitive paths are caught
+    const realPath = realpathSync(resolvedPath);
+
     // H4: Block sensitive directories
     const blockedPrefixes = ['/etc/', '/var/', '/proc/', '/sys/'];
     const homeDir = process.env.HOME || '';
-    const blockedHomePaths = ['.ssh', '.gnupg', '.aws', '.config/gcloud'];
+    const blockedHomePaths = ['.ssh', '.gnupg', '.aws', '.config', '.kube', '.docker'];
     for (const prefix of blockedPrefixes) {
-      if (resolvedPath.startsWith(prefix)) throw new Error(`Cannot upload files from ${prefix}`);
+      if (realPath.startsWith(prefix)) throw new Error(`Cannot upload files from ${prefix}`);
     }
     for (const sensitive of blockedHomePaths) {
-      if (homeDir && resolvedPath.startsWith(`${homeDir}/${sensitive}`)) {
+      if (homeDir && realPath.startsWith(`${homeDir}/${sensitive}`)) {
         throw new Error(`Cannot upload files from ~/${sensitive}`);
       }
     }
 
-    // H1/H2: File existence, size, and emptiness checks
-    if (!existsSync(resolvedPath)) throw new Error(`File not found: ${resolvedPath}`);
-    const stats = statSync(resolvedPath);
+    // H1/H2: Size and emptiness checks
+    const stats = statSync(realPath);
     if (stats.size > MAX_FILE_SIZE) throw new Error(`File too large: ${(stats.size / 1024 / 1024).toFixed(1)}MB (max 50MB)`);
     if (stats.size === 0) throw new Error('File is empty');
 
-    const ext = extname(resolvedPath).slice(1).toLowerCase();
+    const ext = extname(realPath).slice(1).toLowerCase();
     if (!VALID_EXTENSIONS.includes(ext)) {
       throw new Error(`Unsupported file type: .${ext}. Supported: ${VALID_EXTENSIONS.join(', ')}`);
     }
     const mimeType = MIME_TYPES[ext];
 
-    const fileBuffer = readFileSync(resolvedPath);
-
-    // M1: Magic byte validation (skip for SVG which is text-based)
+    // M1: Magic byte validation — read only the header first (12 bytes for WebP RIFF+WEBP check)
     if (ext !== 'svg') {
-      const header = fileBuffer.slice(0, 8);
-      const expected = MAGIC_BYTES[ext];
-      if (expected) {
-        const matches = expected.some(magic => magic.every((byte, i) => header[i] === byte));
-        if (!matches) throw new Error(`File content does not match ${ext} format — file may be misnamed`);
+      const fd = openSync(realPath, 'r');
+      const header = Buffer.alloc(12);
+      readSync(fd, header, 0, 12, 0);
+      closeSync(fd);
+
+      // Special handling for WebP: check RIFF header (bytes 0-3) AND WEBP signature (bytes 8-11)
+      if (ext === 'webp') {
+        const riff = [0x52, 0x49, 0x46, 0x46];
+        const webp = [0x57, 0x45, 0x42, 0x50];
+        const isRiff = riff.every((byte, i) => header[i] === byte);
+        const isWebp = webp.every((byte, i) => header[i + 8] === byte);
+        if (!isRiff || !isWebp) throw new Error('File content does not match webp format — file may be misnamed');
+      } else {
+        const expected = MAGIC_BYTES[ext];
+        if (expected) {
+          const matches = expected.some(magic => magic.every((byte, i) => header[i] === byte));
+          if (!matches) throw new Error(`File content does not match ${ext} format — file may be misnamed`);
+        }
       }
     }
+
+    // Only after validation passes, read the full file
+    const fileBuffer = readFileSync(realPath);
 
     const uploadInfo: Record<string, unknown> = { extension: ext };
     if (description) uploadInfo.description = description;
@@ -6378,8 +6397,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       'Set a space profile photo from a local file or existing file ID. Recommended: 800x800 pixels for best display.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
-      { name: 'file_id', type: 'string', description: 'Existing file ID (from file_upload)', required: false },
-      { name: 'file_path', type: 'string', description: 'Local file path to upload and set as avatar', required: false },
+      { name: 'file_id', type: 'string', description: 'Existing file ID from file_upload (provide this OR file_path, not both)', required: false },
+      { name: 'file_path', type: 'string', description: 'Local file path to upload (provide this OR file_id, not both)', required: false },
     ],
     destructive: true,
     execute: async (args) => {
@@ -6404,8 +6423,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       'Set a space cover image from a local file or existing file ID. Recommended: 800x800 pixels for best display.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
-      { name: 'file_id', type: 'string', description: 'Existing file ID (from file_upload)', required: false },
-      { name: 'file_path', type: 'string', description: 'Local file path to upload and set as cover', required: false },
+      { name: 'file_id', type: 'string', description: 'Existing file ID from file_upload (provide this OR file_path, not both)', required: false },
+      { name: 'file_path', type: 'string', description: 'Local file path to upload (provide this OR file_id, not both)', required: false },
     ],
     destructive: true,
     execute: async (args) => {
