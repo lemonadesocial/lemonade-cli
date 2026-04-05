@@ -19,6 +19,7 @@ import { runTerminalUI } from './terminal.js';
 import { createCreditsProvider } from './creditsProvider.js';
 import { createByokProvider, isValidProvider, VALID_PROVIDERS } from './providerFactory.js';
 import { resolveCreditsStartupMode } from './startupRecovery.js';
+import { registerCrashHandlers } from './crashHandlers.js';
 
 export { parseArgs } from './parseArgs.js';
 export { VERSION } from './version.js';
@@ -220,15 +221,10 @@ async function main(): Promise<void> {
   }
 }
 
-process.on('unhandledRejection', (reason) => {
-  console.error(chalk.red(`Fatal (unhandled rejection): ${safeErrorMessage(reason)}`));
-  process.exit(1);
-});
-
-process.on('uncaughtException', (err) => {
-  console.error(chalk.red(`Fatal (uncaught exception): ${err.message}`));
-  process.exit(1);
-});
+// main().catch() handles rejections originating from the main() promise chain.
+// These handlers catch rejections from fire-and-forget promises that are not
+// awaited by main(), and synchronous throws that occur outside main()'s call stack.
+registerCrashHandlers();
 
 main().catch((err) => {
   console.error(chalk.red(`Fatal: ${safeErrorMessage(err)}`));
