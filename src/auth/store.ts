@@ -80,6 +80,61 @@ export function getAuthHeader(): string | undefined {
   return undefined;
 }
 
+// Refresh buffer: attempt refresh when token expires within this window.
+const REFRESH_BUFFER_MS = 60_000;
+
+// Prevent concurrent refresh attempts.
+let refreshInFlight: Promise<string | null> | null = null;
+
+/**
+ * Like getAuthHeader, but attempts an OAuth token refresh when the
+ * access_token is expired or about to expire. Falls back to the same
+ * behavior as getAuthHeader if refresh fails or is not applicable.
+ */
+export async function ensureAuthHeader(): Promise<string | undefined> {
+  // Flag key and env key bypass token refresh entirely.
+  if (flagApiKey) return `Bearer ${flagApiKey}`;
+  const envKey = process.env.LEMONADE_API_KEY;
+  if (envKey) return `Bearer ${envKey}`;
+
+  const config = readConfig();
+
+  const accessToken = config.access_token;
+  const expiresAt = config.token_expires_at;
+
+  // Token is still valid and not about to expire — use it.
+  if (accessToken && expiresAt && Date.now() < expiresAt - REFRESH_BUFFER_MS) {
+    return `Bearer ${accessToken}`;
+  }
+
+  // Token is expired or expiring soon — attempt refresh if we have a refresh_token.
+  const refreshToken = config.refresh_token;
+  if (refreshToken) {
+    if (!refreshInFlight) {
+      // Lazy import to avoid circular dependency (oauth imports store).
+      const { refreshAccessToken } = await import('./oauth.js');
+      refreshInFlight = refreshAccessToken(refreshToken).finally(() => {
+        refreshInFlight = null;
+      });
+    }
+
+    const newToken = await refreshInFlight;
+    if (newToken) {
+      return `Bearer ${newToken}`;
+    }
+  }
+
+  // Refresh failed or not available. Fall through to api_key or undefined.
+  if (accessToken && expiresAt && Date.now() < expiresAt) {
+    return `Bearer ${accessToken}`;
+  }
+
+  const configKey = config.api_key;
+  if (configKey) return `Bearer ${configKey}`;
+
+  return undefined;
+}
+
 export function getApiUrl(): string {
   return process.env.LEMONADE_API_URL || readConfig().api_url || 'https://backend.lemonade.social';
 }
@@ -109,6 +164,14 @@ export function setTokens(access: string, refresh: string, expiresIn: number): v
 export function clearAuth(): void {
   const config = readConfig();
   delete config.api_key;
+  delete config.access_token;
+  delete config.refresh_token;
+  delete config.token_expires_at;
+  writeConfig(config);
+}
+
+export function clearTokens(): void {
+  const config = readConfig();
   delete config.access_token;
   delete config.refresh_token;
   delete config.token_expires_at;

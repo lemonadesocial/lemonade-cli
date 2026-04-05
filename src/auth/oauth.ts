@@ -2,12 +2,54 @@ import { createServer } from 'http';
 import { createServer as createNetServer } from 'net';
 import { randomBytes, createHash } from 'crypto';
 import open from 'open';
-import { getHydraUrl, setTokens } from './store.js';
+import { getHydraUrl, setTokens, clearTokens } from './store.js';
 
 const CLIENT_ID = '0dd89e27-0c2d-4434-bafd-a9bcf369f1a2';
 const BASE_REDIRECT_PORT = 9876;
 const MAX_PORT_ATTEMPTS = 10;
 const SCOPES = ['openid', 'offline_access'];
+
+/**
+ * Attempt to refresh the access token using the stored refresh_token.
+ * Returns the new access_token on success, or null if refresh fails
+ * (expired refresh token, revoked, network error, etc.).
+ * On failure, stale tokens are cleared so subsequent calls fall through
+ * to api_key or return unauthenticated.
+ */
+export async function refreshAccessToken(refreshToken: string): Promise<string | null> {
+  const hydraUrl = getHydraUrl();
+
+  try {
+    const response = await fetch(`${hydraUrl}/oauth2/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: CLIENT_ID,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      clearTokens();
+      return null;
+    }
+
+    const tokens = await response.json() as {
+      access_token: string;
+      refresh_token: string;
+      expires_in: number;
+    };
+
+    setTokens(tokens.access_token, tokens.refresh_token, tokens.expires_in);
+    return tokens.access_token;
+  } catch {
+    // Network error, timeout, etc. — don't clear tokens on transient failures
+    // so the user can retry without re-logging in.
+    return null;
+  }
+}
 
 async function findAvailablePort(): Promise<number> {
   for (let port = BASE_REDIRECT_PORT; port < BASE_REDIRECT_PORT + MAX_PORT_ATTEMPTS; port++) {
