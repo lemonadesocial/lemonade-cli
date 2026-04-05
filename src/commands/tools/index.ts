@@ -33,7 +33,7 @@ function formatParamSummary(params: ToolParam[]): string {
 }
 
 export function registerToolCommands(program: Command): void {
-  // Build registry once at registration time and share across subcommands.
+  // Lazy-init: registry is built on first subcommand invocation, then cached.
   let _registry: Record<string, ToolDef> | null = null;
   function getRegistry(): Record<string, ToolDef> {
     if (!_registry) _registry = buildToolRegistry();

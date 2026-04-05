@@ -890,7 +890,11 @@ export async function executeSlashCommand(
         addSystemMessage(`Tool "${toolName}" not found.${hint}`);
       } else {
         const params = tool.params.length > 0
-          ? tool.params.map((p) => `  ${p.required ? p.name : `[${p.name}]`} (${typeof p.type === 'object' ? 'object' : p.type}) — ${p.description}${p.enum ? ` [${p.enum.join(', ')}]` : ''}`).join('\n')
+          ? tool.params.map((p) => {
+            const type = typeof p.type === 'object' ? 'object' : p.type;
+            const suffix = p.enum ? ` [${p.enum.join(', ')}]` : p.default !== undefined ? ` (default: ${p.default})` : '';
+            return `  ${p.required ? p.name : `[${p.name}]`} (${type}) — ${p.description}${suffix}`;
+          }).join('\n')
           : '  (none)';
         addSystemMessage(
           `${tool.name} — ${tool.displayName}\n` +
