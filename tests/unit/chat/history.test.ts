@@ -89,6 +89,69 @@ describe('truncateHistory', () => {
     consoleSpy.mockRestore();
   });
 
+  it('strips leading assistant messages after truncation', () => {
+    // Build 60 messages where position 40 (first after cut) is an assistant message
+    const messages: Message[] = Array.from({ length: 60 }, (_, i) => {
+      if (i === 40) {
+        return { role: 'assistant' as const, content: `Assistant at ${i}` };
+      }
+      return {
+        role: i % 2 === 0 ? 'user' as const : 'assistant' as const,
+        content: `Message ${i}`,
+      };
+    });
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    truncateHistory(messages);
+
+    // First remaining message must be a user message
+    expect(messages[0].role).toBe('user');
+    consoleSpy.mockRestore();
+  });
+
+  it('strips leading tool_results then leading assistant messages in sequence', () => {
+    // Build 60 messages where positions 40 is tool_result and 41 is assistant
+    const messages: Message[] = Array.from({ length: 60 }, (_, i) => {
+      if (i === 40) {
+        return {
+          role: 'user' as const,
+          content: [{ tool_use_id: 'tc1', content: '{"ok":true}' }],
+        };
+      }
+      if (i === 41) {
+        return { role: 'assistant' as const, content: `Assistant at ${i}` };
+      }
+      return {
+        role: i % 2 === 0 ? 'user' as const : 'assistant' as const,
+        content: `Message ${i}`,
+      };
+    });
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    truncateHistory(messages);
+
+    // First remaining message must be a user message (not tool_result, not assistant)
+    expect(messages[0].role).toBe('user');
+    expect(Array.isArray(messages[0].content)).toBe(false);
+    consoleSpy.mockRestore();
+  });
+
+  it('preserves conversation starting with user message after truncation', () => {
+    // Standard alternating messages — position 40 is user (even index)
+    const messages: Message[] = Array.from({ length: 60 }, (_, i) => ({
+      role: i % 2 === 0 ? 'user' as const : 'assistant' as const,
+      content: `Message ${i}`,
+    }));
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    truncateHistory(messages);
+
+    // First message should be the user message at index 40
+    expect(messages[0].role).toBe('user');
+    expect(messages[0].content).toBe('Message 40');
+    consoleSpy.mockRestore();
+  });
+
   it('does not truncate when token count is under limit', () => {
     const messages: Message[] = Array.from({ length: 30 }, (_, i) => ({
       role: i % 2 === 0 ? 'user' : 'assistant',

@@ -49,6 +49,11 @@ export function truncateHistory(messages: Message[]): void {
     messages.shift();
   }
 
+  // Ensure messages don't start with an assistant message (API requires starting with user)
+  while (messages.length > 0 && messages[0].role === 'assistant') {
+    messages.shift();
+  }
+
   // Ensure messages don't end with an assistant message (API requires ending with user)
   while (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
     messages.pop();
