@@ -116,6 +116,21 @@ describe('doctor command', () => {
       expect(result.status).toBe('pass');
     });
 
+    it('passes with bare localhost URL', () => {
+      const result = checkApiUrl({ api_url: 'http://localhost' });
+      expect(result.status).toBe('pass');
+    });
+
+    it('passes with localhost path URL', () => {
+      const result = checkApiUrl({ api_url: 'http://localhost/graphql' });
+      expect(result.status).toBe('pass');
+    });
+
+    it('fails with localhost subdomain spoof', () => {
+      const result = checkApiUrl({ api_url: 'http://localhost.evil.com' });
+      expect(result.status).toBe('fail');
+    });
+
     it('fails with non-HTTPS API URL', () => {
       const result = checkApiUrl({ api_url: 'http://insecure.example.com' });
       expect(result.status).toBe('fail');
@@ -311,6 +326,22 @@ describe('doctor command', () => {
       const data = await runChecks(false);
       const conn = data.checks.find((c) => c.name === 'api_connectivity');
       expect(conn?.status).toBe('skip');
+    });
+
+    it('skips connectivity when API URL validation fails', async () => {
+      mockedConfigExists.mockReturnValue(true);
+      mockedGetConfig.mockReturnValue({
+        api_url: 'http://insecure.example.com',
+        api_key: 'key',
+      } as LemonadeConfig);
+      mockedBuildToolRegistry.mockReturnValue({ t: {} } as never);
+
+      const data = await runChecks(true); // connectivity requested
+      const conn = data.checks.find((c) => c.name === 'api_connectivity');
+      expect(conn?.status).toBe('skip');
+      expect(conn?.detail).toContain('API URL validation failed');
+      // graphqlRequest should NOT have been called
+      expect(mockedGraphqlRequest).not.toHaveBeenCalled();
     });
 
     it('counts failures correctly when config missing and no auth', async () => {

@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { jsonSuccess } from '../../output/json.js';
 import { handleError } from '../../output/error.js';
 import { renderKeyValue } from '../../output/table.js';
+import { formatRelativeTime } from '../../output/format.js';
 import {
   getConfig,
   getConfigPath,
@@ -40,14 +41,6 @@ const STATUS_ICONS: Record<CheckStatus, string> = {
   skip: chalk.dim('-'),
 };
 
-function formatRelativeTime(ms: number): string {
-  const abs = Math.abs(ms);
-  if (abs < 60_000) return `${Math.round(abs / 1000)}s`;
-  if (abs < 3_600_000) return `${Math.round(abs / 60_000)}m`;
-  if (abs < 86_400_000) return `${Math.round(abs / 3_600_000)}h`;
-  return `${Math.round(abs / 86_400_000)}d`;
-}
-
 function checkConfigExists(): CheckResult {
   const exists = configExists();
   return {
@@ -83,7 +76,7 @@ function checkApiUrl(config: LemonadeConfig): CheckResult {
   if (!url) {
     return { name: 'api_url', status: 'pass', detail: 'not set (default)' };
   }
-  if (url.startsWith('https://') || url.startsWith('http://localhost')) {
+  if (url.startsWith('https://') || url === 'http://localhost' || url.startsWith('http://localhost:') || url.startsWith('http://localhost/')) {
     return { name: 'api_url', status: 'pass', detail: url };
   }
   return { name: 'api_url', status: 'fail', detail: `not valid HTTPS: ${url}` };
@@ -153,6 +146,8 @@ async function checkToolRegistry(): Promise<CheckResult> {
   }
 }
 
+// NOTE: This check sends real auth credentials via ensureAuthHeader().
+// Only call after validating the API URL is safe (checkApiUrl passed).
 async function checkConnectivity(): Promise<CheckResult> {
   const start = Date.now();
   try {
@@ -186,7 +181,8 @@ async function runChecks(checkConnectivityFlag: boolean): Promise<DoctorData> {
   }
 
   checks.push(checkOutputFormat(config));
-  checks.push(checkApiUrl(config));
+  const apiUrlResult = checkApiUrl(config);
+  checks.push(apiUrlResult);
 
   // Auth checks
   checks.push(checkAuthMethod(config));
@@ -196,9 +192,12 @@ async function runChecks(checkConnectivityFlag: boolean): Promise<DoctorData> {
   // Tool registry
   checks.push(await checkToolRegistry());
 
-  // Connectivity
-  if (checkConnectivityFlag) {
+  // Connectivity — only run if explicitly requested AND the API URL is valid
+  // (credentials are sent with the request, so we must not send them to untrusted URLs)
+  if (checkConnectivityFlag && apiUrlResult.status === 'pass') {
     checks.push(await checkConnectivity());
+  } else if (checkConnectivityFlag && apiUrlResult.status !== 'pass') {
+    checks.push({ name: 'api_connectivity', status: 'skip', detail: 'skipped (API URL validation failed)' });
   } else {
     checks.push({ name: 'api_connectivity', status: 'skip', detail: 'skipped' });
   }
@@ -230,7 +229,7 @@ const SECTIONS: Array<{ title: string; checks: string[] }> = [
   { title: 'Config', checks: ['config_exists', 'config_readable', 'output_format', 'api_url'] },
   { title: 'Auth', checks: ['auth_method', 'token_status', 'refresh_token'] },
   { title: 'Tools', checks: ['tool_registry'] },
-  { title: 'Connectivity (--check-connectivity to enable)', checks: ['api_connectivity'] },
+  { title: 'Connectivity', checks: ['api_connectivity'] },
 ];
 
 function renderHuman(data: DoctorData): string {
@@ -246,16 +245,33 @@ function renderHuman(data: DoctorData): string {
       const label = DISPLAY_NAMES[checkName] || checkName;
       pairs.push([label, `${icon} ${check.detail}`]);
     }
-    sections.push(chalk.bold(section.title) + '\n' + renderKeyValue(pairs));
+    // Show hint when connectivity was skipped (not explicitly enabled)
+    let title = section.title;
+    if (section.title === 'Connectivity') {
+      const connCheck = checkMap.get('api_connectivity');
+      if (connCheck && connCheck.status === 'skip' && connCheck.detail === 'skipped') {
+        title = 'Connectivity (--check-connectivity to enable)';
+      }
+    }
+    sections.push(chalk.bold(title) + '\n' + renderKeyValue(pairs));
   }
 
   const { summary } = data;
-  const countParts: string[] = [];
-  countParts.push(`${summary.passed + summary.skipped}/${summary.total} checks passed`);
-  if (summary.failed > 0) countParts.push(chalk.red(`${summary.failed} failed`));
-  if (summary.warned > 0) countParts.push(chalk.yellow(`${summary.warned} warnings`));
+  const activeParts: string[] = [];
+  activeParts.push(`${summary.passed} passed`);
+  if (summary.failed > 0) activeParts.push(chalk.red(`${summary.failed} failed`));
+  if (summary.warned > 0) activeParts.push(chalk.yellow(`${summary.warned} warnings`));
+  if (summary.skipped > 0) activeParts.push(chalk.dim(`${summary.skipped} skipped`));
 
-  sections.push(`Summary: ${countParts.join(', ')}`);
+  let summaryLine = `Summary: ${activeParts.join(', ')}`;
+
+  // F4: Warn when config file is missing — downstream checks may be incomplete
+  const configCheck = data.checks.find((c) => c.name === 'config_exists');
+  if (configCheck && configCheck.status === 'fail') {
+    summaryLine += ' (config file missing \u2014 some checks may be incomplete)';
+  }
+
+  sections.push(summaryLine);
 
   return sections.join('\n\n');
 }

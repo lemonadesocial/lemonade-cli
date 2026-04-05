@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { jsonSuccess } from '../../output/json.js';
 import { handleError } from '../../output/error.js';
 import { renderKeyValue } from '../../output/table.js';
+import { formatRelativeTime } from '../../output/format.js';
 import { redactValue, SENSITIVE_ENV_VARS } from '../../output/redact.js';
 import {
   getConfig,
@@ -18,14 +19,6 @@ const ENV_OVERRIDES = [
   'LEMONADE_HYDRA_URL',
   'LEMONADE_REGISTRY_URL',
 ] as const;
-
-function formatRelativeTime(ms: number): string {
-  const abs = Math.abs(ms);
-  if (abs < 60_000) return `${Math.round(abs / 1000)}s`;
-  if (abs < 3_600_000) return `${Math.round(abs / 60_000)}m`;
-  if (abs < 86_400_000) return `${Math.round(abs / 3_600_000)}h`;
-  return `${Math.round(abs / 86_400_000)}d`;
-}
 
 function getTokenStatus(config: LemonadeConfig): string {
   // Defensive guard — callers should only invoke when access_token is truthy
