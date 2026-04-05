@@ -1,10 +1,7 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { parseArgs } from '../../../../src/chat/parseArgs.js';
 
 describe('parseArgs', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
 
   it('accepts --simple flag and sets simpleDeprecated', () => {
     const args = parseArgs(['node', 'make-lemonade', '--simple']);

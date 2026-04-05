@@ -1,4 +1,4 @@
-export const VALID_FLAGS = ['--provider', '--model', '--mode', '--json', '--help'] as const;
+export const VALID_FLAGS = ['--provider', '--model', '--mode', '--json', '--help', '-h'] as const;
 
 export function parseArgs(argv: string[]): {
   provider?: string;
