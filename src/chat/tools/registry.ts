@@ -4469,7 +4469,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'ticket_type', type: 'string', description: 'Ticket type ID', required: true },
       { name: 'assignments', type: 'string', description: 'JSON array of assignments: [{email, count}]', required: true },
     ],
-    destructive: false,
+    destructive: true,
     execute: async (args) => {
       let ticketAssignments: unknown[];
       try {
@@ -4648,7 +4648,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       let limit = 25;
       if (args.limit !== undefined) {
         const n = Number(args.limit);
-        if (!isNaN(n)) limit = Math.max(0, n);
+        if (!isNaN(n)) limit = Math.max(1, n);
       }
       let skip = 0;
       if (args.skip !== undefined) {
@@ -4722,7 +4722,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'event_payment_statistics',
     displayName: 'event payment statistics',
-    description: 'Get payment statistics for an event (total, by provider).',
+    description: 'Get detailed payment statistics by provider (Stripe vs crypto) with network breakdowns. For simple revenue totals, use event_payment_stats.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
