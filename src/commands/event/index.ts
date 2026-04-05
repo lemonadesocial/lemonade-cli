@@ -21,19 +21,26 @@ export function registerEventCommands(program: Command): void {
     .option('--space <id>', 'Space ID')
     .option('--address <text>', 'Venue address')
     .option('--virtual', 'Virtual event')
+    .option('--no-virtual', 'Explicitly not virtual')
     .option('--private', 'Private event')
+    .option('--no-private', 'Explicitly not private')
     .option('--guest-limit <n>', 'Maximum number of guests')
     .option('--guest-limit-per <n>', 'Maximum guests per registration')
     .option('--ticket-limit-per <n>', 'Maximum tickets per user')
     .option('--timezone <tz>', 'Event timezone')
     .option('--virtual-url <url>', 'Virtual event URL')
     .option('--approval-required', 'Require approval for registrations')
+    .option('--no-approval-required', 'No approval required')
     .option('--application-required', 'Require application form')
+    .option('--no-application-required', 'No application required')
     .option('--guest-directory', 'Enable guest directory')
+    .option('--no-guest-directory', 'Disable guest directory')
     .option('--subevent', 'Enable sub-events')
+    .option('--no-subevent', 'Disable sub-events')
     .option('--currency <code>', 'Payment currency code')
     .option('--tags <tags...>', 'Event tags (space-separated)')
     .option('--registration-disabled', 'Disable registration')
+    .option('--no-registration-disabled', 'Enable registration')
     .option('--terms-text <text>', 'Terms and conditions text')
     .option('--welcome-text <text>', 'Welcome message for attendees')
     .option('--json', 'Output as JSON')
@@ -46,11 +53,11 @@ export function registerEventCommands(program: Command): void {
         const input: Record<string, unknown> = {
           title: opts.title,
           start: new Date(opts.start).toISOString(),
-          end: opts.end ? new Date(opts.end).toISOString() : undefined,
-          description: opts.description,
           space: spaceId,
-          address: opts.address ? { title: opts.address } : undefined,
         };
+        if (opts.end !== undefined) input.end = new Date(opts.end).toISOString();
+        if (opts.description !== undefined) input.description = opts.description;
+        if (opts.address !== undefined) input.address = { title: opts.address };
         if (opts.virtual !== undefined) input.virtual = opts.virtual;
         if (opts.private !== undefined) input.private = opts.private;
         if (opts.guestLimit !== undefined) {

@@ -72,9 +72,18 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         space: spaceId,
         address: args.address ? { title: args.address } : undefined,
       };
-      if (args.guest_limit !== undefined) input.guest_limit = args.guest_limit;
-      if (args.guest_limit_per !== undefined) input.guest_limit_per = args.guest_limit_per;
-      if (args.ticket_limit_per !== undefined) input.ticket_limit_per = args.ticket_limit_per;
+      if (args.guest_limit !== undefined) {
+        const n = Number(args.guest_limit);
+        if (!isNaN(n)) input.guest_limit = n;
+      }
+      if (args.guest_limit_per !== undefined) {
+        const n = Number(args.guest_limit_per);
+        if (!isNaN(n)) input.guest_limit_per = n;
+      }
+      if (args.ticket_limit_per !== undefined) {
+        const n = Number(args.ticket_limit_per);
+        if (!isNaN(n)) input.ticket_limit_per = n;
+      }
       if (args.private !== undefined) input.private = args.private;
       if (args.approval_required !== undefined) input.approval_required = args.approval_required;
       if (args.application_required !== undefined) input.application_required = args.application_required;
@@ -240,9 +249,18 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.description !== undefined) input.description = args.description;
       if (args.address !== undefined) input.address = { title: args.address };
       if (args.virtual !== undefined) input.virtual = args.virtual;
-      if (args.guest_limit !== undefined) input.guest_limit = args.guest_limit;
-      if (args.guest_limit_per !== undefined) input.guest_limit_per = args.guest_limit_per;
-      if (args.ticket_limit_per !== undefined) input.ticket_limit_per = args.ticket_limit_per;
+      if (args.guest_limit !== undefined) {
+        const n = Number(args.guest_limit);
+        if (!isNaN(n)) input.guest_limit = n;
+      }
+      if (args.guest_limit_per !== undefined) {
+        const n = Number(args.guest_limit_per);
+        if (!isNaN(n)) input.guest_limit_per = n;
+      }
+      if (args.ticket_limit_per !== undefined) {
+        const n = Number(args.ticket_limit_per);
+        if (!isNaN(n)) input.ticket_limit_per = n;
+      }
       if (args.private !== undefined) input.private = args.private;
       if (args.approval_required !== undefined) input.approval_required = args.approval_required;
       if (args.application_required !== undefined) input.application_required = args.application_required;
