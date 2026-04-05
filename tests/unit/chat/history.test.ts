@@ -136,6 +136,37 @@ describe('truncateHistory', () => {
     consoleSpy.mockRestore();
   });
 
+  it('strips interleaved tool_result and assistant messages from the start', () => {
+    // Build 60 messages where positions 40=tool_result, 41=assistant, 42=tool_result, 43=user
+    const messages: Message[] = Array.from({ length: 60 }, (_, i) => {
+      if (i === 40 || i === 42) {
+        return {
+          role: 'user' as const,
+          content: [{ tool_use_id: `tc${i}`, content: '{"ok":true}' }],
+        };
+      }
+      if (i === 41) {
+        return { role: 'assistant' as const, content: `Assistant at ${i}` };
+      }
+      if (i === 43) {
+        return { role: 'user' as const, content: `User at ${i}` };
+      }
+      return {
+        role: i % 2 === 0 ? 'user' as const : 'assistant' as const,
+        content: `Message ${i}`,
+      };
+    });
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    truncateHistory(messages);
+
+    // First 3 after cut (tool_result, assistant, tool_result) must be stripped
+    expect(messages[0].role).toBe('user');
+    expect(messages[0].content).toBe('User at 43');
+    expect(Array.isArray(messages[0].content)).toBe(false);
+    consoleSpy.mockRestore();
+  });
+
   it('preserves conversation starting with user message after truncation', () => {
     // Standard alternating messages — position 40 is user (even index)
     const messages: Message[] = Array.from({ length: 60 }, (_, i) => ({
