@@ -45,6 +45,20 @@ export async function graphqlRequest<T>(
     if (response.status === 401 || response.status === 403) {
       throw new GraphQLError('Authentication failed', 'UNAUTHENTICATED', response.status);
     }
+    let body: GraphQLResponse<T>;
+    try {
+      body = (await response.json()) as GraphQLResponse<T>;
+    } catch {
+      throw new GraphQLError(
+        `Backend returned ${response.status}`,
+        'INTERNAL',
+        response.status,
+      );
+    }
+    if (body.errors && body.errors.length > 0) {
+      const first = body.errors[0];
+      throw new GraphQLError(first.message, first.extensions?.code, response.status);
+    }
     throw new GraphQLError(
       `Backend returned ${response.status}`,
       'INTERNAL',

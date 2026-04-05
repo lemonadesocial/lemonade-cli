@@ -23,8 +23,7 @@ export function registerTicketCommands(program: Command): void {
         const result = await graphqlRequest<{ aiListEventTicketTypes: Array<Record<string, unknown>> }>(
           `query($event: MongoID!) {
             aiListEventTicketTypes(event: $event) {
-              _id title default_price default_currency limit active
-              prices { cost currency network }
+              title active private limited description
             }
           }`,
           { event: eventId },
@@ -36,15 +35,18 @@ export function registerTicketCommands(program: Command): void {
           console.log(jsonSuccess(items));
         } else {
           console.log(renderTable(
-            ['ID', 'Name', 'Price', 'Limit', 'Active'],
+            ['Name', 'Active', 'Limited', 'Private', 'Description'],
             items.map((t) => [
-              String(t._id),
               String(t.title),
-              t.default_price ? `${Number(t.default_price) / 100} ${t.default_currency}` : 'Free',
-              t.limit ? String(t.limit) : 'Unlimited',
               t.active ? 'Yes' : 'No',
+              t.limited ? 'Yes' : 'No',
+              t.private ? 'Yes' : 'No',
+              String(t.description || ''),
             ]),
           ));
+          console.log('\nNote: Ticket type IDs are not exposed by this API.');
+          console.log('To get IDs for types with sales: lemonade event analytics <event-id> --json');
+          console.log('IDs for unsold types are not currently discoverable via the CLI.');
         }
       } catch (error) {
         setFlagApiKey(undefined);
@@ -56,7 +58,7 @@ export function registerTicketCommands(program: Command): void {
     .command('create-type <event-id>')
     .description('Create a ticket type')
     .requiredOption('--name <text>', 'Ticket type name')
-    .requiredOption('--price <amount>', 'Price in dollars (e.g. 25.00)')
+    .option('--price <amount>', 'Price in dollars (e.g. 25.00, omit for free)')
     .option('--currency <code>', 'Currency code', 'USD')
     .option('--limit <n>', 'Max tickets')
     .option('--description <text>', 'Description')
@@ -65,21 +67,22 @@ export function registerTicketCommands(program: Command): void {
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
-        const priceInCents = Math.round(parseFloat(opts.price) * 100);
 
         const input: Record<string, unknown> = {
           event: eventId,
           title: opts.name,
-          default_price: priceInCents,
-          default_currency: opts.currency,
         };
-        if (opts.limit) input.limit = parseInt(opts.limit, 10);
+        if (opts.price) {
+          const costCents = String(Math.round(parseFloat(opts.price) * 100));
+          input.prices = [{ cost: costCents, currency: opts.currency, default: true }];
+        }
+        if (opts.limit) input.ticket_limit = parseInt(opts.limit, 10);
         if (opts.description) input.description = opts.description;
 
         const result = await graphqlRequest<{ aiCreateEventTicketType: Record<string, unknown> }>(
           `mutation($input: EventTicketTypeInput!) {
             aiCreateEventTicketType(input: $input) {
-              _id title default_price default_currency limit active
+              title active private limited description
             }
           }`,
           { input },
@@ -90,11 +93,20 @@ export function registerTicketCommands(program: Command): void {
         if (opts.json) {
           console.log(jsonSuccess(tt));
         } else {
-          console.log(renderKeyValue([
-            ['ID', String(tt._id)],
+          const pairs: Array<[string, string]> = [
             ['Name', String(tt.title)],
-            ['Price', `${Number(tt.default_price) / 100} ${tt.default_currency}`],
-          ]));
+            ['Active', tt.active ? 'Yes' : 'No'],
+            ['Private', tt.private ? 'Yes' : 'No'],
+            ['Limited', tt.limited ? 'Yes' : 'No'],
+          ];
+          if (tt.description) pairs.push(['Description', String(tt.description)]);
+          if (opts.price) {
+            pairs.push(['Price (requested)', `${opts.price} ${opts.currency}`]);
+          } else {
+            pairs.push(['Price', 'Free']);
+          }
+          console.log(renderKeyValue(pairs));
+          console.log('\nNote: The backend does not return ticket type IDs on creation. To get the ID, use "lemonade event analytics <event-id> --json" after the first sale.');
         }
       } catch (error) {
         setFlagApiKey(undefined);
@@ -104,11 +116,11 @@ export function registerTicketCommands(program: Command): void {
 
   tickets
     .command('update-type <ticket-type-id>')
-    .description('Update a ticket type')
+    .description('Update a ticket type (get ID from "event analytics --json" sales breakdown)')
     .option('--name <text>', 'New name')
     .option('--price <amount>', 'New price in dollars')
-    .option('--currency <code>', 'New currency')
-    .option('--limit <n>', 'New limit')
+    .option('--currency <code>', 'Currency code (used with --price)')
+    .option('--limit <n>', 'New ticket limit')
     .option('--active <bool>', 'Active status')
     .option('--json', 'Output as JSON')
     .option('--api-key <key>', 'API key override')
@@ -117,15 +129,17 @@ export function registerTicketCommands(program: Command): void {
         setFlagApiKey(opts.apiKey);
         const input: Record<string, unknown> = {};
         if (opts.name) input.title = opts.name;
-        if (opts.price) input.default_price = Math.round(parseFloat(opts.price) * 100);
-        if (opts.currency) input.default_currency = opts.currency;
-        if (opts.limit) input.limit = parseInt(opts.limit, 10);
+        if (opts.price) {
+          const costCents = String(Math.round(parseFloat(opts.price) * 100));
+          input.prices = [{ cost: costCents, currency: opts.currency || 'USD', default: true }];
+        }
+        if (opts.limit) input.ticket_limit = parseInt(opts.limit, 10);
         if (opts.active !== undefined) input.active = opts.active === 'true';
 
         const result = await graphqlRequest<{ aiUpdateEventTicketType: Record<string, unknown> }>(
           `mutation($_id: MongoID!, $input: EventTicketTypeInput!) {
             aiUpdateEventTicketType(_id: $_id, input: $input) {
-              _id title default_price default_currency limit active
+              title active private limited description
             }
           }`,
           { _id: ticketTypeId, input },
@@ -136,12 +150,17 @@ export function registerTicketCommands(program: Command): void {
         if (opts.json) {
           console.log(jsonSuccess(tt));
         } else {
-          console.log(renderKeyValue([
-            ['ID', String(tt._id)],
+          const pairs: Array<[string, string]> = [
             ['Name', String(tt.title)],
-            ['Price', `${Number(tt.default_price) / 100} ${tt.default_currency}`],
             ['Active', tt.active ? 'Yes' : 'No'],
-          ]));
+            ['Private', tt.private ? 'Yes' : 'No'],
+            ['Limited', tt.limited ? 'Yes' : 'No'],
+          ];
+          if (tt.description) pairs.push(['Description', String(tt.description)]);
+          if (opts.price) {
+            pairs.push(['Price (requested)', `${opts.price} ${opts.currency || 'USD'}`]);
+          }
+          console.log(renderKeyValue(pairs));
         }
       } catch (error) {
         setFlagApiKey(undefined);
@@ -152,7 +171,7 @@ export function registerTicketCommands(program: Command): void {
   tickets
     .command('buy <event-id>')
     .description('Purchase tickets')
-    .requiredOption('--ticket-type <id>', 'Ticket type ID')
+    .requiredOption('--ticket-type <id>', 'Ticket type ID (get from "event analytics --json" sales breakdown)')
     .option('--quantity <n>', 'Number of tickets', '1')
     .option('--attendee-name <names...>', 'Attendee names (one per ticket)')
     .option('--attendee-email <emails...>', 'Attendee emails (one per ticket)')
@@ -243,7 +262,7 @@ export function registerTicketCommands(program: Command): void {
   tickets
     .command('price <event-id>')
     .description('Calculate ticket price')
-    .requiredOption('--ticket-type <id>', 'Ticket type ID')
+    .requiredOption('--ticket-type <id>', 'Ticket type ID (get from "event analytics --json" sales breakdown)')
     .option('--quantity <n>', 'Quantity', '1')
     .option('--discount <code>', 'Discount code')
     .option('--json', 'Output as JSON')
@@ -251,16 +270,21 @@ export function registerTicketCommands(program: Command): void {
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
+        // Backend schema accepts Float for count, but ticket quantities are whole numbers
+        const count = parseInt(opts.quantity, 10);
+        if (!Number.isInteger(count) || count < 1) {
+          throw new Error('Quantity must be a positive whole number.');
+        }
         const result = await graphqlRequest<{ aiCalculateTicketPrice: Record<string, unknown> }>(
-          `query($event: MongoID!, $ticket_type: MongoID!, $count: Int!, $discount_code: String) {
+          `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
             aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
-              subtotal discount_amount total currency
+              subtotal_cents discount_cents total_cents currency
             }
           }`,
           {
             event: eventId,
             ticket_type: opts.ticketType,
-            count: parseInt(opts.quantity, 10),
+            count,
             discount_code: opts.discount,
           },
         );
@@ -270,10 +294,11 @@ export function registerTicketCommands(program: Command): void {
         if (opts.json) {
           console.log(jsonSuccess(price));
         } else {
+          const fmt = (cents: unknown) => { const n = Number(cents); return Number.isFinite(n) ? (n / 100).toFixed(2) : '0.00'; };
           console.log(renderKeyValue([
-            ['Subtotal', `${price.subtotal} ${price.currency}`],
-            ['Discount', `${price.discount_amount} ${price.currency}`],
-            ['Total', `${price.total} ${price.currency}`],
+            ['Subtotal', `${fmt(price.subtotal_cents)} ${price.currency}`],
+            ['Discount', `${fmt(price.discount_cents)} ${price.currency}`],
+            ['Total', `${fmt(price.total_cents)} ${price.currency}`],
           ]));
         }
       } catch (error) {
