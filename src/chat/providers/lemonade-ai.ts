@@ -27,7 +27,7 @@
 // Until then it is the only valid credits-mode provider.
 
 import { AIProvider, Message, ProviderCapabilities, StreamEvent, StreamParams, ToolDef } from './interface.js';
-import { getAuthHeader } from '../../auth/store.js';
+import { ensureAuthHeader } from '../../auth/store.js';
 
 function getLemonadeAiUrl(): string {
   return process.env.LEMONADE_AI_URL || 'https://ai.lemonade.social';
@@ -211,7 +211,7 @@ export class LemonadeAIProvider implements AIProvider {
   }
 
   async *stream(params: StreamParams): AsyncIterable<StreamEvent> {
-    const auth = getAuthHeader();
+    const auth = await ensureAuthHeader();
     if (!auth) {
       yield { type: 'text_delta', text: 'Not authenticated. Run "lemonade auth login" first.' };
       yield { type: 'done', stopReason: 'end_turn' };

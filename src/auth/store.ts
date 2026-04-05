@@ -60,9 +60,20 @@ export function setFlagApiKey(key: string | undefined): void {
   flagApiKey = key;
 }
 
-export function getAuthHeader(): string | undefined {
-  if (flagApiKey) return `Bearer ${flagApiKey}`;
+// Refresh buffer: attempt refresh when token expires within this window.
+const REFRESH_BUFFER_MS = 60_000;
 
+// Prevent concurrent refresh attempts.
+let refreshInFlight: Promise<string | null> | null = null;
+
+/**
+ * Returns a Bearer auth header, attempting an OAuth token refresh when the
+ * access_token is expired or about to expire. Falls back to api_key or
+ * undefined if refresh fails or is not applicable.
+ */
+export async function ensureAuthHeader(): Promise<string | undefined> {
+  // Flag key and env key bypass token refresh entirely.
+  if (flagApiKey) return `Bearer ${flagApiKey}`;
   const envKey = process.env.LEMONADE_API_KEY;
   if (envKey) return `Bearer ${envKey}`;
 
@@ -70,6 +81,33 @@ export function getAuthHeader(): string | undefined {
 
   const accessToken = config.access_token;
   const expiresAt = config.token_expires_at;
+
+  // Token is still valid and not about to expire — use it.
+  if (accessToken && expiresAt && Date.now() < expiresAt - REFRESH_BUFFER_MS) {
+    return `Bearer ${accessToken}`;
+  }
+
+  // Token is expired or expiring soon — attempt refresh if we have a refresh_token.
+  const refreshToken = config.refresh_token;
+  if (refreshToken) {
+    if (!refreshInFlight) {
+      // Claim the slot synchronously before any await, then lazy-import.
+      // This closes the race where two callers both see null before either assigns.
+      const slot = import('./oauth.js').then(({ refreshAccessToken }) =>
+        refreshAccessToken(refreshToken),
+      );
+      refreshInFlight = slot.finally(() => {
+        refreshInFlight = null;
+      });
+    }
+
+    const newToken = await refreshInFlight;
+    if (newToken) {
+      return `Bearer ${newToken}`;
+    }
+  }
+
+  // Refresh failed or not available. Fall through to api_key or undefined.
   if (accessToken && expiresAt && Date.now() < expiresAt) {
     return `Bearer ${accessToken}`;
   }
@@ -109,6 +147,14 @@ export function setTokens(access: string, refresh: string, expiresIn: number): v
 export function clearAuth(): void {
   const config = readConfig();
   delete config.api_key;
+  delete config.access_token;
+  delete config.refresh_token;
+  delete config.token_expires_at;
+  writeConfig(config);
+}
+
+export function clearTokens(): void {
+  const config = readConfig();
   delete config.access_token;
   delete config.refresh_token;
   delete config.token_expires_at;
