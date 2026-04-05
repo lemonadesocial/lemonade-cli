@@ -24,7 +24,8 @@ event_top_inviters -- ranked inviters. event_invitation_stats -- per-guest track
 
 # Feedback
 
-event_feedback_summary -- avg rating, distribution. event_feedbacks -- entries with rating (1-5), comment. Filter arg is rate_value.
+event_feedback_summary -- avg rating, distribution.
+event_feedbacks -- response field: `rating` (1-5), plus comment. Filter arg: `rate_value` (Float).
 
 # Guest Management
 

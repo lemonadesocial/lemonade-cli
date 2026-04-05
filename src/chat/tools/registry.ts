@@ -812,9 +812,10 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
     formatResult: (result) => {
       const r = result as { subtotal_cents: number; discount_cents: number; total_cents: number; currency: string };
-      const total = (r.total_cents / 100).toFixed(2);
-      const subtotal = (r.subtotal_cents / 100).toFixed(2);
-      const discount = (r.discount_cents / 100).toFixed(2);
+      const fmt = (v: number) => { const n = Number(v); return Number.isFinite(n) ? (n / 100).toFixed(2) : '0.00'; };
+      const total = fmt(r.total_cents);
+      const subtotal = fmt(r.subtotal_cents);
+      const discount = fmt(r.discount_cents);
       if (r.discount_cents > 0) return `Price: ${r.currency} ${total} (${r.currency} ${subtotal} - ${r.currency} ${discount} discount).`;
       return `Price: ${r.currency} ${total}`;
     },
