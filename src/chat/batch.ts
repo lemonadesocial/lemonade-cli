@@ -3,11 +3,7 @@ import { Message, ToolDef, SystemMessage } from './providers/interface.js';
 import { AIProvider } from './providers/interface.js';
 import { SessionState } from './session/state.js';
 import { handleTurn } from './stream/handler.js';
-
-function safeErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Unknown error';
-}
+import { safeErrorMessage } from './utils/errorMessages.js';
 
 // NOTE: batch mode intentionally manages its own message array rather than
 // using ConversationStore. Batch mode is a stateless pipe (stdin lines →

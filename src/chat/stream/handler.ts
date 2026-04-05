@@ -4,6 +4,7 @@ import { SessionState } from '../session/state.js';
 import { truncateHistory } from '../session/history.js';
 import { executeToolCalls } from '../tools/executor.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
+import { safeErrorMessage } from '../utils/errorMessages.js';
 
 const TOKEN_WARN_THRESHOLD_ANTHROPIC = 150_000;
 const TOKEN_WARN_THRESHOLD_OPENAI = 90_000;
@@ -87,11 +88,6 @@ function sanitizeToolArgs(args: Record<string, unknown>): Record<string, unknown
     }
   }
   return sanitized;
-}
-
-function safeErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Unknown error';
 }
 
 function formatStreamingErrorMessage(err: unknown, retriesAttempted = 0): string {
