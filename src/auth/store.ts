@@ -36,6 +36,13 @@ function ensureConfigDir(): void {
   }
 }
 
+function cleanupStaleTmpFile(): void {
+  const tmpFile = CONFIG_FILE + '.tmp';
+  if (existsSync(tmpFile)) {
+    try { unlinkSync(tmpFile); } catch { /* ignore */ }
+  }
+}
+
 function readConfig(): LemonadeConfig {
   ensureConfigDir();
   if (!existsSync(CONFIG_FILE)) {
@@ -44,18 +51,10 @@ function readConfig(): LemonadeConfig {
   try {
     const raw = readFileSync(CONFIG_FILE, 'utf-8');
     const config = { ...DEFAULTS, ...JSON.parse(raw) };
-    // Clean up any leftover temp file from a previously interrupted write
-    const tmpFile = CONFIG_FILE + '.tmp';
-    if (existsSync(tmpFile)) {
-      try { unlinkSync(tmpFile); } catch { /* ignore */ }
-    }
+    cleanupStaleTmpFile();
     return config;
   } catch {
-    // Config file is corrupted or unreadable — clean up and fall back to defaults
-    const tmpFile = CONFIG_FILE + '.tmp';
-    if (existsSync(tmpFile)) {
-      try { unlinkSync(tmpFile); } catch { /* ignore */ }
-    }
+    cleanupStaleTmpFile();
     return { ...DEFAULTS };
   }
 }
