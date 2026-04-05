@@ -36,7 +36,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'event_create',
     displayName: 'event create',
-    description: 'Create a new event. Returns the event ID, title, and status. Virtual and private settings can be changed via the web app after creation.',
+    description: 'Create a new event with full configuration options. Returns the event ID, title, and status.',
     params: [
       { name: 'title', type: 'string', description: 'Event title', required: true },
       { name: 'start', type: 'string', description: 'Start date (ISO 8601)', required: true },
@@ -44,33 +44,72 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'description', type: 'string', description: 'Event description', required: false },
       { name: 'space', type: 'string', description: 'Space ID', required: false },
       { name: 'address', type: 'string', description: 'Venue address', required: false },
+      { name: 'guest_limit', type: 'number', description: 'Maximum number of guests', required: false },
+      { name: 'guest_limit_per', type: 'number', description: 'Maximum guests per registration', required: false },
+      { name: 'ticket_limit_per', type: 'number', description: 'Maximum tickets per user', required: false },
+      { name: 'private', type: 'boolean', description: 'Private event (requires approval to join)', required: false },
+      { name: 'approval_required', type: 'boolean', description: 'Require approval for registrations', required: false },
+      { name: 'application_required', type: 'boolean', description: 'Require application form', required: false },
+      { name: 'timezone', type: 'string', description: 'Event timezone (e.g. America/New_York)', required: false },
+      { name: 'virtual', type: 'boolean', description: 'Virtual event', required: false },
+      { name: 'virtual_url', type: 'string', description: 'Virtual event URL', required: false },
+      { name: 'registration_disabled', type: 'boolean', description: 'Disable registration', required: false },
+      { name: 'currency', type: 'string', description: 'Payment currency code (e.g. USD)', required: false },
+      { name: 'tags', type: 'string[]', description: 'Event tags', required: false },
+      { name: 'guest_directory_enabled', type: 'boolean', description: 'Enable guest directory', required: false },
+      { name: 'subevent_enabled', type: 'boolean', description: 'Enable sub-events', required: false },
+      { name: 'terms_text', type: 'string', description: 'Terms and conditions text', required: false },
+      { name: 'welcome_text', type: 'string', description: 'Welcome message for attendees', required: false },
     ],
     destructive: false,
     execute: async (args) => {
       const spaceId = (args.space as string) || getDefaultSpace();
-      const result = await graphqlRequest<{ aiCreateEvent: unknown }>(
-        `mutation($input: AICreateEventInput!) {
-          aiCreateEvent(input: $input) {
+      const input: Record<string, unknown> = {
+        title: args.title,
+        start: new Date(args.start as string).toISOString(),
+        end: args.end ? new Date(args.end as string).toISOString() : undefined,
+        description: args.description,
+        space: spaceId,
+        address: args.address ? { title: args.address } : undefined,
+      };
+      if (args.guest_limit !== undefined) input.guest_limit = args.guest_limit;
+      if (args.guest_limit_per !== undefined) input.guest_limit_per = args.guest_limit_per;
+      if (args.ticket_limit_per !== undefined) input.ticket_limit_per = args.ticket_limit_per;
+      if (args.private !== undefined) input.private = args.private;
+      if (args.approval_required !== undefined) input.approval_required = args.approval_required;
+      if (args.application_required !== undefined) input.application_required = args.application_required;
+      if (args.timezone !== undefined) input.timezone = args.timezone;
+      if (args.virtual !== undefined) input.virtual = args.virtual;
+      if (args.virtual_url !== undefined) input.virtual_url = args.virtual_url;
+      if (args.registration_disabled !== undefined) input.registration_disabled = args.registration_disabled;
+      if (args.currency !== undefined) input.currency = args.currency;
+      if (args.tags !== undefined) input.tags = args.tags;
+      if (args.guest_directory_enabled !== undefined) input.guest_directory_enabled = args.guest_directory_enabled;
+      if (args.subevent_enabled !== undefined) input.subevent_enabled = args.subevent_enabled;
+      if (args.terms_text !== undefined) input.terms_text = args.terms_text;
+      if (args.welcome_text !== undefined) input.welcome_text = args.welcome_text;
+
+      const result = await graphqlRequest<{ createEvent: unknown }>(
+        `mutation($input: EventInput!) {
+          createEvent(input: $input) {
             _id title shortid start end published description
+            virtual virtual_url private guest_limit guest_limit_per timezone approval_required
             address { title city country latitude longitude }
           }
         }`,
-        {
-          input: {
-            title: args.title,
-            start: new Date(args.start as string).toISOString(),
-            end: args.end ? new Date(args.end as string).toISOString() : undefined,
-            description: args.description,
-            space: spaceId,
-            address: args.address ? { title: args.address } : undefined,
-          },
-        },
+        { input },
       );
-      return result.aiCreateEvent;
+      return result.createEvent;
     },
     formatResult: (result) => {
-      const r = result as { _id: string; title: string; published: boolean };
-      return `Event created: "${r.title}" (${r.published ? 'published' : 'draft'}). Add tickets with /plan tickets_create_type.`;
+      const r = result as { _id: string; title: string; published: boolean; private?: boolean; virtual?: boolean; guest_limit?: number; approval_required?: boolean };
+      const config: string[] = [];
+      if (r.private) config.push('private');
+      if (r.virtual) config.push('virtual');
+      if (r.guest_limit) config.push(`limit: ${r.guest_limit}`);
+      if (r.approval_required) config.push('approval required');
+      const configStr = config.length > 0 ? ` [${config.join(', ')}]` : '';
+      return `Event created: "${r.title}" (${r.published ? 'published' : 'draft'})${configStr}. Add tickets with /plan tickets_create_type.`;
     },
   });
 
@@ -152,6 +191,9 @@ export function buildToolRegistry(): Record<string, ToolDef> {
         `query($id: MongoID!) {
           aiGetEvent(id: $id) {
             _id title shortid start end published description
+            virtual virtual_url private guest_limit guest_limit_per ticket_limit_per
+            timezone approval_required application_required registration_disabled
+            currency tags guest_directory_enabled subevent_enabled terms_text welcome_text
             address { title city country latitude longitude }
           }
         }`,
@@ -164,7 +206,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
   register({
     name: 'event_update',
     displayName: 'event update',
-    description: 'Update an existing event.',
+    description: 'Update an existing event with full configuration options.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
       { name: 'title', type: 'string', description: 'New title', required: false },
@@ -172,7 +214,22 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'end', type: 'string', description: 'New end date (ISO 8601)', required: false },
       { name: 'description', type: 'string', description: 'New description', required: false },
       { name: 'address', type: 'string', description: 'New venue address', required: false },
-      { name: 'virtual', type: 'boolean', description: 'Set as virtual', required: false },
+      { name: 'guest_limit', type: 'number', description: 'Maximum number of guests', required: false },
+      { name: 'guest_limit_per', type: 'number', description: 'Maximum guests per registration', required: false },
+      { name: 'ticket_limit_per', type: 'number', description: 'Maximum tickets per user', required: false },
+      { name: 'private', type: 'boolean', description: 'Private event (requires approval to join)', required: false },
+      { name: 'approval_required', type: 'boolean', description: 'Require approval for registrations', required: false },
+      { name: 'application_required', type: 'boolean', description: 'Require application form', required: false },
+      { name: 'timezone', type: 'string', description: 'Event timezone (e.g. America/New_York)', required: false },
+      { name: 'virtual', type: 'boolean', description: 'Virtual event', required: false },
+      { name: 'virtual_url', type: 'string', description: 'Virtual event URL', required: false },
+      { name: 'registration_disabled', type: 'boolean', description: 'Disable registration', required: false },
+      { name: 'currency', type: 'string', description: 'Payment currency code (e.g. USD)', required: false },
+      { name: 'tags', type: 'string[]', description: 'Event tags', required: false },
+      { name: 'guest_directory_enabled', type: 'boolean', description: 'Enable guest directory', required: false },
+      { name: 'subevent_enabled', type: 'boolean', description: 'Enable sub-events', required: false },
+      { name: 'terms_text', type: 'string', description: 'Terms and conditions text', required: false },
+      { name: 'welcome_text', type: 'string', description: 'Welcome message for attendees', required: false },
     ],
     destructive: false,
     execute: async (args) => {
@@ -183,16 +240,32 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       if (args.description) input.description = args.description;
       if (args.address) input.address = { title: args.address };
       if (args.virtual !== undefined) input.virtual = args.virtual;
+      if (args.guest_limit !== undefined) input.guest_limit = args.guest_limit;
+      if (args.guest_limit_per !== undefined) input.guest_limit_per = args.guest_limit_per;
+      if (args.ticket_limit_per !== undefined) input.ticket_limit_per = args.ticket_limit_per;
+      if (args.private !== undefined) input.private = args.private;
+      if (args.approval_required !== undefined) input.approval_required = args.approval_required;
+      if (args.application_required !== undefined) input.application_required = args.application_required;
+      if (args.timezone !== undefined) input.timezone = args.timezone;
+      if (args.virtual_url !== undefined) input.virtual_url = args.virtual_url;
+      if (args.registration_disabled !== undefined) input.registration_disabled = args.registration_disabled;
+      if (args.currency !== undefined) input.currency = args.currency;
+      if (args.tags !== undefined) input.tags = args.tags;
+      if (args.guest_directory_enabled !== undefined) input.guest_directory_enabled = args.guest_directory_enabled;
+      if (args.subevent_enabled !== undefined) input.subevent_enabled = args.subevent_enabled;
+      if (args.terms_text !== undefined) input.terms_text = args.terms_text;
+      if (args.welcome_text !== undefined) input.welcome_text = args.welcome_text;
 
-      const result = await graphqlRequest<{ aiUpdateEvent: unknown }>(
-        `mutation($id: MongoID!, $input: AIUpdateEventInput!) {
-          aiUpdateEvent(id: $id, input: $input) {
+      const result = await graphqlRequest<{ updateEvent: unknown }>(
+        `mutation($id: MongoID!, $input: EventInput!) {
+          updateEvent(_id: $id, input: $input) {
             _id title shortid start end published
+            virtual virtual_url private guest_limit guest_limit_per timezone approval_required
           }
         }`,
         { id: args.event_id, input },
       );
-      return result.aiUpdateEvent;
+      return result.updateEvent;
     },
     formatResult: (result) => {
       const r = result as { _id: string; title: string };

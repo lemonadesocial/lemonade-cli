@@ -22,6 +22,13 @@ export function registerEventCommands(program: Command): void {
     .option('--address <text>', 'Venue address')
     .option('--virtual', 'Virtual event')
     .option('--private', 'Private event')
+    .option('--guest-limit <n>', 'Maximum number of guests')
+    .option('--timezone <tz>', 'Event timezone')
+    .option('--virtual-url <url>', 'Virtual event URL')
+    .option('--approval-required', 'Require approval for registrations')
+    .option('--currency <code>', 'Payment currency code')
+    .option('--tags <tags...>', 'Event tags (comma-separated)')
+    .option('--registration-disabled', 'Disable registration')
     .option('--json', 'Output as JSON')
     .option('--api-key <key>', 'API key override')
     .action(async (opts) => {
@@ -29,29 +36,37 @@ export function registerEventCommands(program: Command): void {
         setFlagApiKey(opts.apiKey);
         const spaceId = opts.space || getDefaultSpace();
 
-        const result = await graphqlRequest<{ aiCreateEvent: Record<string, unknown> }>(
-          `mutation($input: AICreateEventInput!) {
-            aiCreateEvent(input: $input) {
+        const input: Record<string, unknown> = {
+          title: opts.title,
+          start: new Date(opts.start).toISOString(),
+          end: opts.end ? new Date(opts.end).toISOString() : undefined,
+          description: opts.description,
+          space: spaceId,
+          address: opts.address ? { title: opts.address } : undefined,
+        };
+        if (opts.virtual !== undefined) input.virtual = opts.virtual;
+        if (opts.private !== undefined) input.private = opts.private;
+        if (opts.guestLimit !== undefined) input.guest_limit = parseInt(opts.guestLimit, 10);
+        if (opts.timezone !== undefined) input.timezone = opts.timezone;
+        if (opts.virtualUrl !== undefined) input.virtual_url = opts.virtualUrl;
+        if (opts.approvalRequired !== undefined) input.approval_required = opts.approvalRequired;
+        if (opts.currency !== undefined) input.currency = opts.currency;
+        if (opts.tags !== undefined) input.tags = opts.tags;
+        if (opts.registrationDisabled !== undefined) input.registration_disabled = opts.registrationDisabled;
+
+        const result = await graphqlRequest<{ createEvent: Record<string, unknown> }>(
+          `mutation($input: EventInput!) {
+            createEvent(input: $input) {
               _id title shortid start end published description
+              virtual virtual_url private guest_limit guest_limit_per timezone approval_required
               address { title city country latitude longitude }
             }
           }`,
-          {
-            input: {
-              title: opts.title,
-              start: new Date(opts.start).toISOString(),
-              end: opts.end ? new Date(opts.end).toISOString() : undefined,
-              description: opts.description,
-              space: spaceId,
-              address: opts.address ? { title: opts.address } : undefined,
-              virtual: opts.virtual || false,
-              private: opts.private || false,
-            },
-          },
+          { input },
         );
         setFlagApiKey(undefined);
 
-        const ev = result.aiCreateEvent;
+        const ev = result.createEvent;
         if (opts.json) {
           console.log(jsonSuccess(ev));
         } else {
@@ -192,6 +207,9 @@ export function registerEventCommands(program: Command): void {
           `query($id: MongoID!) {
             aiGetEvent(id: $id) {
               _id title shortid start end published description
+              virtual virtual_url private guest_limit guest_limit_per ticket_limit_per
+              timezone approval_required application_required registration_disabled
+              currency tags guest_directory_enabled subevent_enabled terms_text welcome_text
               address { title city country latitude longitude }
             }
           }`,
@@ -218,6 +236,22 @@ export function registerEventCommands(program: Command): void {
           if (ev.description) {
             pairs.push(['Description', String(ev.description)]);
           }
+          if (ev.virtual) pairs.push(['Virtual', 'Yes']);
+          if (ev.virtual_url) pairs.push(['Virtual URL', String(ev.virtual_url)]);
+          if (ev.private) pairs.push(['Private', 'Yes']);
+          if (ev.guest_limit) pairs.push(['Guest Limit', String(ev.guest_limit)]);
+          if (ev.guest_limit_per) pairs.push(['Guest Limit Per', String(ev.guest_limit_per)]);
+          if (ev.ticket_limit_per) pairs.push(['Ticket Limit Per', String(ev.ticket_limit_per)]);
+          if (ev.timezone) pairs.push(['Timezone', String(ev.timezone)]);
+          if (ev.approval_required) pairs.push(['Approval Required', 'Yes']);
+          if (ev.application_required) pairs.push(['Application Required', 'Yes']);
+          if (ev.registration_disabled) pairs.push(['Registration Disabled', 'Yes']);
+          if (ev.currency) pairs.push(['Currency', String(ev.currency)]);
+          if (ev.tags && (ev.tags as string[]).length > 0) pairs.push(['Tags', (ev.tags as string[]).join(', ')]);
+          if (ev.guest_directory_enabled) pairs.push(['Guest Directory', 'Enabled']);
+          if (ev.subevent_enabled) pairs.push(['Sub-events', 'Enabled']);
+          if (ev.terms_text) pairs.push(['Terms', String(ev.terms_text)]);
+          if (ev.welcome_text) pairs.push(['Welcome Text', String(ev.welcome_text)]);
           console.log(renderKeyValue(pairs));
         }
       } catch (error) {
@@ -235,6 +269,15 @@ export function registerEventCommands(program: Command): void {
     .option('--description <text>', 'New description')
     .option('--address <text>', 'New address')
     .option('--virtual', 'Set as virtual')
+    .option('--private', 'Set as private')
+    .option('--no-private', 'Set as public')
+    .option('--guest-limit <n>', 'Maximum number of guests')
+    .option('--timezone <tz>', 'Event timezone')
+    .option('--virtual-url <url>', 'Virtual event URL')
+    .option('--approval-required', 'Require approval for registrations')
+    .option('--currency <code>', 'Payment currency code')
+    .option('--tags <tags...>', 'Event tags (comma-separated)')
+    .option('--registration-disabled', 'Disable registration')
     .option('--json', 'Output as JSON')
     .option('--api-key <key>', 'API key override')
     .action(async (eventId: string, opts) => {
@@ -246,19 +289,28 @@ export function registerEventCommands(program: Command): void {
         if (opts.end) input.end = new Date(opts.end).toISOString();
         if (opts.description) input.description = opts.description;
         if (opts.address) input.address = { title: opts.address };
-        if (opts.virtual) input.virtual = true;
+        if (opts.virtual !== undefined) input.virtual = opts.virtual;
+        if (opts.private !== undefined) input.private = opts.private;
+        if (opts.guestLimit !== undefined) input.guest_limit = parseInt(opts.guestLimit, 10);
+        if (opts.timezone !== undefined) input.timezone = opts.timezone;
+        if (opts.virtualUrl !== undefined) input.virtual_url = opts.virtualUrl;
+        if (opts.approvalRequired !== undefined) input.approval_required = opts.approvalRequired;
+        if (opts.currency !== undefined) input.currency = opts.currency;
+        if (opts.tags !== undefined) input.tags = opts.tags;
+        if (opts.registrationDisabled !== undefined) input.registration_disabled = opts.registrationDisabled;
 
-        const result = await graphqlRequest<{ aiUpdateEvent: Record<string, unknown> }>(
-          `mutation($id: MongoID!, $input: AIUpdateEventInput!) {
-            aiUpdateEvent(id: $id, input: $input) {
+        const result = await graphqlRequest<{ updateEvent: Record<string, unknown> }>(
+          `mutation($id: MongoID!, $input: EventInput!) {
+            updateEvent(_id: $id, input: $input) {
               _id title shortid start end published
+              virtual virtual_url private guest_limit guest_limit_per timezone approval_required
             }
           }`,
           { id: eventId, input },
         );
         setFlagApiKey(undefined);
 
-        const ev = result.aiUpdateEvent;
+        const ev = result.updateEvent;
         if (opts.json) {
           console.log(jsonSuccess(ev));
         } else {
