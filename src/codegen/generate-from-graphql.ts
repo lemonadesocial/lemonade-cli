@@ -72,7 +72,7 @@ const MANUAL_RESOLVERS = new Set([
   // Auth commands
   'aiGetMe',
   // Space commands
-  'aiCreateSpace', 'aiListMySpaces', 'aiUpdateSpace', 'aiGetSpaceStats',
+  'createSpace', 'aiListMySpaces', 'updateSpace', 'aiGetSpaceStats',
   'connectPlatform', 'submitApiKey', 'spaceConnections',
   // Event commands
   'createEvent', 'aiGetHostingEvents', 'aiSearchEvents', 'aiGetEvent',
@@ -87,6 +87,8 @@ const MANUAL_RESOLVERS = new Set([
   // Site commands
   'aiGeneratePageFromDescription', 'aiCreatePageConfig',
   'aiUpdatePageConfigSection', 'aiSuggestSections',
+  // Payment accounts
+  'listNewPaymentAccounts',
   // Config/system
   'aiGetBackendVersion',
 ]);

@@ -23,8 +23,8 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   calculate_ticket_price: 'aiCalculateTicketPrice',
   get_me: 'aiGetMe',
   list_my_spaces: 'aiListMySpaces',
-  create_space: 'aiCreateSpace',
-  update_space: 'aiUpdateSpace',
+  create_space: 'createSpace',
+  update_space: 'updateSpace',
   get_space_stats: 'aiGetSpaceStats',
   get_space_members: 'aiGetSpaceMembers',
   get_event_guests: 'aiGetEventGuests',
@@ -43,6 +43,7 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   list_chains: 'aiListChains',
   accept_event: 'aiAcceptEvent',
   decline_event: 'aiDeclineEvent',
+  list_payment_accounts: 'listNewPaymentAccounts',
 };
 
 // Maps MCP tool names to CLI command group + subcommand

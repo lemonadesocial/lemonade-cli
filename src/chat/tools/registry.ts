@@ -968,25 +968,57 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     params: [
       { name: 'title', type: 'string', description: 'Space title', required: true },
       { name: 'description', type: 'string', description: 'Space description', required: false },
-      { name: 'slug', type: 'string', description: 'Space URL slug', required: false },
+      { name: 'slug', type: 'string', description: 'Space URL slug (e.g. my-community)', required: false },
       { name: 'private', type: 'boolean', description: 'Make space private', required: false },
+      { name: 'handle_twitter', type: 'string', description: 'Twitter/X handle', required: false },
+      { name: 'handle_instagram', type: 'string', description: 'Instagram handle', required: false },
+      { name: 'handle_linkedin', type: 'string', description: 'LinkedIn handle', required: false },
+      { name: 'handle_youtube', type: 'string', description: 'YouTube handle', required: false },
+      { name: 'handle_tiktok', type: 'string', description: 'TikTok handle', required: false },
+      { name: 'website', type: 'string', description: 'Community website URL', required: false },
+      { name: 'tint_color', type: 'string', description: 'Brand color (hex, e.g. #FF5500)', required: false },
+      { name: 'address', type: 'string', description: 'Community location', required: false },
     ],
     destructive: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiCreateSpace: unknown }>(
-        `mutation($input: AISpaceInput!) {
-          aiCreateSpace(input: $input) { _id title slug description }
+      const input: Record<string, unknown> = { title: args.title };
+      if (args.description !== undefined) input.description = args.description;
+      if (args.slug !== undefined) input.slug = args.slug;
+      if (args.private !== undefined) input.private = args.private;
+      if (args.handle_twitter !== undefined) input.handle_twitter = args.handle_twitter;
+      if (args.handle_instagram !== undefined) input.handle_instagram = args.handle_instagram;
+      if (args.handle_linkedin !== undefined) input.handle_linkedin = args.handle_linkedin;
+      if (args.handle_youtube !== undefined) input.handle_youtube = args.handle_youtube;
+      if (args.handle_tiktok !== undefined) input.handle_tiktok = args.handle_tiktok;
+      if (args.website !== undefined) input.website = args.website;
+      if (args.tint_color !== undefined) input.tint_color = args.tint_color;
+      if (args.address !== undefined) input.address = { title: args.address };
+
+      const result = await graphqlRequest<{ createSpace: unknown }>(
+        `mutation($input: SpaceInput!) {
+          createSpace(input: $input) {
+            _id title slug description
+            handle_twitter handle_instagram handle_linkedin handle_youtube handle_tiktok
+            website tint_color private
+            address { title city country }
+          }
         }`,
-        {
-          input: {
-            title: args.title,
-            description: args.description,
-            slug: args.slug,
-            private: args.private || false,
-          },
-        },
+        { input },
       );
-      return result.aiCreateSpace;
+      return result.createSpace;
+    },
+    formatResult: (result) => {
+      const r = result as Record<string, unknown>;
+      const parts = [`Created space "${r.title}" (${r._id})`];
+      if (r.slug) parts.push(`slug: ${r.slug}`);
+      if (r.private) parts.push('(private)');
+      if (r.website) parts.push(`website: ${r.website}`);
+      if (r.tint_color) parts.push(`brand color: ${r.tint_color}`);
+      const socials = ['handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok']
+        .filter(k => r[k])
+        .map(k => `${k.replace('handle_', '')}: ${r[k]}`);
+      if (socials.length) parts.push(`socials: ${socials.join(', ')}`);
+      return parts.join(' | ');
     },
   });
 
@@ -1054,21 +1086,62 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       { name: 'title', type: 'string', description: 'New title', required: false },
       { name: 'description', type: 'string', description: 'New description', required: false },
       { name: 'slug', type: 'string', description: 'New slug', required: false },
+      { name: 'private', type: 'boolean', description: 'Make space private', required: false },
+      { name: 'handle_twitter', type: 'string', description: 'Twitter/X handle', required: false },
+      { name: 'handle_instagram', type: 'string', description: 'Instagram handle', required: false },
+      { name: 'handle_linkedin', type: 'string', description: 'LinkedIn handle', required: false },
+      { name: 'handle_youtube', type: 'string', description: 'YouTube handle', required: false },
+      { name: 'handle_tiktok', type: 'string', description: 'TikTok handle', required: false },
+      { name: 'website', type: 'string', description: 'Community website URL', required: false },
+      { name: 'tint_color', type: 'string', description: 'Brand color (hex, e.g. #FF5500)', required: false },
+      { name: 'address', type: 'string', description: 'Community location', required: false },
+      { name: 'state', type: 'string', description: 'Space state (active or archived)', required: false, enum: ['active', 'archived'] },
     ],
     destructive: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {};
-      if (args.title) input.title = args.title;
-      if (args.description) input.description = args.description;
-      if (args.slug) input.slug = args.slug;
+      if (args.title !== undefined) input.title = args.title;
+      if (args.description !== undefined) input.description = args.description;
+      if (args.slug !== undefined) input.slug = args.slug;
+      if (args.private !== undefined) input.private = args.private;
+      if (args.handle_twitter !== undefined) input.handle_twitter = args.handle_twitter;
+      if (args.handle_instagram !== undefined) input.handle_instagram = args.handle_instagram;
+      if (args.handle_linkedin !== undefined) input.handle_linkedin = args.handle_linkedin;
+      if (args.handle_youtube !== undefined) input.handle_youtube = args.handle_youtube;
+      if (args.handle_tiktok !== undefined) input.handle_tiktok = args.handle_tiktok;
+      if (args.website !== undefined) input.website = args.website;
+      if (args.tint_color !== undefined) input.tint_color = args.tint_color;
+      if (args.address !== undefined) input.address = { title: args.address };
+      if (args.state !== undefined) input.state = args.state;
 
-      const result = await graphqlRequest<{ aiUpdateSpace: unknown }>(
-        `mutation($id: MongoID!, $input: AISpaceInput!) {
-          aiUpdateSpace(id: $id, input: $input) { _id title slug }
+      const result = await graphqlRequest<{ updateSpace: unknown }>(
+        `mutation($id: MongoID!, $input: SpaceInput!) {
+          updateSpace(_id: $id, input: $input) {
+            _id title slug description state
+            handle_twitter handle_instagram handle_linkedin handle_youtube handle_tiktok
+            website tint_color private
+            address { title city country }
+          }
         }`,
         { id: args.space_id, input },
       );
-      return result.aiUpdateSpace;
+      return result.updateSpace;
+    },
+    formatResult: (result) => {
+      const r = result as Record<string, unknown>;
+      const parts = [`Space "${r.title}" updated`];
+      if (r.slug) parts.push(`slug: ${r.slug}`);
+      if (r.private != null) parts.push(r.private ? '(private)' : '(public)');
+      if (r.state) parts.push(`state: ${r.state}`);
+      if (r.website) parts.push(`website: ${r.website}`);
+      if (r.tint_color) parts.push(`brand color: ${r.tint_color}`);
+      const addr = r.address as { title?: string } | undefined;
+      if (addr?.title) parts.push(`location: ${addr.title}`);
+      const socials = ['handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok']
+        .filter(k => r[k])
+        .map(k => `${k.replace('handle_', '')}: ${r[k]}`);
+      if (socials.length) parts.push(`socials: ${socials.join(', ')}`);
+      return parts.join(' | ');
     },
   });
 
@@ -1238,6 +1311,55 @@ export function buildToolRegistry(): Record<string, ToolDef> {
       const r = result as { connected: boolean; account_id?: string };
       if (r.connected) return `Stripe is connected (${r.account_id}).`;
       return 'Stripe is not connected. Use /plan space_stripe_connect to set up.';
+    },
+  });
+
+  register({
+    name: 'list_payment_accounts',
+    displayName: 'payment accounts list',
+    description: 'List payment accounts configured for receiving payments (Stripe, crypto wallets).',
+    params: [
+      { name: 'type', type: 'string', description: 'Filter by type', required: false, enum: ['solana', 'ethereum', 'digital'] },
+      { name: 'provider', type: 'string', description: 'Filter by provider', required: false, enum: ['stripe', 'safe'] },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ listNewPaymentAccounts: unknown }>(
+        `query($type: PaymentAccountType, $provider: NewPaymentProvider, $limit: Int!) {
+          listNewPaymentAccounts(type: $type, provider: $provider, limit: $limit, skip: 0) {
+            _id active type title provider created_at
+            account_info {
+              ... on StripeAccount { currencies }
+              ... on SolanaAccount { address network currencies }
+              ... on EthereumAccount { currencies }
+              ... on DigitalAccount { currencies }
+              ... on SafeAccount { currencies }
+              ... on EthereumEscrowAccount { currencies }
+              ... on EthereumRelayAccount { currencies }
+              ... on EthereumStakeAccount { currencies }
+            }
+          }
+        }`,
+        {
+          type: args.type as string | undefined,
+          provider: args.provider as string | undefined,
+          limit: args.limit !== undefined ? Number(args.limit) : 25,
+        },
+      );
+      return result.listNewPaymentAccounts;
+    },
+    formatResult: (result) => {
+      const accounts = result as Array<{ _id: string; type: string; title?: string; provider?: string; active: boolean }>;
+      if (!accounts.length) return 'No payment accounts configured.';
+      const lines = accounts.map(a => {
+        const parts = [a.type];
+        if (a.provider) parts.push(`(${a.provider})`);
+        if (a.title) parts.push(`"${a.title}"`);
+        parts.push(a.active ? '✓ active' : '✗ inactive');
+        return `  ${parts.join(' ')}`;
+      });
+      return `${accounts.length} payment account(s):\n${lines.join('\n')}`;
     },
   });
 
