@@ -582,4 +582,235 @@ describe('handleTurn', () => {
       vi.useRealTimers();
     });
   });
+
+  describe('streaming retry with backoff', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('retries transient 429 error and succeeds', async () => {
+      vi.useFakeTimers();
+
+      const engine = new ChatEngine();
+      const events: string[] = [];
+      engine.on('warning', () => { events.push('warning'); });
+      engine.on('turn_done', () => { events.push('turn_done'); });
+
+      let callCount = 0;
+      const provider: AIProvider = {
+        name: 'retry-success',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          callCount++;
+          if (callCount === 1) {
+            throw Object.assign(new Error('429 Too Many Requests'), { status: 429 });
+          }
+          yield { type: 'text_delta' as const, text: 'recovered' };
+          yield { type: 'done' as const, stopReason: 'end_turn' as const };
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'hi' }];
+      const turnPromise = handleTurn(provider, messages, [], systemPrompt, session, {}, null, true, engine);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      await turnPromise;
+
+      expect(messages).toHaveLength(2);
+      expect(messages[0].role).toBe('user');
+      expect(messages[1].role).toBe('assistant');
+      expect(events).toContain('warning');
+    });
+
+    it('retries up to MAX_STREAM_RETRIES then gives up', async () => {
+      vi.useFakeTimers();
+
+      const engine = new ChatEngine();
+      const warnings: string[] = [];
+      const errors: string[] = [];
+      engine.on('warning', (payload) => { warnings.push((payload as { message: string }).message); });
+      engine.on('error', (payload) => { errors.push((payload as { message: string }).message); });
+
+      const provider: AIProvider = {
+        name: 'retry-exhaust',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          throw Object.assign(new Error('429'), { status: 429 });
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'hi' }];
+      const turnPromise = handleTurn(provider, messages, [], systemPrompt, session, {}, null, true, engine);
+
+      for (let i = 0; i < MAX_STREAM_RETRIES; i++) {
+        await vi.advanceTimersByTimeAsync(60_000);
+      }
+
+      await turnPromise;
+
+      expect(warnings).toHaveLength(MAX_STREAM_RETRIES);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toContain('after 3 retries');
+    });
+
+    it('does not retry non-retryable errors', async () => {
+      const engine = new ChatEngine();
+      const warnings: string[] = [];
+      const errors: string[] = [];
+      engine.on('warning', (payload) => { warnings.push((payload as { message: string }).message); });
+      engine.on('error', (payload) => { errors.push((payload as { message: string }).message); });
+
+      const provider: AIProvider = {
+        name: 'no-retry',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          throw Object.assign(new Error('Bad Request'), { status: 400 });
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'hi' }];
+      await handleTurn(provider, messages, [], systemPrompt, session, {}, null, true, engine);
+
+      expect(warnings).toHaveLength(0);
+      expect(errors).toHaveLength(1);
+    });
+
+    it('does not retry if text was already streamed', async () => {
+      const engine = new ChatEngine();
+      const warnings: string[] = [];
+      engine.on('warning', (payload) => { warnings.push((payload as { message: string }).message); });
+      engine.on('error', () => {}); // prevent unhandled error
+
+      const provider: AIProvider = {
+        name: 'no-retry-partial',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          yield { type: 'text_delta' as const, text: 'partial output' };
+          throw Object.assign(new Error('429 Too Many Requests'), { status: 429 });
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'hi' }];
+      await handleTurn(provider, messages, [], systemPrompt, session, {}, null, true, engine);
+
+      // No retry because text was already streamed
+      expect(warnings).toHaveLength(0);
+      // User message should still be present (not rolled back since text was streamed)
+      expect(messages.some((m) => m.role === 'user' && m.content === 'hi')).toBe(true);
+    });
+
+    it('does not retry on iteration > 0', async () => {
+      const engine = new ChatEngine();
+      const warnings: string[] = [];
+      engine.on('warning', (payload) => { warnings.push((payload as { message: string }).message); });
+      engine.on('error', () => {}); // prevent unhandled error
+
+      const tool = mockTool();
+      const registry = { test_tool: tool };
+
+      let callCount = 0;
+      const provider: AIProvider = {
+        name: 'no-retry-iter1',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          callCount++;
+          if (callCount === 1) {
+            // Iteration 0: succeed with a tool call
+            yield { type: 'text_delta' as const, text: 'Calling tool.' };
+            yield { type: 'tool_call' as const, toolCall: { id: 'tc1', name: 'test_tool', arguments: {} } };
+            yield { type: 'done' as const, stopReason: 'tool_use' as const };
+          } else {
+            // Iteration 1: throw retryable error
+            throw Object.assign(new Error('429'), { status: 429 });
+          }
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'do something' }];
+      await handleTurn(provider, messages, [], systemPrompt, session, registry, null, true, engine);
+
+      // No retry warnings because iteration > 0
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('respects abort signal during retry wait', async () => {
+      vi.useFakeTimers();
+
+      const abort = new AbortController();
+      const engine = new ChatEngine();
+      const emitted: string[] = [];
+      engine.on('turn_done', () => { emitted.push('turn_done'); });
+      engine.on('warning', () => { emitted.push('warning'); });
+
+      let callCount = 0;
+      const provider: AIProvider = {
+        name: 'abort-retry',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          callCount++;
+          throw Object.assign(new Error('429'), { status: 429 });
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'hi' }];
+      const turnPromise = handleTurn(provider, messages, [], systemPrompt, session, {}, null, true, engine, abort.signal);
+
+      // Let the first retry warning be emitted, then abort during sleep
+      await vi.advanceTimersByTimeAsync(10);
+      abort.abort();
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      await turnPromise;
+
+      expect(emitted).toContain('turn_done');
+      // Should have only called the provider once (no further retries after abort)
+      expect(callCount).toBe(1);
+    });
+
+    it('emits retry warning via engine with attempt info', async () => {
+      vi.useFakeTimers();
+
+      const engine = new ChatEngine();
+      const warningMessages: string[] = [];
+      engine.on('warning', (payload) => { warningMessages.push((payload as { message: string }).message); });
+
+      let callCount = 0;
+      const provider: AIProvider = {
+        name: 'warning-test',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          callCount++;
+          if (callCount === 1) {
+            throw Object.assign(new Error('429'), { status: 429 });
+          }
+          yield { type: 'text_delta' as const, text: 'ok' };
+          yield { type: 'done' as const, stopReason: 'end_turn' as const };
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'hi' }];
+      const turnPromise = handleTurn(provider, messages, [], systemPrompt, session, {}, null, true, engine);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      await turnPromise;
+
+      expect(warningMessages).toHaveLength(1);
+      expect(warningMessages[0].toLowerCase()).toContain('retrying');
+      expect(warningMessages[0]).toContain('attempt 1');
+    });
+  });
 });
