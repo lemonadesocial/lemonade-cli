@@ -117,6 +117,10 @@ const MANUAL_RESOLVERS = new Set([
   'generateCubejsToken', 'getSpaceRewardStatistics', 'getEventLatestViews',
   // File upload & image management
   'createFileUploads', 'confirmFileUploads', 'createFile',
+  // Event session & voting
+  'getEventSessionReservations', 'getEventSessionReservationSummary',
+  'createEventSessionReservation', 'deleteEventSessionReservation',
+  'listEventVotings', 'castVote',
 ]);
 
 function unwrapType(type: IntrospectionType): {

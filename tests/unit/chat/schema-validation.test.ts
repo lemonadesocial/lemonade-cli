@@ -255,6 +255,16 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   createFileUploads: ['_id', 'url', 'presigned_url', 'type', 'key'],
   confirmFileUploads: [], // Boolean
   createFile: ['_id', 'url', 'type', 'size'],
+
+  // Event session reservations
+  getEventSessionReservations: ['user', 'event', 'session', 'ticket_type', 'user_expanded', '_id', 'name'],
+  getEventSessionReservationSummary: ['session', 'ticket_type', 'count'],
+  createEventSessionReservation: [], // Boolean
+  deleteEventSessionReservation: [], // Boolean
+
+  // Event voting
+  listEventVotings: ['_id', 'title', 'description', 'state', 'start', 'end', 'stage', 'timezone', 'selected_option', 'voting_options', 'option_id'],
+  castVote: [], // Boolean
 };
 
 /**

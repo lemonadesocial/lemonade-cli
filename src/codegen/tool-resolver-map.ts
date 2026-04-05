@@ -94,6 +94,12 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   space_set_avatar: 'updateSpace',
   space_set_cover: 'updateSpace',
   event_set_photos: 'updateEvent',
+  event_session_reservations: 'getEventSessionReservations',
+  event_session_reservation_summary: 'getEventSessionReservationSummary',
+  event_session_reserve: 'createEventSessionReservation',
+  event_session_unreserve: 'deleteEventSessionReservation',
+  event_votings: 'listEventVotings',
+  event_vote: 'castVote',
 };
 
 // Maps MCP tool names to CLI command group + subcommand

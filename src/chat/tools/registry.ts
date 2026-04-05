@@ -6564,5 +6564,177 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
+  // --- Event Sessions ---
+
+  register({
+    name: 'event_session_reservations',
+    displayName: 'event session reservations',
+    description: 'List session reservations for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ getEventSessionReservations: unknown }>(
+        `query($input: GetEventSessionReservationsInput) {
+          getEventSessionReservations(input: $input) {
+            user event session ticket_type
+            user_expanded { _id name }
+          }
+        }`,
+        { input: { event: args.event_id } },
+      );
+      return result.getEventSessionReservations;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const items = result as Array<{ user: string; session: string; ticket_type?: string }>;
+      if (!items.length) return 'No session reservations found.';
+      return `${items.length} reservation(s) found.`;
+    },
+  });
+
+  register({
+    name: 'event_session_reservation_summary',
+    displayName: 'event session reservation summary',
+    description: 'Get reservation count summary per session (and optionally per ticket type).',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'session_id', type: 'string', description: 'Filter by specific session', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = { event: args.event_id };
+      if (args.session_id !== undefined) input.session = args.session_id;
+      const result = await graphqlRequest<{ getEventSessionReservationSummary: unknown }>(
+        `query($input: GetEventSessionReservationSummaryInput!) {
+          getEventSessionReservationSummary(input: $input) {
+            session ticket_type count
+          }
+        }`,
+        { input },
+      );
+      return result.getEventSessionReservationSummary;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const items = result as Array<{ session: string; count: number }>;
+      if (!items.length) return 'No reservation summary data.';
+      return `${items.length} summary row(s).`;
+    },
+  });
+
+  register({
+    name: 'event_session_reserve',
+    displayName: 'event session reserve',
+    description: 'Reserve a spot in an event session for the current user.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'session_id', type: 'string', description: 'Session ID', required: true },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ createEventSessionReservation: boolean }>(
+        `mutation($input: EventSessionReservationInput!) {
+          createEventSessionReservation(input: $input)
+        }`,
+        { input: { event: args.event_id, session: args.session_id } },
+      );
+      return result.createEventSessionReservation;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      return result ? 'Session reserved successfully.' : 'Failed to reserve session.';
+    },
+  });
+
+  register({
+    name: 'event_session_unreserve',
+    displayName: 'event session unreserve',
+    description: 'Cancel a session reservation for the current user.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'session_id', type: 'string', description: 'Session ID', required: true },
+    ],
+    destructive: true,
+    execute: async (args) => {
+      const result = await graphqlRequest<{ deleteEventSessionReservation: boolean }>(
+        `mutation($input: EventSessionReservationInput!) {
+          deleteEventSessionReservation(input: $input)
+        }`,
+        { input: { event: args.event_id, session: args.session_id } },
+      );
+      return result.deleteEventSessionReservation;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      return result ? 'Session reservation cancelled.' : 'Failed to cancel reservation.';
+    },
+  });
+
+  // --- Event Voting ---
+
+  register({
+    name: 'event_votings',
+    displayName: 'event votings',
+    description: 'List voting sessions for an event.',
+    params: [
+      { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'voting_ids', type: 'string', description: 'Comma-separated voting IDs to filter', required: false },
+      { name: 'hidden', type: 'boolean', description: 'Include hidden votings', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const variables: Record<string, unknown> = { event: args.event_id };
+      if (args.voting_ids !== undefined) {
+        variables.votings = (args.voting_ids as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+      }
+      if (args.hidden !== undefined) variables.hidden = args.hidden;
+      const result = await graphqlRequest<{ listEventVotings: unknown }>(
+        `query($event: MongoID!, $votings: [MongoID!], $hidden: Boolean) {
+          listEventVotings(event: $event, votings: $votings, hidden: $hidden) {
+            _id title description state start end stage timezone selected_option
+            voting_options { option_id }
+          }
+        }`,
+        variables,
+      );
+      return result.listEventVotings;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      const items = result as Array<{ _id: string; title: string; state: string }>;
+      if (!items.length) return 'No votings found.';
+      const lines = items.map(v => `  [${v._id}] "${v.title}" (${v.state})`);
+      return `${items.length} voting(s):\n${lines.join('\n')}`;
+    },
+  });
+
+  register({
+    name: 'event_vote',
+    displayName: 'event vote',
+    description: 'Cast or change a vote in an event voting session. Omit option_id to remove your vote.',
+    params: [
+      { name: 'voting_id', type: 'string', description: 'Voting session ID', required: true },
+      { name: 'option_id', type: 'string', description: 'Option ID to vote for (omit to unvote)', required: false },
+    ],
+    destructive: false,
+    execute: async (args) => {
+      const input: Record<string, unknown> = { voting_id: args.voting_id };
+      if (args.option_id !== undefined) input.option_id = args.option_id;
+      const result = await graphqlRequest<{ castVote: boolean }>(
+        `mutation($input: CastVoteInput!) {
+          castVote(input: $input)
+        }`,
+        { input },
+      );
+      return result.castVote;
+    },
+    formatResult: (result) => {
+      if (result === null || result === undefined) return 'Error: no response from server.';
+      return result ? 'Vote cast successfully.' : 'Failed to cast vote.';
+    },
+  });
+
   return tools;
 }
