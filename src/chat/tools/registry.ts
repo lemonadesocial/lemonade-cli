@@ -2666,7 +2666,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
-  // --- System ---
+  // --- System (CLI infrastructure: version info, chain data, credits, model selection, analytics tokens) ---
 
   register({
     name: 'get_backend_version',
@@ -3750,7 +3750,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'template_clone_to_config',
-    category: 'page',
+    category: 'template',
     displayName: 'template clone to config',
     description: 'Clone a template to create a new page configuration for an event or space.',
     params: [

@@ -680,5 +680,10 @@ describe('Tool Registry', () => {
         `Tool "${name}" has unknown category "${tool.category}". Add it to the allowlist if intentional.`,
       ).toBe(true);
     }
+
+    const usedCategories = new Set(tools.map((t) => t.category));
+    for (const cat of VALID_CATEGORIES) {
+      expect(usedCategories.has(cat), `category '${cat}' in allowlist but no tools use it`).toBe(true);
+    }
   });
 });
