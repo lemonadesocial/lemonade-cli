@@ -5,6 +5,8 @@ import { truncateHistory } from '../session/history.js';
 import { executeToolCalls } from '../tools/executor.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
 import { safeErrorMessage } from '../utils/errorMessages.js';
+import { getAllCapabilities } from '../tools/registry.js';
+import { toToolDef } from '../../capabilities/adapter.js';
 
 const TOKEN_WARN_THRESHOLD_ANTHROPIC = 150_000;
 const TOKEN_WARN_THRESHOLD_OPENAI = 90_000;
@@ -345,6 +347,36 @@ export async function handleTurn(
         engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
       }
       return;
+    }
+
+    // C1: Dynamic schema injection after tool_search
+    // When tool_search is called, inject the discovered tool schemas into the
+    // formattedTools array and registry so the LLM can call them in subsequent
+    // iterations of this turn loop.
+    for (const tc of toolCalls) {
+      if (tc.name === 'tool_search') {
+        const matchingResult = results.find(r => r.tool_use_id === tc.id);
+        if (matchingResult && !matchingResult.is_error) {
+          try {
+            const parsed = JSON.parse(matchingResult.content) as { results?: Array<{ name: string }> };
+            if (parsed.results) {
+              const allCaps = getAllCapabilities();
+              for (const searchResult of parsed.results) {
+                if (!registry[searchResult.name]) {
+                  const cap = allCaps.find(c => c.name === searchResult.name);
+                  if (cap) {
+                    const toolDef = toToolDef(cap);
+                    registry[searchResult.name] = toolDef;
+                    formattedTools.push(...provider.formatTools([toolDef]));
+                  }
+                }
+              }
+            }
+          } catch {
+            // Non-fatal: if parsing fails, the LLM just won't have the schemas
+          }
+        }
+      }
     }
 
     // OPTIMIZATION: Skip second API call for single self-describing tool

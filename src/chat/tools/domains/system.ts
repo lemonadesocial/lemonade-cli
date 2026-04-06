@@ -23,7 +23,10 @@ export const systemTools: CanonicalCapability[] = [
       { name: 'max_results', type: 'number', required: false, description: 'Maximum results to return (default: 5)' },
     ],
     execute: async (args) => {
-      const query = String(args.query).toLowerCase();
+      const query = String(args.query).trim().toLowerCase();
+      if (!query) {
+        return { results: [], total_matches: 0, error: 'Please provide a search query' };
+      }
       const maxResults = Number(args.max_results) || 5;
       const { getAllCapabilities } = await import('../registry.js');
       const caps = getAllCapabilities();
@@ -31,7 +34,7 @@ export const systemTools: CanonicalCapability[] = [
       const scored = caps.map(cap => {
         let score = 0;
         const name = cap.name.toLowerCase();
-        const hint = (cap.searchHint || '').toLowerCase();
+        const hint = (cap.searchHint?.length ? cap.searchHint : cap.description).toLowerCase();
         const desc = cap.description.toLowerCase();
         const whenToUse = (cap.whenToUse || '').toLowerCase();
 
@@ -53,14 +56,20 @@ export const systemTools: CanonicalCapability[] = [
         // Category match
         if (cap.category === query) score += 30;
 
+        // Prioritize deferred tools (the primary use case for tool_search)
+        // Only apply bonus if there's already a text match
+        if (score > 0 && cap.shouldDefer && !cap.alwaysLoad) score += 5;
+
         return { cap, score };
       })
       .filter(s => s.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, maxResults);
+      .sort((a, b) => b.score - a.score);
+
+      const totalMatches = scored.length;
+      const topResults = scored.slice(0, maxResults);
 
       return {
-        results: scored.map(s => ({
+        results: topResults.map(s => ({
           name: s.cap.name,
           displayName: s.cap.displayName,
           description: s.cap.description,
@@ -68,8 +77,9 @@ export const systemTools: CanonicalCapability[] = [
           whenToUse: s.cap.whenToUse,
           params: s.cap.params.map(p => ({ name: p.name, type: p.type, required: p.required, description: p.description })),
           destructive: s.cap.destructive,
+          loaded: !!(s.cap.alwaysLoad || !s.cap.shouldDefer),
         })),
-        total_matches: scored.length,
+        total_matches: totalMatches,
       };
     },
     formatResult: (result: unknown) => {

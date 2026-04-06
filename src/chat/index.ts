@@ -17,6 +17,8 @@ import { getCreditsSpaceId } from './spaceSelection.js';
 import { VERSION } from './version.js';
 import { runTerminalUI } from './terminal.js';
 import { createCreditsProvider } from './creditsProvider.js';
+import { partitionTools, formatDeferredToolList } from '../capabilities/partitioner.js';
+import { capabilitiesToRegistry } from '../capabilities/adapter.js';
 import { createByokProvider, isValidProvider, VALID_PROVIDERS } from './providerFactory.js';
 import { resolveCreditsStartupMode } from './startupRecovery.js';
 import { registerCrashHandlers } from './crashHandlers.js';
@@ -187,8 +189,6 @@ async function main(): Promise<void> {
   }
 
   const registry = buildToolRegistry();
-  const { partitionTools, formatDeferredToolList } = await import('../capabilities/partitioner.js');
-  const { capabilitiesToRegistry } = await import('../capabilities/adapter.js');
   const { alwaysLoad, deferred } = partitionTools();
   const loadedRegistry = capabilitiesToRegistry(alwaysLoad);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;

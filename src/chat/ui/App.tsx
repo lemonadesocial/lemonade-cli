@@ -161,6 +161,8 @@ export function App({
     addSystemMessage('Session cleared.');
   }, [clearMessages, addSystemMessage]);
 
+  const alwaysLoadCaps = useMemo(() => partitionTools().alwaysLoad, []);
+
   const applyRuntimeSwitch = useCallback((
     nextProvider: AIProvider,
     nextSpaceName?: string,
@@ -170,7 +172,7 @@ export function App({
     resetStreaming();
     setProviderState({
       provider: nextProvider,
-      formattedTools: nextProvider.formatTools(Object.values(capabilitiesToRegistry(partitionTools().alwaysLoad))),
+      formattedTools: nextProvider.formatTools(Object.values(capabilitiesToRegistry(alwaysLoadCaps))),
       providerName: nextProvider.name,
       modelName: nextProvider.model,
     });
@@ -180,7 +182,7 @@ export function App({
     // Reset stale event context so the UI doesn't show previous-session data.
     session.currentEvent = undefined;
     clearMessages();
-  }, [clearMessages, registry, resetStreaming, session]);
+  }, [clearMessages, alwaysLoadCaps, resetStreaming, session]);
 
   const switchProvider = useCallback(async (nextProviderName: ByokProviderName) => {
     if (switchingRef.current) {

@@ -82,6 +82,31 @@ describe('tool_search', () => {
     expect(output).toBe('No matching tools found.');
   });
 
+  it('returns empty results for empty query', async () => {
+    const ts = getToolSearch();
+    const result = await ts.execute({ query: '' }) as any;
+    expect(result.results).toEqual([]);
+    expect(result.total_matches).toBe(0);
+    expect(result.error).toBe('Please provide a search query');
+  });
+
+  it('returns empty results for whitespace-only query', async () => {
+    const ts = getToolSearch();
+    const result = await ts.execute({ query: '   ' }) as any;
+    expect(result.results).toEqual([]);
+    expect(result.total_matches).toBe(0);
+    expect(result.error).toBe('Please provide a search query');
+  });
+
+  it('annotates results with loaded status', async () => {
+    const ts = getToolSearch();
+    const result = await ts.execute({ query: 'get_backend_version' }) as any;
+    expect(result.results.length).toBeGreaterThanOrEqual(1);
+    const match = result.results.find((r: any) => r.name === 'get_backend_version');
+    expect(match).toBeDefined();
+    expect(typeof match.loaded).toBe('boolean');
+  });
+
   it('formatResult formats non-empty results', () => {
     const ts = getToolSearch();
     const output = ts.formatResult!({
