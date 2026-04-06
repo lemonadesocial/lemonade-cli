@@ -162,6 +162,7 @@ export const eventTools: CanonicalCapability[] = [
     destructive: false,
     backendType: 'query',
     backendService: 'external',
+    // No backendResolver — uses external registry search API, not GraphQL
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool'],

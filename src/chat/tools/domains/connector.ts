@@ -61,6 +61,7 @@ export const connectorTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'connectPlatform',
     requiresEvent: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ connectPlatform: { connectionId: string; authUrl?: string; requiresApiKey: boolean } }>(
         `mutation($input: ConnectPlatformInput!) {

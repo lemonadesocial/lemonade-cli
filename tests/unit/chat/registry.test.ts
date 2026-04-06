@@ -6,8 +6,8 @@ describe('Tool Registry', () => {
   const registry = buildToolRegistry();
   const tools = Object.values(registry);
 
-  it('registers at least 200 tools', () => {
-    expect(tools.length).toBeGreaterThanOrEqual(200);
+  it('registers at least 210 tools', () => {
+    expect(tools.length).toBeGreaterThanOrEqual(210);
   });
 
   it('each tool has required fields', () => {
@@ -690,8 +690,8 @@ describe('Tool Registry', () => {
   describe('getAllCapabilities()', () => {
     const capabilities = getAllCapabilities();
 
-    it('returns at least 200 capabilities', () => {
-      expect(capabilities.length).toBeGreaterThanOrEqual(200);
+    it('returns at least 210 capabilities', () => {
+      expect(capabilities.length).toBeGreaterThanOrEqual(210);
     });
 
     it('every capability has backendType defined', () => {

@@ -64,6 +64,7 @@ export const tempoTools: CanonicalCapability[] = [
     ],
     destructive: false,
     backendType: 'mutation',
+    backendService: 'atlas',
     backendResolver: 'atlasUpdatePayoutSettings',
     requiresEvent: false,
     execute: async (args) => {
