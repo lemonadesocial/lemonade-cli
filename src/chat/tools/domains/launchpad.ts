@@ -13,13 +13,13 @@ export const launchpadTools: CanonicalCapability[] = [
     searchHint: 'launchpad coins tokens list crypto',
     destructive: false,
     backendType: 'query',
-    backendResolver: 'listLaunchpadCoins',
+    backendResolver: 'aiListLaunchpadCoins',
     requiresEvent: false,
     execute: async () => {
-      const result = await graphqlRequest<{ listLaunchpadCoins: unknown }>(
-        'query { listLaunchpadCoins { items { _id name symbol status } } }',
+      const result = await graphqlRequest<{ aiListLaunchpadCoins: unknown }>(
+        'query { aiListLaunchpadCoins { items { _id name symbol status } } }',
       );
-      return result.listLaunchpadCoins;
+      return result.aiListLaunchpadCoins;
     },
   }),
   buildCapability({
@@ -36,16 +36,16 @@ export const launchpadTools: CanonicalCapability[] = [
     searchHint: 'add create launchpad coin token new',
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'addLaunchpadCoin',
+    backendResolver: 'aiAddLaunchpadCoin',
     requiresEvent: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ addLaunchpadCoin: unknown }>(
+      const result = await graphqlRequest<{ aiAddLaunchpadCoin: unknown }>(
         `mutation($input: AddLaunchpadCoinInput!) {
-          addLaunchpadCoin(input: $input) { _id name symbol status }
+          aiAddLaunchpadCoin(input: $input) { _id name symbol status }
         }`,
         { input: { name: args.name, symbol: args.symbol, description: args.description } },
       );
-      return result.addLaunchpadCoin;
+      return result.aiAddLaunchpadCoin;
     },
   }),
   buildCapability({
@@ -62,20 +62,20 @@ export const launchpadTools: CanonicalCapability[] = [
     searchHint: 'update edit launchpad coin token modify',
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'updateLaunchpadCoin',
+    backendResolver: 'aiUpdateLaunchpadCoin',
     requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = { _id: args.coin_id };
       if (args.name) input.name = args.name;
       if (args.description) input.description = args.description;
 
-      const result = await graphqlRequest<{ updateLaunchpadCoin: unknown }>(
+      const result = await graphqlRequest<{ aiUpdateLaunchpadCoin: unknown }>(
         `mutation($input: UpdateLaunchpadCoinInput!) {
-          updateLaunchpadCoin(input: $input) { _id name symbol status }
+          aiUpdateLaunchpadCoin(input: $input) { _id name symbol status }
         }`,
         { input },
       );
-      return result.updateLaunchpadCoin;
+      return result.aiUpdateLaunchpadCoin;
     },
   }),
 ];

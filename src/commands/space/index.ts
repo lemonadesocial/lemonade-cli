@@ -67,9 +67,9 @@ export function registerSpaceCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const skip = opts.cursor ? parseInt(opts.cursor, 10) : 0;
 
-        const result = await graphqlRequest<{ listMySpaces: { items: Record<string, unknown>[] } }>(
+        const result = await graphqlRequest<{ aiListMySpaces: { items: Record<string, unknown>[] } }>(
           `query($limit: Int, $skip: Int) {
-            listMySpaces(limit: $limit, skip: $skip) {
+            aiListMySpaces(limit: $limit, skip: $skip) {
               items { _id title slug description }
             }
           }`,
@@ -77,7 +77,7 @@ export function registerSpaceCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const items = result.listMySpaces.items;
+        const items = result.aiListMySpaces.items;
         if (opts.json) {
           const nextCursor = items.length === limit ? String(skip + limit) : null;
           console.log(jsonSuccess(items, { cursor: nextCursor }));
@@ -233,9 +233,9 @@ export function registerSpaceCommands(program: Command): void {
     .action(async (spaceId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
-        const result = await graphqlRequest<{ getSpaceStatistics: Record<string, unknown> }>(
+        const result = await graphqlRequest<{ aiGetSpaceStats: Record<string, unknown> }>(
           `query($space: MongoID!) {
-            getSpaceStatistics(space: $space) {
+            aiGetSpaceStats(space: $space) {
               total_members admin_count host_count
               total_events total_attendees average_rating
             }
@@ -244,7 +244,7 @@ export function registerSpaceCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const stats = result.getSpaceStatistics;
+        const stats = result.aiGetSpaceStats;
         if (opts.json) {
           console.log(jsonSuccess(stats));
         } else {
@@ -273,9 +273,9 @@ export function registerSpaceCommands(program: Command): void {
         setFlagApiKey(opts.apiKey);
 
         const [statsResult, connectorsResult] = await Promise.all([
-          graphqlRequest<{ getSpaceStatistics: Record<string, unknown> }>(
+          graphqlRequest<{ aiGetSpaceStats: Record<string, unknown> }>(
             `query($space: MongoID!) {
-              getSpaceStatistics(space: $space) {
+              aiGetSpaceStats(space: $space) {
                 total_members admin_count total_events total_attendees average_rating
               }
             }`,
@@ -291,7 +291,7 @@ export function registerSpaceCommands(program: Command): void {
 
         setFlagApiKey(undefined);
 
-        const stats = statsResult.getSpaceStatistics;
+        const stats = statsResult.aiGetSpaceStats;
         const connectorCount = connectorsResult.spaceConnections.length;
 
         const features = Object.entries(TIER_LIMITS).map(([feature, tiers]) => ({

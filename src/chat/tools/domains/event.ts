@@ -125,14 +125,14 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getHostingEvents',
+    backendResolver: 'aiGetHostingEvents',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'slashCommand', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ getHostingEvents: { items: Array<Record<string, unknown>> } }>(
+      const result = await graphqlRequest<{ aiGetHostingEvents: { items: Array<Record<string, unknown>> } }>(
         `query($draft: Boolean, $search: String, $limit: Int, $skip: Int) {
-          getHostingEvents(draft: $draft, search: $search, limit: $limit, skip: $skip) {
+          aiGetHostingEvents(draft: $draft, search: $search, limit: $limit, skip: $skip) {
             items { _id title shortid start end published }
           }
         }`,
@@ -143,7 +143,7 @@ export const eventTools: CanonicalCapability[] = [
           skip: (args.skip as number) || 0,
         },
       );
-      return result.getHostingEvents;
+      return result.aiGetHostingEvents;
     },
   }),
   buildCapability({
@@ -204,14 +204,14 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getEvent',
+    backendResolver: 'aiGetEvent',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ getEvent: unknown }>(
+      const result = await graphqlRequest<{ aiGetEvent: unknown }>(
         `query($id: MongoID!) {
-          getEvent(id: $id) {
+          aiGetEvent(id: $id) {
             _id title shortid start end published description
             virtual virtual_url private guest_limit guest_limit_per ticket_limit_per
             timezone approval_required application_required registration_disabled
@@ -222,7 +222,7 @@ export const eventTools: CanonicalCapability[] = [
         }`,
         { id: args.event_id },
       );
-      return result.getEvent;
+      return result.aiGetEvent;
     },
   }),
   buildCapability({
@@ -361,12 +361,12 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: true,
     backendType: 'mutation',
-    backendResolver: 'cancelEvent',
+    backendResolver: 'aiCancelEvent',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       await graphqlRequest(
-        'mutation($id: MongoID!) { cancelEvent(id: $id) }',
+        'mutation($id: MongoID!) { aiCancelEvent(id: $id) }',
         { id: args.event_id },
       );
       return { cancelled: true, event_id: args.event_id };
@@ -479,13 +479,13 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'listEventGuests',
+    backendResolver: 'aiGetEventGuests',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ listEventGuests: unknown }>(
+      const result = await graphqlRequest<{ aiGetEventGuests: unknown }>(
         `query($event: MongoID!, $search: String, $limit: Int, $skip: Int) {
-          listEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
+          aiGetEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
             items { name email status ticket_type_title checked_in }
           }
         }`,
@@ -496,7 +496,7 @@ export const eventTools: CanonicalCapability[] = [
           skip: (args.skip as number) || 0,
         },
       );
-      return result.listEventGuests;
+      return result.aiGetEventGuests;
     },
   }),
   buildCapability({
@@ -513,12 +513,12 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'inviteEvent',
+    backendResolver: 'aiInviteEvent',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       await graphqlRequest(
-        'mutation($input: InviteEventInput!) { inviteEvent(input: $input) }',
+        'mutation($input: InviteEventInput!) { aiInviteEvent(input: $input) }',
         { input: { event: args.event_id, emails: args.emails } },
       );
       return { sent: true, count: (args.emails as string[]).length };
@@ -572,20 +572,20 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getEventFeedbackSummary',
+    backendResolver: 'aiGetEventFeedbackSummary',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ getEventFeedbackSummary: unknown }>(
+      const result = await graphqlRequest<{ aiGetEventFeedbackSummary: unknown }>(
         `query($event: MongoID!) {
-          getEventFeedbackSummary(event: $event) {
+          aiGetEventFeedbackSummary(event: $event) {
             average_rating total_reviews
             rating_distribution { rating count }
           }
         }`,
         { event: args.event_id },
       );
-      return result.getEventFeedbackSummary;
+      return result.aiGetEventFeedbackSummary;
     },
     formatResult: (result) => {
       const r = result as { average_rating: number; total_reviews: number };
@@ -608,13 +608,13 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'listEventFeedBacks',
+    backendResolver: 'aiListEventFeedbacks',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ listEventFeedBacks: unknown }>(
+      const result = await graphqlRequest<{ aiListEventFeedbacks: unknown }>(
         `query($event: MongoID!, $rate_value: Float, $limit: Int, $skip: Int) {
-          listEventFeedBacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
+          aiListEventFeedbacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
             items { user_name rating comment created_at }
           }
         }`,
@@ -625,7 +625,7 @@ export const eventTools: CanonicalCapability[] = [
           skip: (args.skip as number) || 0,
         },
       );
-      return result.listEventFeedBacks;
+      return result.aiListEventFeedbacks;
     },
   }),
   buildCapability({
@@ -643,13 +643,13 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getEventCheckins',
+    backendResolver: 'aiGetEventCheckins',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ getEventCheckins: unknown }>(
+      const result = await graphqlRequest<{ aiGetEventCheckins: unknown }>(
         `query($event: MongoID!, $limit: Int, $skip: Int) {
-          getEventCheckins(event: $event, limit: $limit, skip: $skip) {
+          aiGetEventCheckins(event: $event, limit: $limit, skip: $skip) {
             items { name email ticket_type_title checked_in_at }
           }
         }`,
@@ -659,7 +659,7 @@ export const eventTools: CanonicalCapability[] = [
           skip: (args.skip as number) || 0,
         },
       );
-      return result.getEventCheckins;
+      return result.aiGetEventCheckins;
     },
   }),
   buildCapability({
@@ -675,20 +675,20 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getEventApplicationAnswers',
+    backendResolver: 'aiGetEventApplicationAnswers',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       // Returns [AIEventApplicationAnswerEntry!]! — flat list, no items wrapper
-      const result = await graphqlRequest<{ getEventApplicationAnswers: unknown }>(
+      const result = await graphqlRequest<{ aiGetEventApplicationAnswers: unknown }>(
         `query($event: MongoID!) {
-          getEventApplicationAnswers(event: $event) {
+          aiGetEventApplicationAnswers(event: $event) {
             user_name email answers { question answer } submitted_at
           }
         }`,
         { event: args.event_id },
       );
-      return result.getEventApplicationAnswers;
+      return result.aiGetEventApplicationAnswers;
     },
   }),
   buildCapability({
@@ -704,15 +704,15 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'acceptEvent',
+    backendResolver: 'aiAcceptEvent',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ acceptEvent: unknown }>(
-        'mutation($id: MongoID!) { acceptEvent(id: $id) }',
+      const result = await graphqlRequest<{ aiAcceptEvent: unknown }>(
+        'mutation($id: MongoID!) { aiAcceptEvent(id: $id) }',
         { id: args.event_id },
       );
-      return result.acceptEvent;
+      return result.aiAcceptEvent;
     },
   }),
   buildCapability({
@@ -728,15 +728,15 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'declineEvent',
+    backendResolver: 'aiDeclineEvent',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ declineEvent: unknown }>(
-        'mutation($id: MongoID!) { declineEvent(id: $id) }',
+      const result = await graphqlRequest<{ aiDeclineEvent: unknown }>(
+        'mutation($id: MongoID!) { aiDeclineEvent(id: $id) }',
         { id: args.event_id },
       );
-      return result.declineEvent;
+      return result.aiDeclineEvent;
     },
   }),
   buildCapability({

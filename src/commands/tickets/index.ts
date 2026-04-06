@@ -20,9 +20,9 @@ export function registerTicketCommands(program: Command): void {
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
-        const result = await graphqlRequest<{ listEventTicketTypes: Array<Record<string, unknown>> }>(
+        const result = await graphqlRequest<{ aiListEventTicketTypes: Array<Record<string, unknown>> }>(
           `query($event: MongoID!) {
-            listEventTicketTypes(event: $event) {
+            aiListEventTicketTypes(event: $event) {
               title active private limited description
             }
           }`,
@@ -30,7 +30,7 @@ export function registerTicketCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const items = result.listEventTicketTypes;
+        const items = result.aiListEventTicketTypes;
         if (opts.json) {
           console.log(jsonSuccess(items));
         } else {
@@ -79,9 +79,9 @@ export function registerTicketCommands(program: Command): void {
         if (opts.limit) input.ticket_limit = parseInt(opts.limit, 10);
         if (opts.description) input.description = opts.description;
 
-        const result = await graphqlRequest<{ createEventTicketType: Record<string, unknown> }>(
+        const result = await graphqlRequest<{ aiCreateEventTicketType: Record<string, unknown> }>(
           `mutation($input: EventTicketTypeInput!) {
-            createEventTicketType(input: $input) {
+            aiCreateEventTicketType(input: $input) {
               title active private limited description
             }
           }`,
@@ -89,7 +89,7 @@ export function registerTicketCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const tt = result.createEventTicketType;
+        const tt = result.aiCreateEventTicketType;
         if (opts.json) {
           console.log(jsonSuccess(tt));
         } else {
@@ -136,9 +136,9 @@ export function registerTicketCommands(program: Command): void {
         if (opts.limit) input.ticket_limit = parseInt(opts.limit, 10);
         if (opts.active !== undefined) input.active = opts.active === 'true';
 
-        const result = await graphqlRequest<{ updateEventTicketType: Record<string, unknown> }>(
+        const result = await graphqlRequest<{ aiUpdateEventTicketType: Record<string, unknown> }>(
           `mutation($_id: MongoID!, $input: EventTicketTypeInput!) {
-            updateEventTicketType(_id: $_id, input: $input) {
+            aiUpdateEventTicketType(_id: $_id, input: $input) {
               title active private limited description
             }
           }`,
@@ -146,7 +146,7 @@ export function registerTicketCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const tt = result.updateEventTicketType;
+        const tt = result.aiUpdateEventTicketType;
         if (opts.json) {
           console.log(jsonSuccess(tt));
         } else {
@@ -275,9 +275,9 @@ export function registerTicketCommands(program: Command): void {
         if (!Number.isInteger(count) || count < 1) {
           throw new Error('Quantity must be a positive whole number.');
         }
-        const result = await graphqlRequest<{ calculateTicketsPricing: Record<string, unknown> }>(
+        const result = await graphqlRequest<{ aiCalculateTicketPrice: Record<string, unknown> }>(
           `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
-            calculateTicketsPricing(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
+            aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
               subtotal_cents discount_cents total_cents currency
             }
           }`,
@@ -290,7 +290,7 @@ export function registerTicketCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const price = result.calculateTicketsPricing;
+        const price = result.aiCalculateTicketPrice;
         if (opts.json) {
           console.log(jsonSuccess(price));
         } else {

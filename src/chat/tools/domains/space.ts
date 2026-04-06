@@ -107,21 +107,21 @@ export const spaceTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'listMySpaces',
+    backendResolver: 'aiListMySpaces',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'slashCommand', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ listMySpaces: unknown }>(
+      const result = await graphqlRequest<{ aiListMySpaces: unknown }>(
         `query($limit: Int, $skip: Int) {
-          listMySpaces(limit: $limit, skip: $skip) {
+          aiListMySpaces(limit: $limit, skip: $skip) {
             items { _id title slug description }
           }
         }`,
-        // Backend listMySpaces includes creator, admin, and ambassador roles
+        // Backend aiListMySpaces includes creator, admin, and ambassador roles
       { limit: (args.limit as number) || 100, skip: (args.skip as number) || 0 },
       );
-      return result.listMySpaces;
+      return result.aiListMySpaces;
     },
   }),
   buildCapability({
@@ -138,20 +138,20 @@ export const spaceTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'listMySpaces',
+    backendResolver: 'aiListMySpaces',
     requiresSpace: false,
     requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{
-        listMySpaces: { items: Array<{ _id: string; title: string; slug: string }> };
+        aiListMySpaces: { items: Array<{ _id: string; title: string; slug: string }> };
       }>(
         `query {
-          listMySpaces(limit: 100, skip: 0) {
+          aiListMySpaces(limit: 100, skip: 0) {
             items { _id title slug }
           }
         }`,
       );
-      const spaces = result.listMySpaces.items;
+      const spaces = result.aiListMySpaces.items;
       const match = spaces.find((s) => s._id === args.space_id);
       if (!match) {
         throw new Error('Space not found. Run space_list to see your spaces.');
@@ -260,20 +260,20 @@ export const spaceTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getSpaceStatistics',
+    backendResolver: 'aiGetSpaceStats',
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ getSpaceStatistics: unknown }>(
+      const result = await graphqlRequest<{ aiGetSpaceStats: unknown }>(
         `query($space: MongoID!) {
-          getSpaceStatistics(space: $space) {
+          aiGetSpaceStats(space: $space) {
             total_members admins ambassadors subscribers
             total_events total_attendees average_event_rating
           }
         }`,
         { space: args.space_id },
       );
-      return result.getSpaceStatistics;
+      return result.aiGetSpaceStats;
     },
     formatResult: (result) => {
       const r = result as { total_members: number; admins: number; ambassadors: number; subscribers: number; total_events: number; total_attendees: number; average_event_rating?: number };
