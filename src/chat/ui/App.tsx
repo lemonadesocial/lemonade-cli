@@ -19,6 +19,8 @@ import type { ByokProviderName } from '../providerFactory.js';
 import { getCreditsSpaceId } from '../spaceSelection.js';
 import { getDefaultSpace, setConfigValue } from '../../auth/store.js';
 import { handleSwitchProvider, handleSwitchMode } from '../runtime/switchHandlers.js';
+import { partitionTools } from '../../capabilities/partitioner.js';
+import { capabilitiesToRegistry } from '../../capabilities/adapter.js';
 import { PlanWizard } from './PlanWizard.js';
 import {
   ThinkingSpinner,
@@ -43,6 +45,7 @@ export interface AppProps {
     providerName: string;
     modelName: string;
   };
+  deferredToolsBlock?: string;
 }
 
 export function App({
@@ -55,6 +58,7 @@ export function App({
   firstName,
   agentName,
   displayOpts,
+  deferredToolsBlock,
 }: AppProps): React.JSX.Element {
   const { exit } = useApp();
   const {
@@ -95,12 +99,12 @@ export function App({
   const turnCoordinatorRef = useRef<TurnCoordinator | null>(null);
   if (!turnCoordinatorRef.current) {
     turnCoordinatorRef.current = new TurnCoordinator({
-      engine, provider: activeProvider, formattedTools: activeFormattedTools, session, registry, chatMessages,
+      engine, provider: activeProvider, formattedTools: activeFormattedTools, session, registry, chatMessages, deferredToolsBlock,
     });
   }
   // Keep deps current after re-render / provider change
   turnCoordinatorRef.current.updateDeps({
-    engine, provider: activeProvider, formattedTools: activeFormattedTools, session, registry, chatMessages,
+    engine, provider: activeProvider, formattedTools: activeFormattedTools, session, registry, chatMessages, deferredToolsBlock,
   });
   const turnCoordinator = turnCoordinatorRef.current;
   const runtimeDisplayOpts = useMemo(() => ({ providerName, modelName }), [providerName, modelName]);
@@ -166,7 +170,7 @@ export function App({
     resetStreaming();
     setProviderState({
       provider: nextProvider,
-      formattedTools: nextProvider.formatTools(Object.values(registry)),
+      formattedTools: nextProvider.formatTools(Object.values(capabilitiesToRegistry(partitionTools().alwaysLoad))),
       providerName: nextProvider.name,
       modelName: nextProvider.model,
     });

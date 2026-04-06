@@ -11,6 +11,7 @@ export interface TurnDeps {
   session: SessionState;
   registry: Record<string, ToolDef>;
   chatMessages: Message[];
+  deferredToolsBlock?: string;
 }
 
 /**
@@ -109,8 +110,8 @@ export class TurnCoordinator {
     try {
       // Dep capture and system-message build are inside try so that any
       // throw here is caught and cannot leave mainTurnActive stuck.
-      const { provider, formattedTools, session, registry, chatMessages, engine } = this.deps;
-      const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name);
+      const { provider, formattedTools, session, registry, chatMessages, engine, deferredToolsBlock } = this.deps;
+      const systemPrompt: SystemMessage[] = buildSystemMessages(session, provider.name, deferredToolsBlock);
 
       await handleTurn(
         provider,
@@ -153,14 +154,14 @@ export class TurnCoordinator {
   }
 
   submitBtwTurn(input: string): string {
-    const { provider, formattedTools, session, registry, chatMessages, engine } = this.deps;
+    const { provider, formattedTools, session, registry, chatMessages, engine, deferredToolsBlock } = this.deps;
 
     const snapshot: Message[] = JSON.parse(JSON.stringify(chatMessages));
     snapshot.push({ role: 'user', content: input });
 
     const btwSession = { ...session };
     const btwTurnId = `btw-${Date.now()}-${++this.btwCounter}`;
-    const btwSystemPrompt: SystemMessage[] = buildSystemMessages(btwSession, provider.name);
+    const btwSystemPrompt: SystemMessage[] = buildSystemMessages(btwSession, provider.name, deferredToolsBlock);
     btwSystemPrompt.push({
       type: 'text',
       text: 'BTW SIDE REQUEST: Keep response to 1-2 sentences MAX. Answer the specific question only. Do not reference or modify the main task in progress. No follow-up questions. Execute at most one tool call. No personality flair.',

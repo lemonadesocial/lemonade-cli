@@ -187,10 +187,14 @@ async function main(): Promise<void> {
   }
 
   const registry = buildToolRegistry();
-  const toolDefs = Object.values(registry);
+  const { partitionTools, formatDeferredToolList } = await import('../capabilities/partitioner.js');
+  const { capabilitiesToRegistry } = await import('../capabilities/adapter.js');
+  const { alwaysLoad, deferred } = partitionTools();
+  const loadedRegistry = capabilitiesToRegistry(alwaysLoad);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const session = createSessionState(user, getDefaultSpace(), timezone);
-  const formattedTools = provider.formatTools(toolDefs);
+  const formattedTools = provider.formatTools(Object.values(loadedRegistry));
+  const deferredToolsBlock = deferred.length > 0 ? formatDeferredToolList(deferred) : '';
 
   let creditsSpaceName: string | undefined;
   const creditsSpaceId = getCreditsSpaceId();
@@ -223,9 +227,9 @@ async function main(): Promise<void> {
     await runTerminalUI(provider, formattedTools, session, registry, displayOpts, {
       firstName: user.first_name || user.name,
       agentName: getAgentName(),
-    });
+    }, deferredToolsBlock);
   } else {
-    const systemPrompt = buildSystemMessages(session, provider.name);
+    const systemPrompt = buildSystemMessages(session, provider.name, deferredToolsBlock);
     await batchMode(provider, formattedTools, systemPrompt, session, registry, args.json);
   }
 }

@@ -4,6 +4,83 @@ import { graphqlRequest } from '../../../api/graphql.js';
 
 export const systemTools: CanonicalCapability[] = [
   buildCapability({
+    name: 'tool_search',
+    displayName: 'Tool Search',
+    description: 'Search for and load additional tools by name or keyword. Use this when you need a tool that is listed in deferred-tools but not currently loaded.',
+    category: 'system',
+    backendType: 'none',
+    backendService: 'local',
+    requiresSpace: false,
+    requiresEvent: false,
+    alwaysLoad: true,
+    shouldDefer: false,
+    searchHint: 'find search load tools capabilities',
+    whenToUse: 'when you need a tool listed in deferred-tools that is not currently loaded',
+    surfaces: ['aiTool'],
+    destructive: false,
+    params: [
+      { name: 'query', type: 'string', required: true, description: 'Tool name, keyword, or category to search for. Examples: "event_broadcast_create", "ticket assign", "payment refund"' },
+      { name: 'max_results', type: 'number', required: false, description: 'Maximum results to return (default: 5)' },
+    ],
+    execute: async (args) => {
+      const query = String(args.query).toLowerCase();
+      const maxResults = Number(args.max_results) || 5;
+      const { getAllCapabilities } = await import('../registry.js');
+      const caps = getAllCapabilities();
+
+      const scored = caps.map(cap => {
+        let score = 0;
+        const name = cap.name.toLowerCase();
+        const hint = (cap.searchHint || '').toLowerCase();
+        const desc = cap.description.toLowerCase();
+        const whenToUse = (cap.whenToUse || '').toLowerCase();
+
+        // Exact name match
+        if (name === query) score += 100;
+        // Name contains query
+        else if (name.includes(query)) score += 50;
+
+        // Query words match name parts (snake_case splitting)
+        const queryWords = query.split(/[\s_]+/);
+        const nameParts = name.split('_');
+        for (const qw of queryWords) {
+          if (nameParts.some(np => np.startsWith(qw))) score += 20;
+          if (hint.includes(qw)) score += 10;
+          if (desc.includes(qw)) score += 5;
+          if (whenToUse.includes(qw)) score += 5;
+        }
+
+        // Category match
+        if (cap.category === query) score += 30;
+
+        return { cap, score };
+      })
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxResults);
+
+      return {
+        results: scored.map(s => ({
+          name: s.cap.name,
+          displayName: s.cap.displayName,
+          description: s.cap.description,
+          category: s.cap.category,
+          whenToUse: s.cap.whenToUse,
+          params: s.cap.params.map(p => ({ name: p.name, type: p.type, required: p.required, description: p.description })),
+          destructive: s.cap.destructive,
+        })),
+        total_matches: scored.length,
+      };
+    },
+    formatResult: (result: unknown) => {
+      const r = result as { results: Array<{ name: string; category: string; description: string; params: Array<{ name: string; required: boolean }> }>; total_matches: number };
+      if (!r.results?.length) return 'No matching tools found.';
+      return r.results.map((t) =>
+        `**${t.name}** (${t.category})\n  ${t.description}\n  Params: ${t.params.map((p) => `${p.name}${p.required ? '*' : ''}`).join(', ')}`
+      ).join('\n\n');
+    },
+  }),
+  buildCapability({
     name: 'get_backend_version',
     category: 'system',
     displayName: 'backend version',
