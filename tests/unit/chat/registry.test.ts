@@ -657,4 +657,36 @@ describe('Tool Registry', () => {
     expect(registry.event_set_photos.params.find((p) => p.name === 'event_id')?.required).toBe(true);
     expect(registry.event_set_photos.params.find((p) => p.name === 'file_ids')?.required).toBe(true);
   });
+
+  it('every tool category is in the known allowlist', () => {
+    const VALID_CATEGORIES = new Set([
+      'connector',
+      'event',
+      'file',
+      'launchpad',
+      'newsletter',
+      'notifications',
+      'page',
+      'payment',
+      'payments',
+      'rewards',
+      'session',
+      'space',
+      'subscription',
+      'system',
+      'template',
+      'tempo',
+      'theme',
+      'tickets',
+      'user',
+      'voting',
+    ]);
+
+    for (const [name, tool] of Object.entries(registry)) {
+      expect(
+        VALID_CATEGORIES.has(tool.category),
+        `Tool "${name}" has unknown category "${tool.category}". Add it to the allowlist if intentional.`,
+      ).toBe(true);
+    }
+  });
 });

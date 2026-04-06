@@ -5,11 +5,6 @@ import { renderTable, renderKeyValue } from '../../output/table.js';
 import { handleError } from '../../output/error.js';
 import type { ToolDef, ToolParam } from '../../chat/providers/interface.js';
 
-/** Get the explicit category from a ToolDef. */
-export function getToolCategory(tool: ToolDef): string {
-  return tool.category;
-}
-
 /** Get sorted unique categories from a tool record. */
 export function getCategories(tools: Record<string, ToolDef>): string[] {
   const cats = new Set<string>();
@@ -55,7 +50,7 @@ export function registerToolCommands(program: Command): void {
 
         if (opts.category) {
           const cat = opts.category.toLowerCase();
-          entries = entries.filter((t) => getToolCategory(t) === cat);
+          entries = entries.filter((t) => t.category === cat);
           if (entries.length === 0) {
             const available = getCategories(registry).join(', ');
             throw new Error(`No tools in category "${opts.category}". Available categories: ${available}`);
@@ -67,7 +62,7 @@ export function registerToolCommands(program: Command): void {
         if (opts.json) {
           const data = entries.map((t) => ({
             name: t.name,
-            category: getToolCategory(t),
+            category: t.category,
             description: t.description,
             destructive: t.destructive,
             params: formatParamSummary(t.params),
@@ -76,7 +71,7 @@ export function registerToolCommands(program: Command): void {
         } else {
           const rows = entries.map((t) => [
             t.name,
-            getToolCategory(t),
+            t.category,
             t.description,
             t.destructive ? 'yes' : '',
           ]);
@@ -137,7 +132,7 @@ export function registerToolCommands(program: Command): void {
         const registry = getRegistry();
         const counts: Record<string, number> = {};
         for (const tool of Object.values(registry)) {
-          const cat = getToolCategory(tool);
+          const cat = tool.category;
           counts[cat] = (counts[cat] || 0) + 1;
         }
 
@@ -162,7 +157,7 @@ function showToolInfo(tool: ToolDef, json: boolean): void {
       jsonSuccess({
         name: tool.name,
         displayName: tool.displayName,
-        category: getToolCategory(tool),
+        category: tool.category,
         description: tool.description,
         destructive: tool.destructive,
         params: tool.params.map((p) => ({
@@ -179,7 +174,7 @@ function showToolInfo(tool: ToolDef, json: boolean): void {
     const pairs: Array<[string, string]> = [
       ['Name', tool.name],
       ['Display Name', tool.displayName],
-      ['Category', getToolCategory(tool)],
+      ['Category', tool.category],
       ['Description', tool.description],
       ['Destructive', tool.destructive ? 'yes' : 'no'],
     ];

@@ -1416,7 +1416,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'list_payment_accounts',
-    category: 'payment_account',
+    category: 'payment',
     displayName: 'payment accounts list',
     description: 'List payment accounts configured for receiving payments (Stripe, crypto wallets).',
     params: [
@@ -1494,7 +1494,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_wallet',
-    category: 'payment_account',
+    category: 'payment',
     displayName: 'payment account create wallet',
     description: 'Create an Ethereum wallet payment account for receiving crypto payments. Use list_chains first to find available networks and tokens.',
     params: [
@@ -1531,7 +1531,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_safe',
-    category: 'payment_account',
+    category: 'payment',
     displayName: 'payment account create safe',
     description: 'Create a Safe multisig wallet payment account. Omit address to auto-deploy a new Safe (1 free per user, gasless via Gelato). Provide address to import an existing Safe.',
     params: [
@@ -1581,7 +1581,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_escrow',
-    category: 'payment_account',
+    category: 'payment',
     displayName: 'payment account create escrow',
     description: 'Create an escrow payment account. Funds are held in escrow until event completion.',
     params: [
@@ -1624,7 +1624,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_relay',
-    category: 'payment_account',
+    category: 'payment',
     displayName: 'payment account create relay',
     description: 'Create a relay/payment-splitter payment account. Address is auto-set from chain config.',
     params: [
@@ -1661,7 +1661,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_stake',
-    category: 'payment_account',
+    category: 'payment',
     displayName: 'payment account create stake',
     description: 'Create a stake payment account. Attendees stake tokens. Address is auto-set from chain config.',
     params: [
@@ -1707,7 +1707,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_stripe',
-    category: 'payment_account',
+    category: 'payment',
     displayName: 'payment account create stripe',
     description: 'Create a Stripe payment account for fiat payments. Requires Stripe Connect to be completed first (use space_stripe_connect). No account_info needed — currencies are auto-configured.',
     params: [
@@ -1735,7 +1735,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_update',
-    category: 'payment_account',
+    category: 'payment',
     displayName: 'payment account update',
     description: 'Update a payment account title or configuration.',
     params: [
@@ -1778,7 +1778,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'stripe_disconnect',
-    category: 'payment_account',
+    category: 'payment',
     displayName: 'stripe disconnect',
     description: 'Disconnect Stripe payment account. This is irreversible.',
     params: [],
@@ -1798,7 +1798,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'stripe_capabilities',
-    category: 'payment_account',
+    category: 'payment',
     displayName: 'stripe capabilities',
     description: 'View Stripe payment method capabilities (card, Apple Pay, Google Pay).',
     params: [],
@@ -1832,7 +1832,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'safe_free_limit',
-    category: 'system',
+    category: 'payment',
     displayName: 'safe free limit',
     description: 'Check Safe wallet deployment eligibility for a network. Each user gets 1 free gasless Safe deployment.',
     params: [
@@ -3750,7 +3750,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'template_clone_to_config',
-    category: 'template',
+    category: 'page',
     displayName: 'template clone to config',
     description: 'Clone a template to create a new page configuration for an event or space.',
     params: [
