@@ -19,10 +19,10 @@ export const userTools: CanonicalCapability[] = [
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async () => {
-      const result = await graphqlRequest<{ getMe: unknown }>(
-        'query { getMe { _id name email first_name last_name } }',
+      const result = await graphqlRequest<{ getMe: { user: unknown } }>(
+        'query { getMe { user { _id name email first_name last_name } } }',
       );
-      return result.getMe;
+      return result.getMe.user;
     },
     formatResult: (result) => {
       const r = result as { _id: string; name: string; email: string };
