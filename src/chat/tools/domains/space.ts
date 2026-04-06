@@ -46,7 +46,7 @@ export const spaceTools: CanonicalCapability[] = [
     backendResolver: 'createSpace',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool'],
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const input: Record<string, unknown> = { title: args.title };
       if (args.description !== undefined) input.description = args.description;
@@ -110,7 +110,7 @@ export const spaceTools: CanonicalCapability[] = [
     backendResolver: 'aiListMySpaces',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'slashCommand'],
+    surfaces: ['aiTool', 'slashCommand', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiListMySpaces: unknown }>(
         `query($limit: Int, $skip: Int) {
@@ -195,7 +195,7 @@ export const spaceTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'updateSpace',
     requiresEvent: false,
-    surfaces: ['aiTool'],
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.title !== undefined) input.title = args.title;
@@ -262,7 +262,7 @@ export const spaceTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiGetSpaceStats',
     requiresEvent: false,
-    surfaces: ['aiTool'],
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetSpaceStats: unknown }>(
         `query($space: MongoID!) {
@@ -296,7 +296,7 @@ export const spaceTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiGetSpaceMembers',
     requiresEvent: false,
-    surfaces: ['aiTool'],
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetSpaceMembers: unknown }>(
         `query($space: MongoID!) {

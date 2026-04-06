@@ -33,8 +33,8 @@ describe('generate-from-mcp', () => {
   });
 
   it('generates command files for each tool', () => {
-    expect(existsSync(join(GENERATED_DIR, 'search-events.ts'))).toBe(true);
-    expect(existsSync(join(GENERATED_DIR, 'create-event.ts'))).toBe(true);
+    expect(existsSync(join(GENERATED_DIR, 'event-search.ts'))).toBe(true);
+    expect(existsSync(join(GENERATED_DIR, 'event-create.ts'))).toBe(true);
     expect(existsSync(join(GENERATED_DIR, 'get-me.ts'))).toBe(true);
   });
 
@@ -48,7 +48,7 @@ describe('generate-from-mcp', () => {
   });
 
   it('generates valid TypeScript with correct exports', () => {
-    const content = readFileSync(join(GENERATED_DIR, 'search-events.ts'), 'utf-8');
+    const content = readFileSync(join(GENERATED_DIR, 'event-search.ts'), 'utf-8');
 
     // Has required exports
     expect(content).toContain("export const group = 'event'");
@@ -69,25 +69,25 @@ describe('generate-from-mcp', () => {
   });
 
   it('marks required fields as requiredOption', () => {
-    const content = readFileSync(join(GENERATED_DIR, 'create-event.ts'), 'utf-8');
+    const content = readFileSync(join(GENERATED_DIR, 'event-create.ts'), 'utf-8');
     expect(content).toContain(".requiredOption('--title <value>'");
     expect(content).toContain(".requiredOption('--space-id <value>'");
     expect(content).toContain(".requiredOption('--start <value>'");
   });
 
   it('uses correct mutation type for non-read-only tools', () => {
-    const content = readFileSync(join(GENERATED_DIR, 'create-event.ts'), 'utf-8');
+    const content = readFileSync(join(GENERATED_DIR, 'event-create.ts'), 'utf-8');
     expect(content).toContain('mutation');
   });
 
   it('uses query type for read-only tools', () => {
-    const content = readFileSync(join(GENERATED_DIR, 'search-events.ts'), 'utf-8');
+    const content = readFileSync(join(GENERATED_DIR, 'event-search.ts'), 'utf-8');
     expect(content).toMatch(/^const QUERY = `query/m);
   });
 
   it('includes auto-generated header comment', () => {
-    const content = readFileSync(join(GENERATED_DIR, 'search-events.ts'), 'utf-8');
+    const content = readFileSync(join(GENERATED_DIR, 'event-search.ts'), 'utf-8');
     expect(content).toContain('Auto-generated from mcp-schema.json');
-    expect(content).toContain('MCP tool: search_events');
+    expect(content).toContain('Tool: event_search');
   });
 });

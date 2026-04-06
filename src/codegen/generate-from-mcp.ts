@@ -164,7 +164,7 @@ function generateCommandFile(tool: McpToolSchema): string {
   }).join('\n');
 
   return `// Auto-generated from mcp-schema.json -- do not edit manually
-// MCP tool: ${tool.name} -> GraphQL resolver: ${resolverName}
+// Tool: ${tool.name} -> GraphQL resolver: ${resolverName}
 // Override by creating a manual command in src/commands/${group}/
 
 import { Command } from 'commander';
