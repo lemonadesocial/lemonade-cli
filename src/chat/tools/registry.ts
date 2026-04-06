@@ -43,6 +43,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'get_me',
+    category: 'user',
     displayName: 'auth whoami',
     description: 'Get the current authenticated user profile.',
     params: [],
@@ -63,6 +64,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_create',
+    category: 'event',
     displayName: 'event create',
     description: 'Create a new event with full configuration options. Returns the event ID, title, and status.',
     params: [
@@ -159,6 +161,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_list',
+    category: 'event',
     displayName: 'event list',
     description: 'List your hosted events.',
     params: [
@@ -188,6 +191,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_search',
+    category: 'event',
     displayName: 'event search',
     description: 'Search events across all platforms via federated search.',
     params: [
@@ -224,6 +228,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_get',
+    category: 'event',
     displayName: 'event get',
     description: 'Get detailed information about a specific event.',
     params: [
@@ -250,6 +255,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_update',
+    category: 'event',
     displayName: 'event update',
     description: 'Update an existing event with full configuration options.',
     params: [
@@ -336,6 +342,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_publish',
+    category: 'event',
     displayName: 'event publish',
     description: 'Publish a draft event to make it live.',
     params: [
@@ -359,6 +366,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_cancel',
+    category: 'event',
     displayName: 'event cancel',
     description: 'Cancel an event. This action cannot be undone.',
     params: [
@@ -376,6 +384,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_ticket_sold_insight',
+    category: 'event',
     displayName: 'event ticket sales',
     description: 'Get ticket sales data for an event.',
     params: [
@@ -398,6 +407,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_view_insight',
+    category: 'event',
     displayName: 'event view stats',
     description: 'Get page view statistics for an event.',
     params: [
@@ -421,6 +431,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_guest_stats',
+    category: 'event',
     displayName: 'event guest stats',
     description: 'Get guest statistics for an event (going, pending, declined, checked in).',
     params: [
@@ -446,6 +457,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_guests',
+    category: 'event',
     displayName: 'event guests',
     description: 'List attendees for an event.',
     params: [
@@ -475,6 +487,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_invite',
+    category: 'event',
     displayName: 'event invite',
     description: 'Send email invitations to an event.',
     params: [
@@ -493,6 +506,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_approvals',
+    category: 'event',
     displayName: 'event approvals',
     description: 'Approve or decline event join requests.',
     params: [
@@ -521,6 +535,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_feedback_summary',
+    category: 'event',
     displayName: 'event feedback summary',
     description: 'Get feedback summary (average rating, distribution) for an event.',
     params: [
@@ -547,6 +562,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_feedbacks',
+    category: 'event',
     displayName: 'event feedbacks',
     description: 'List individual feedback entries for an event.',
     params: [
@@ -576,6 +592,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_checkins',
+    category: 'event',
     displayName: 'event checkins',
     description: 'List check-in history for an event.',
     params: [
@@ -603,6 +620,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_payment_stats',
+    category: 'payment',
     displayName: 'event payment stats',
     description: 'Get payment statistics for an event.',
     params: [
@@ -635,6 +653,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_application_answers',
+    category: 'event',
     displayName: 'event applications',
     description: 'Get application answers for an event.',
     params: [
@@ -657,6 +676,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'accept_event',
+    category: 'event',
     displayName: 'accept event',
     description: 'Accept an event invitation.',
     params: [
@@ -674,6 +694,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'decline_event',
+    category: 'event',
     displayName: 'decline event',
     description: 'Decline an event invitation.',
     params: [
@@ -693,6 +714,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_list_types',
+    category: 'tickets',
     displayName: 'tickets types',
     description: 'List ticket types for an event.',
     params: [
@@ -714,6 +736,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_create_type',
+    category: 'tickets',
     displayName: 'tickets create-type',
     description: 'Create a ticket type for an event. Omit price for a free ticket.',
     params: [
@@ -754,6 +777,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_update_type',
+    category: 'tickets',
     displayName: 'tickets update-type',
     description: 'Update an existing ticket type.',
     params: [
@@ -789,6 +813,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_buy',
+    category: 'tickets',
     displayName: 'tickets buy',
     description: 'Purchase tickets for an event. Requires attendee info for each ticket.',
     params: [
@@ -916,6 +941,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_price',
+    category: 'tickets',
     displayName: 'tickets price',
     description: 'Calculate ticket price with optional discount.',
     params: [
@@ -957,6 +983,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_receipt',
+    category: 'tickets',
     displayName: 'tickets receipt',
     description: 'Check ticket purchase receipt status.',
     params: [
@@ -974,6 +1001,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_create_discount',
+    category: 'tickets',
     displayName: 'tickets create-discount',
     description: 'Create a discount code for an event ticket type.',
     params: [
@@ -1006,6 +1034,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_create',
+    category: 'space',
     displayName: 'space create',
     description: 'Create a new space (community).',
     params: [
@@ -1076,6 +1105,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_list',
+    category: 'space',
     displayName: 'space list',
     description: 'List your spaces.',
     params: [
@@ -1099,6 +1129,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_switch',
+    category: 'space',
     displayName: 'space switch',
     description:
       'Switch the active space for this session. All subsequent space-scoped commands will use this space.',
@@ -1131,6 +1162,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_update',
+    category: 'space',
     displayName: 'space update',
     description: 'Update a space.',
     params: [
@@ -1208,6 +1240,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_stats',
+    category: 'space',
     displayName: 'space analytics',
     description: 'Get space analytics (members, events, ratings).',
     params: [
@@ -1235,6 +1268,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_members',
+    category: 'space',
     displayName: 'space members',
     description: 'List members of a space.',
     params: [
@@ -1256,6 +1290,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_add_member',
+    category: 'space',
     displayName: 'space add-member',
     description: 'Add a member to a space.',
     params: [
@@ -1277,6 +1312,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_remove_member',
+    category: 'space',
     displayName: 'space remove-member',
     description: 'Remove a member from a space.',
     params: [
@@ -1297,6 +1333,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_connectors',
+    category: 'space',
     displayName: 'space connectors',
     description: 'List connected platforms for a space.',
     params: [
@@ -1318,6 +1355,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_stripe_connect',
+    category: 'space',
     displayName: 'space stripe-connect',
     description: 'Get a Stripe Connect onboarding URL.',
     params: [
@@ -1354,6 +1392,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_stripe_status',
+    category: 'space',
     displayName: 'space stripe-status',
     description: 'Check Stripe account connection status.',
     params: [],
@@ -1377,6 +1416,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'list_payment_accounts',
+    category: 'payment',
     displayName: 'payment accounts list',
     description: 'List payment accounts configured for receiving payments (Stripe, crypto wallets).',
     params: [
@@ -1454,6 +1494,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_wallet',
+    category: 'payment',
     displayName: 'payment account create wallet',
     description: 'Create an Ethereum wallet payment account for receiving crypto payments. Use list_chains first to find available networks and tokens.',
     params: [
@@ -1490,6 +1531,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_safe',
+    category: 'payment',
     displayName: 'payment account create safe',
     description: 'Create a Safe multisig wallet payment account. Omit address to auto-deploy a new Safe (1 free per user, gasless via Gelato). Provide address to import an existing Safe.',
     params: [
@@ -1539,6 +1581,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_escrow',
+    category: 'payment',
     displayName: 'payment account create escrow',
     description: 'Create an escrow payment account. Funds are held in escrow until event completion.',
     params: [
@@ -1581,6 +1624,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_relay',
+    category: 'payment',
     displayName: 'payment account create relay',
     description: 'Create a relay/payment-splitter payment account. Address is auto-set from chain config.',
     params: [
@@ -1617,6 +1661,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_stake',
+    category: 'payment',
     displayName: 'payment account create stake',
     description: 'Create a stake payment account. Attendees stake tokens. Address is auto-set from chain config.',
     params: [
@@ -1662,6 +1707,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_create_stripe',
+    category: 'payment',
     displayName: 'payment account create stripe',
     description: 'Create a Stripe payment account for fiat payments. Requires Stripe Connect to be completed first (use space_stripe_connect). No account_info needed — currencies are auto-configured.',
     params: [
@@ -1689,6 +1735,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'payment_account_update',
+    category: 'payment',
     displayName: 'payment account update',
     description: 'Update a payment account title or configuration.',
     params: [
@@ -1731,6 +1778,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'stripe_disconnect',
+    category: 'payment',
     displayName: 'stripe disconnect',
     description: 'Disconnect Stripe payment account. This is irreversible.',
     params: [],
@@ -1750,6 +1798,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'stripe_capabilities',
+    category: 'payment',
     displayName: 'stripe capabilities',
     description: 'View Stripe payment method capabilities (card, Apple Pay, Google Pay).',
     params: [],
@@ -1783,6 +1832,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'safe_free_limit',
+    category: 'payment',
     displayName: 'safe free limit',
     description: 'Check Safe wallet deployment eligibility for a network. Each user gets 1 free gasless Safe deployment.',
     params: [
@@ -1809,6 +1859,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_delete',
+    category: 'space',
     displayName: 'space delete',
     description: 'Delete a space permanently. This cannot be undone.',
     params: [
@@ -1832,6 +1883,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_deep_stats',
+    category: 'space',
     displayName: 'space deep analytics',
     description: 'Get detailed community statistics including admins, ambassadors, subscribers, events, attendees, and ratings.',
     params: [
@@ -1860,6 +1912,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_top_hosts',
+    category: 'space',
     displayName: 'space top hosts',
     description: 'Get leaderboard of top event hosts in a space.',
     params: [
@@ -1884,6 +1937,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_member_leaderboard',
+    category: 'space',
     displayName: 'space member leaderboard',
     description: 'Get member activity leaderboard — attended events, hosted events, submitted events.',
     params: [
@@ -1914,6 +1968,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_events_insight',
+    category: 'space',
     displayName: 'space events insight',
     description: 'Get events performance overview for a space — checkins, ticket sales, ratings.',
     params: [
@@ -1946,6 +2001,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_member_update',
+    category: 'space',
     displayName: 'space member update',
     description: 'Update a space member role or visibility.',
     params: [
@@ -1977,6 +2033,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_pin_event',
+    category: 'space',
     displayName: 'space pin event',
     description: 'Pin/feature events on a space page.',
     params: [
@@ -2004,6 +2061,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_unpin_event',
+    category: 'space',
     displayName: 'space unpin event',
     description: 'Unpin/unfeature events from a space page.',
     params: [
@@ -2030,6 +2088,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'rewards_balance',
+    category: 'rewards',
     displayName: 'rewards balance',
     description: 'View reward balance for a space.',
     params: [
@@ -2054,6 +2113,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'rewards_history',
+    category: 'rewards',
     displayName: 'rewards history',
     description: 'View reward transaction history for a space.',
     params: [
@@ -2084,6 +2144,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'rewards_payouts',
+    category: 'rewards',
     displayName: 'rewards payouts',
     description: 'View payout history.',
     params: [
@@ -2106,6 +2167,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'rewards_referral',
+    category: 'rewards',
     displayName: 'rewards referral',
     description: 'Generate, apply, or view referral codes.',
     params: [
@@ -2142,6 +2204,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'rewards_settings',
+    category: 'rewards',
     displayName: 'rewards settings',
     description: 'View or update payout settings.',
     params: [
@@ -2186,6 +2249,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'site_generate',
+    category: 'page',
     displayName: 'site generate',
     description: 'AI-generate a page from a text description.',
     params: [
@@ -2220,6 +2284,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'site_create_page',
+    category: 'page',
     displayName: 'site create-page',
     description: 'Create a page configuration using AI assistance. For manual control over sections and theme, use page_config_create.',
     params: [
@@ -2261,6 +2326,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'site_update_section',
+    category: 'page',
     displayName: 'site update-section',
     description: 'Update a section in a page configuration.',
     params: [
@@ -2295,6 +2361,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'site_deploy',
+    category: 'page',
     displayName: 'site deploy',
     description: 'Publish a page.',
     params: [
@@ -2314,6 +2381,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'site_templates',
+    category: 'page',
     displayName: 'site templates',
     description: 'List available page section templates with AI suggestions.',
     params: [
@@ -2352,6 +2420,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'connectors_list',
+    category: 'connector',
     displayName: 'connectors list',
     description: 'List available platform integrations.',
     params: [],
@@ -2366,6 +2435,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'connectors_sync',
+    category: 'connector',
     displayName: 'connectors sync',
     description: 'Trigger a connector sync.',
     params: [
@@ -2388,6 +2458,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'connector_connect',
+    category: 'connector',
     displayName: 'connector connect',
     description: 'Initiate connecting a new integration to a space. Returns OAuth URL for OAuth connectors or requiresApiKey for API key connectors.',
     params: [
@@ -2408,6 +2479,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'connector_submit_api_key',
+    category: 'connector',
     displayName: 'connector submit API key',
     description: 'Submit an API key for an API-key-based connector (Luma, Dice, etc.).',
     params: [
@@ -2432,6 +2504,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'connector_configure',
+    category: 'connector',
     displayName: 'connector configure',
     description: 'Configure a connected integration (set organization, calendar, sync schedule, etc.).',
     params: [
@@ -2465,6 +2538,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'connector_config_options',
+    category: 'connector',
     displayName: 'connector config options',
     description: 'Fetch dropdown options for connector configuration (e.g., list of Airtable bases).',
     params: [
@@ -2485,6 +2559,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'connector_logs',
+    category: 'connector',
     displayName: 'connector logs',
     description: 'View sync activity logs for a connection.',
     params: [
@@ -2507,6 +2582,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'connector_disconnect',
+    category: 'connector',
     displayName: 'connector disconnect',
     description: 'Disconnect an integration from a space. This revokes access and removes all credentials.',
     params: [
@@ -2530,6 +2606,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'connector_slot_info',
+    category: 'connector',
     displayName: 'connector slot info',
     description: 'Check how many connector slots a space has used vs allowed.',
     params: [
@@ -2555,6 +2632,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'notifications_list',
+    category: 'notifications',
     displayName: 'notifications list',
     description: 'Get recent notifications.',
     params: [],
@@ -2569,6 +2647,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'notifications_read',
+    category: 'notifications',
     displayName: 'notifications read',
     description: 'Mark notifications as read.',
     params: [
@@ -2587,10 +2666,11 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     },
   });
 
-  // --- System ---
+  // --- System (CLI infrastructure: version info, chain data, credits, model selection, analytics tokens) ---
 
   register({
     name: 'get_backend_version',
+    category: 'system',
     displayName: 'backend version',
     description: 'Get the backend API version.',
     params: [],
@@ -2609,6 +2689,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'cli_version',
+    category: 'system',
     displayName: 'CLI version',
     description: 'Check the current CLI version and whether an update is available from npm.',
     params: [],
@@ -2642,6 +2723,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'list_chains',
+    category: 'system',
     displayName: 'list chains',
     description: 'List supported blockchain networks.',
     params: [],
@@ -2658,6 +2740,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'launchpad_list_coins',
+    category: 'launchpad',
     displayName: 'launchpad list-coins',
     description: 'List launchpad coins.',
     params: [],
@@ -2672,6 +2755,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'launchpad_add_coin',
+    category: 'launchpad',
     displayName: 'launchpad add-coin',
     description: 'Add a new launchpad coin.',
     params: [
@@ -2693,6 +2777,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'launchpad_update_coin',
+    category: 'launchpad',
     displayName: 'launchpad update-coin',
     description: 'Update a launchpad coin.',
     params: [
@@ -2720,6 +2805,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_clone',
+    category: 'event',
     displayName: 'event clone',
     description: 'Clone an event to one or more new dates. Returns array of new event IDs.',
     params: [
@@ -2744,6 +2830,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_recurring_dates',
+    category: 'event',
     displayName: 'event recurring dates',
     description: 'Generate dates for a recurring event series. Returns array of dates.',
     params: [
@@ -2782,6 +2869,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_list_cohost_requests',
+    category: 'event',
     displayName: 'event cohost requests',
     description: 'List co-host requests/invitations for an event.',
     params: [
@@ -2808,6 +2896,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_add_cohost',
+    category: 'event',
     displayName: 'event add cohost',
     description: 'Add a co-host, gatekeeper, or representative to an event by email or user ID.',
     params: [
@@ -2839,6 +2928,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_remove_cohost',
+    category: 'event',
     displayName: 'event remove cohost',
     description: 'Remove a co-host from an event by email or user ID.',
     params: [
@@ -2869,6 +2959,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_broadcast_create',
+    category: 'event',
     displayName: 'event broadcast create',
     description: 'Create a broadcast/livestream for an event.',
     params: [
@@ -2906,6 +2997,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_broadcast_update',
+    category: 'event',
     displayName: 'event broadcast update',
     description: "Update a broadcast's settings.",
     params: [
@@ -2932,6 +3024,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_broadcast_delete',
+    category: 'event',
     displayName: 'event broadcast delete',
     description: 'Delete a broadcast from an event.',
     params: [
@@ -2954,6 +3047,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_emails_list',
+    category: 'event',
     displayName: 'event emails list',
     description: 'List email settings/workflows configured for an event.',
     params: [
@@ -2983,6 +3077,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_email_create',
+    category: 'event',
     displayName: 'event email create',
     description: 'Create a custom email setting for an event.',
     params: [
@@ -3018,6 +3113,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_email_update',
+    category: 'event',
     displayName: 'event email update',
     description: 'Update an existing email setting.',
     params: [
@@ -3047,6 +3143,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_email_delete',
+    category: 'event',
     displayName: 'event email delete',
     description: 'Delete an email setting.',
     params: [
@@ -3066,6 +3163,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_email_toggle',
+    category: 'event',
     displayName: 'event email toggle',
     description: 'Enable or disable multiple email settings at once.',
     params: [
@@ -3087,6 +3185,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_email_test',
+    category: 'event',
     displayName: 'event email test',
     description: 'Send test emails for a specific email template type.',
     params: [
@@ -3122,6 +3221,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_ticket_statistics',
+    category: 'event',
     displayName: 'event ticket statistics',
     description: 'Get ticket statistics for an event (all, checked in, cancelled, per ticket type).',
     params: [
@@ -3145,6 +3245,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_export_guests',
+    category: 'event',
     displayName: 'event export guests',
     description: 'Export attendee/ticket data for an event.',
     params: [
@@ -3180,6 +3281,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_guest_detail',
+    category: 'event',
     displayName: 'event guest detail',
     description: 'Get detailed info about a specific guest (ticket, payment, join request, application).',
     params: [
@@ -3211,6 +3313,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_guests_statistics',
+    category: 'event',
     displayName: 'event guests statistics',
     description: 'Get detailed guest statistics (going, pending, declined, checked in, per ticket type).',
     params: [
@@ -3233,6 +3336,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_guests_list',
+    category: 'event',
     displayName: 'event guests list',
     description: 'List event guests with filters and pagination.',
     params: [
@@ -3283,6 +3387,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_invitation_stats',
+    category: 'event',
     displayName: 'event invitation stats',
     description: 'Get invitation tracking statistics for an event.',
     params: [
@@ -3309,6 +3414,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_cancel_invitations',
+    category: 'event',
     displayName: 'event cancel invitations',
     description: 'Cancel sent invitations for an event.',
     params: [
@@ -3335,6 +3441,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_sales_chart',
+    category: 'event',
     displayName: 'event sales chart',
     description: 'Get ticket sales data over a time range for charting.',
     params: [
@@ -3366,6 +3473,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_checkin_chart',
+    category: 'event',
     displayName: 'event checkin chart',
     description: 'Get check-in data over a time range for charting.',
     params: [
@@ -3389,6 +3497,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_views_chart',
+    category: 'event',
     displayName: 'event views chart',
     description: 'Get page view data over a time range for charting.',
     params: [
@@ -3412,6 +3521,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_view_stats',
+    category: 'event',
     displayName: 'event view stats',
     description: 'Get view counts for multiple date ranges (for comparison).',
     params: [
@@ -3434,6 +3544,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_top_views',
+    category: 'event',
     displayName: 'event top views',
     description: 'Get top traffic sources and cities for an event, plus total views.',
     params: [
@@ -3459,6 +3570,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_top_inviters',
+    category: 'event',
     displayName: 'event top inviters',
     description: 'Get top inviters ranked by successful invitations.',
     params: [
@@ -3489,6 +3601,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'page_archive',
+    category: 'page',
     displayName: 'page archive',
     description: 'Archive a page configuration.',
     params: [
@@ -3508,6 +3621,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'page_save_version',
+    category: 'page',
     displayName: 'page save version',
     description: 'Save a named version snapshot of a page configuration.',
     params: [
@@ -3533,6 +3647,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'page_restore_version',
+    category: 'page',
     displayName: 'page restore version',
     description: 'Restore a page configuration to a previous version.',
     params: [
@@ -3555,6 +3670,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'page_list_versions',
+    category: 'page',
     displayName: 'page list versions',
     description: 'List saved versions of a page configuration.',
     params: [
@@ -3576,6 +3692,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'page_section_catalog',
+    category: 'page',
     displayName: 'page section catalog',
     description: 'Get the catalog of available section types for page building.',
     params: [],
@@ -3594,6 +3711,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'template_list',
+    category: 'template',
     displayName: 'template list',
     description: 'List available page templates with optional filters.',
     params: [
@@ -3632,6 +3750,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'template_clone_to_config',
+    category: 'template',
     displayName: 'template clone to config',
     description: 'Clone a template to create a new page configuration for an event or space.',
     params: [
@@ -3658,6 +3777,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_token_gates_list',
+    category: 'event',
     displayName: 'event token gates list',
     description: 'List token gates for an event with optional filters.',
     params: [
@@ -3687,6 +3807,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_token_gate_create',
+    category: 'event',
     displayName: 'event token gate create',
     description: 'Create a token gate for an event.',
     params: [
@@ -3728,6 +3849,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_token_gate_update',
+    category: 'event',
     displayName: 'event token gate update',
     description: 'Update an existing token gate.',
     params: [
@@ -3763,6 +3885,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_token_gate_delete',
+    category: 'event',
     displayName: 'event token gate delete',
     description: 'Delete a token gate from an event.',
     params: [
@@ -3785,6 +3908,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_poap_list',
+    category: 'event',
     displayName: 'event poap list',
     description: 'List POAP drops for an event.',
     params: [
@@ -3806,6 +3930,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_poap_create',
+    category: 'event',
     displayName: 'event poap create',
     description: 'Create a new POAP drop for an event.',
     params: [
@@ -3848,6 +3973,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_poap_update',
+    category: 'event',
     displayName: 'event poap update',
     description: 'Update an existing POAP drop.',
     params: [
@@ -3884,6 +4010,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_poap_import',
+    category: 'event',
     displayName: 'event poap import',
     description: 'Import an existing POAP drop from the POAP platform by external ID and edit code.',
     params: [
@@ -3920,6 +4047,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_ticket_categories_list',
+    category: 'event',
     displayName: 'event ticket categories list',
     description: 'List ticket categories for an event.',
     params: [
@@ -3941,6 +4069,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_ticket_category_create',
+    category: 'event',
     displayName: 'event ticket category create',
     description: 'Create a ticket category for an event.',
     params: [
@@ -3974,6 +4103,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_ticket_category_update',
+    category: 'event',
     displayName: 'event ticket category update',
     description: 'Update a ticket category.',
     params: [
@@ -4007,6 +4137,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_ticket_category_delete',
+    category: 'event',
     displayName: 'event ticket category delete',
     description: 'Delete one or more ticket categories from an event.',
     params: [
@@ -4027,6 +4158,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_ticket_category_reorder',
+    category: 'event',
     displayName: 'event ticket category reorder',
     description: 'Reorder ticket categories for an event.',
     params: [
@@ -4049,6 +4181,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_tags_list',
+    category: 'space',
     displayName: 'space tags list',
     description: 'List tags for a space with optional type filter.',
     params: [
@@ -4075,6 +4208,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_tag_upsert',
+    category: 'space',
     displayName: 'space tag upsert',
     description: 'Create or update a space tag.',
     params: [
@@ -4109,6 +4243,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_tag_delete',
+    category: 'space',
     displayName: 'space tag delete',
     description: 'Delete a space tag.',
     params: [
@@ -4129,6 +4264,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_tag_manage',
+    category: 'space',
     displayName: 'space tag manage',
     description: 'Add or remove a target (event or member) from a space tag.',
     params: [
@@ -4153,6 +4289,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_question_create',
+    category: 'event',
     displayName: 'event question create',
     description: 'Post a question in an event Q&A session.',
     params: [
@@ -4182,6 +4319,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_question_delete',
+    category: 'event',
     displayName: 'event question delete',
     description: 'Delete a question (soft delete).',
     params: [
@@ -4201,6 +4339,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_question_like',
+    category: 'event',
     displayName: 'event question like',
     description: 'Toggle like on a question.',
     params: [
@@ -4220,6 +4359,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_questions_list',
+    category: 'event',
     displayName: 'event questions list',
     description: 'List questions for an event with sorting and cursor-based pagination.',
     params: [
@@ -4256,6 +4396,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'credits_balance',
+    category: 'system',
     displayName: 'credits balance',
     description: 'Check AI credit balance for a community, including subscription tier, purchased credits, and renewal date.',
     params: [
@@ -4277,6 +4418,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'credits_usage',
+    category: 'system',
     displayName: 'credits usage',
     description: 'Get usage analytics for a community over a date range: daily usage, breakdown by model, top users, and totals.',
     params: [
@@ -4303,6 +4445,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'credits_buy',
+    category: 'system',
     displayName: 'credits buy',
     description: 'Purchase a credit top-up package. Returns a Stripe checkout URL.',
     params: [
@@ -4326,6 +4469,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'available_models',
+    category: 'system',
     displayName: 'available models',
     description: 'List AI models available for the current subscription tier.',
     params: [
@@ -4350,6 +4494,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'set_preferred_model',
+    category: 'system',
     displayName: 'set preferred model',
     description: 'Set the current user preferred AI model.',
     params: [
@@ -4371,6 +4516,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'set_space_default_model',
+    category: 'system',
     displayName: 'set space default model',
     description: 'Set a community default AI model.',
     params: [
@@ -4395,6 +4541,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'subscription_status',
+    category: 'subscription',
     displayName: 'subscription status',
     description: 'Get current subscription status for a community, including subscription record, detail items, and pending payment info.',
     params: [
@@ -4418,6 +4565,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'subscription_features',
+    category: 'subscription',
     displayName: 'subscription features',
     description: 'List all subscription features and their tier-level configuration.',
     params: [],
@@ -4436,6 +4584,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'subscription_plans',
+    category: 'subscription',
     displayName: 'subscription plans',
     description: 'List available subscription plans with pricing and AI credit allocations.',
     params: [],
@@ -4454,6 +4603,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'subscription_upgrade',
+    category: 'subscription',
     displayName: 'subscription upgrade',
     description: 'Purchase or upgrade a community subscription tier. Returns a Stripe checkout URL.',
     params: [
@@ -4484,6 +4634,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'subscription_cancel',
+    category: 'subscription',
     displayName: 'subscription cancel',
     description: 'Cancel an AI credit subscription for a community.',
     params: [
@@ -4507,6 +4658,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'my_tickets',
+    category: 'tickets',
     displayName: 'my tickets',
     description: 'Get tickets the current user has purchased.',
     params: [],
@@ -4523,6 +4675,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_join_requests',
+    category: 'event',
     displayName: 'event join requests',
     description: 'List pending join requests for an event.',
     params: [
@@ -4557,6 +4710,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_checkin',
+    category: 'event',
     displayName: 'event checkin',
     description: 'Manually check in an attendee to an event.',
     params: [
@@ -4586,6 +4740,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_ticket_delete',
+    category: 'event',
     displayName: 'event ticket delete',
     description: 'Delete a ticket type from an event.',
     params: [
@@ -4610,6 +4765,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_ticket_reorder',
+    category: 'event',
     displayName: 'event ticket reorder',
     description: 'Reorder ticket types for an event.',
     params: [
@@ -4638,6 +4794,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_payment_summary',
+    category: 'payment',
     displayName: 'event payment summary',
     description: 'Get detailed payment breakdown for an event by currency.',
     params: [
@@ -4668,6 +4825,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'user_update',
+    category: 'user',
     displayName: 'user update',
     description: 'Update your profile (name, display name, bio, tagline, timezone, username, social handles).',
     params: [
@@ -4708,6 +4866,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'user_search',
+    category: 'user',
     displayName: 'user search',
     description: 'Search users by name or email.',
     params: [
@@ -4731,6 +4890,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_discount_update',
+    category: 'event',
     displayName: 'event discount update',
     description: 'Update a ticket discount code settings (use limits, ticket limits).',
     params: [
@@ -4767,6 +4927,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_discount_delete',
+    category: 'event',
     displayName: 'event discount delete',
     description: 'Delete ticket discount codes from an event.',
     params: [
@@ -4795,6 +4956,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_ticket_categories',
+    category: 'event',
     displayName: 'event ticket categories',
     description: 'List ticket categories for an event.',
     params: [
@@ -4823,6 +4985,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_application_export',
+    category: 'event',
     displayName: 'event application export',
     description: 'Export event application/form responses. Returns applicant data with questions and answers.',
     params: [
@@ -4849,6 +5012,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tempo_status',
+    category: 'tempo',
     displayName: 'tempo status',
     description: 'Check Tempo wallet status — installation, address, balances, key readiness.',
     params: [],
@@ -4868,6 +5032,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tempo_transfer',
+    category: 'tempo',
     displayName: 'tempo transfer',
     description: 'Send USDC to an address via Tempo wallet.',
     params: [
@@ -4890,6 +5055,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tempo_setup_payouts',
+    category: 'tempo',
     displayName: 'tempo setup payouts',
     description: 'Configure your Tempo wallet as the reward payout destination. Auto-detects wallet address.',
     params: [
@@ -4921,6 +5087,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tempo_services',
+    category: 'tempo',
     displayName: 'tempo services',
     description: 'Discover MPP-registered services that accept Tempo payments.',
     params: [
@@ -4941,6 +5108,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_create',
+    category: 'tickets',
     displayName: 'tickets create',
     description: 'Create complimentary tickets (no payment). The ticket type determines the event. Assignments are by email.',
     params: [
@@ -4980,6 +5148,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_cancel',
+    category: 'tickets',
     displayName: 'tickets cancel',
     description: 'Cancel specific tickets for an event.',
     params: [
@@ -5003,6 +5172,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_assign',
+    category: 'tickets',
     displayName: 'tickets assign',
     description: 'Assign tickets to users by email or user ID.',
     params: [
@@ -5036,6 +5206,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_upgrade',
+    category: 'tickets',
     displayName: 'tickets upgrade',
     description: 'Upgrade a ticket to a different ticket type.',
     params: [
@@ -5060,6 +5231,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_email',
+    category: 'tickets',
     displayName: 'tickets email',
     description: 'Email event tickets to specified addresses.',
     params: [
@@ -5088,6 +5260,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'tickets_email_receipt',
+    category: 'tickets',
     displayName: 'tickets email receipt',
     description: 'Email payment receipt for a specific ticket.',
     params: [
@@ -5112,6 +5285,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_payments_list',
+    category: 'payment',
     displayName: 'event payments list',
     description: 'List payments for an event with optional filters.',
     params: [
@@ -5166,6 +5340,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_payment_detail',
+    category: 'payment',
     displayName: 'event payment detail',
     description: 'Get details of a specific payment.',
     params: [
@@ -5199,6 +5374,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_payment_statistics',
+    category: 'payment',
     displayName: 'event payment statistics',
     description: 'Get detailed payment statistics by provider (Stripe vs crypto) with network breakdowns. For simple revenue totals, use event_payment_stats.',
     params: [
@@ -5231,6 +5407,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'newsletter_list',
+    category: 'newsletter',
     displayName: 'newsletter list',
     description: 'List newsletters for a space (drafts, scheduled, or sent).',
     params: [
@@ -5271,6 +5448,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'newsletter_get',
+    category: 'newsletter',
     displayName: 'newsletter get',
     description: 'Get details of a specific newsletter.',
     params: [
@@ -5311,6 +5489,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'newsletter_create',
+    category: 'newsletter',
     displayName: 'newsletter create',
     description: 'Create a newsletter for a space.',
     params: [
@@ -5357,6 +5536,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'newsletter_update',
+    category: 'newsletter',
     displayName: 'newsletter update',
     description: 'Update an existing newsletter.',
     params: [
@@ -5404,6 +5584,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'newsletter_delete',
+    category: 'newsletter',
     displayName: 'newsletter delete',
     description: 'Delete a newsletter.',
     params: [
@@ -5426,6 +5607,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'newsletter_test_send',
+    category: 'newsletter',
     displayName: 'newsletter test send',
     description: 'Send a test newsletter to specified email addresses.',
     params: [
@@ -5462,6 +5644,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'newsletter_stats',
+    category: 'newsletter',
     displayName: 'newsletter stats',
     description: 'Get newsletter statistics for a space (sent, delivered, opened).',
     params: [
@@ -5493,6 +5676,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_event_requests',
+    category: 'space',
     displayName: 'space event requests',
     description: 'List event requests submitted to a space for moderation.',
     params: [
@@ -5555,6 +5739,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_event_requests_decide',
+    category: 'space',
     displayName: 'space event requests decide',
     description: 'Approve or decline event requests submitted to a space.',
     params: [
@@ -5589,6 +5774,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_event_summary',
+    category: 'space',
     displayName: 'space event summary',
     description: 'Get aggregate event counts for a space (total, virtual, IRL, live, upcoming, past). For per-event performance, use space_events_insight.',
     params: [
@@ -5615,6 +5801,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_sending_quota',
+    category: 'space',
     displayName: 'space sending quota',
     description: 'Check newsletter/email sending quota for a space.',
     params: [
@@ -5641,6 +5828,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_my_event_requests',
+    category: 'space',
     displayName: 'space my event requests',
     description: 'List your own event requests submitted to a space.',
     params: [
@@ -5698,6 +5886,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_role_features',
+    category: 'space',
     displayName: 'space role features',
     description: 'List features/permissions enabled for a specific role in a space.',
     params: [
@@ -5742,6 +5931,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_role_features_update',
+    category: 'space',
     displayName: 'space role features update',
     description: `Set the complete list of features/permissions for a role in a space. This REPLACES all current features — include every feature code the role should have. Available codes: ${VALID_FEATURE_CODES.join(', ')}`,
     params: [
@@ -5777,6 +5967,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_member_growth',
+    category: 'space',
     displayName: 'space member growth',
     description: 'Get member growth time series for a space by role over a date range.',
     params: [
@@ -5814,6 +6005,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_top_attendees',
+    category: 'space',
     displayName: 'space top attendees',
     description: 'Get top event attendees leaderboard for a space.',
     params: [
@@ -5856,6 +6048,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_location_leaderboard',
+    category: 'space',
     displayName: 'space location leaderboard',
     description: 'Get geographic distribution of events in a space.',
     params: [
@@ -5896,6 +6089,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'cubejs_token',
+    category: 'system',
     displayName: 'cubejs token',
     description: 'Generate a CubeJS analytics token for external BI dashboard access.',
     params: [
@@ -5933,6 +6127,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_reward_stats',
+    category: 'space',
     displayName: 'space reward stats',
     description: 'Get token reward program statistics for a space.',
     params: [
@@ -5959,6 +6154,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_latest_views',
+    category: 'event',
     displayName: 'event latest views',
     description: 'Get the most recent individual page views for an event with geographic and device data.',
     params: [
@@ -5998,6 +6194,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'page_config_get',
+    category: 'page',
     displayName: 'page config get',
     description: 'Get a page configuration by ID.',
     params: [
@@ -6030,6 +6227,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'page_config_update',
+    category: 'page',
     displayName: 'page config update',
     description: 'Update a page configuration (name, description, theme, sections).',
     params: [
@@ -6068,6 +6266,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'page_config_published',
+    category: 'page',
     displayName: 'page config published',
     description: 'Get the currently published page configuration for an event or space.',
     params: [
@@ -6101,6 +6300,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'page_preview_link',
+    category: 'page',
     displayName: 'page preview link',
     description: 'Generate a preview link for a draft page configuration.',
     params: [
@@ -6143,6 +6343,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'page_config_create',
+    category: 'page',
     displayName: 'page config create',
     description: 'Create a page configuration with full control over sections and theme. For AI-assisted creation, use site_create_page.',
     params: [
@@ -6319,6 +6520,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'file_upload',
+    category: 'file',
     displayName: 'file upload',
     description:
       'Upload an image file from a local path. Returns the file ID for use with space/event image fields. Recommended dimensions: 800x800 pixels for event covers and space avatars.',
@@ -6354,6 +6556,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'file_upload_url',
+    category: 'file',
     displayName: 'file upload url',
     description:
       'Upload an image from a URL (the server downloads it). Returns the file ID. Recommended: 800x800 pixels for event covers and space avatars.',
@@ -6425,6 +6628,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_set_avatar',
+    category: 'space',
     displayName: 'space set avatar',
     description:
       'Set a space profile photo from a local file or existing file ID. Recommended: 800x800 pixels for best display.',
@@ -6451,6 +6655,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'space_set_cover',
+    category: 'space',
     displayName: 'space set cover',
     description:
       'Set a space cover image from a local file or existing file ID. Recommended: 800x800 pixels for best display.',
@@ -6477,6 +6682,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_set_photos',
+    category: 'event',
     displayName: 'event set photos',
     description:
       'Set event photos from file IDs (from file_upload). WARNING: This REPLACES all existing photos. The first photo becomes the event cover automatically. Recommended: 800x800 pixels for best display.',
@@ -6515,6 +6721,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'theme_build',
+    category: 'theme',
     displayName: 'theme build',
     description: 'Build a theme_data JSON object from named parameters. Returns JSON to use with event/space create or update tools.',
     params: [
@@ -6568,6 +6775,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_session_reservations',
+    category: 'session',
     displayName: 'event session reservations',
     description: 'List session reservations for an event.',
     params: [
@@ -6601,6 +6809,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_session_reservation_summary',
+    category: 'session',
     displayName: 'event session reservation summary',
     description: 'Get reservation count summary per session (and optionally per ticket type).',
     params: [
@@ -6635,6 +6844,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_session_reserve',
+    category: 'session',
     displayName: 'event session reserve',
     description: 'Reserve a spot in an event session for the current user.',
     params: [
@@ -6659,6 +6869,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_session_unreserve',
+    category: 'session',
     displayName: 'event session unreserve',
     description: 'Cancel a session reservation for the current user.',
     params: [
@@ -6685,6 +6896,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_votings',
+    category: 'voting',
     displayName: 'event votings',
     description: 'List voting sessions for an event.',
     params: [
@@ -6723,6 +6935,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_vote',
+    category: 'voting',
     displayName: 'event vote',
     description: 'Cast or change a vote in an event voting session. Omit option_id to remove your vote.',
     params: [

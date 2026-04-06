@@ -8,7 +8,6 @@ import { getAgentName } from '../skills/loader.js';
 import { getAiMode, getAiModeDisplay } from '../aiMode.js';
 import { getCreditsSpaceId } from '../spaceSelection.js';
 import { graphqlRequest } from '../../api/graphql.js';
-import { getToolCategory } from '../../commands/tools/index.js';
 import type { UIMessage } from '../ui/hooks/useChatEngine.js';
 
 /** Runtime-only dependencies — no React/Ink types leak in. */
@@ -909,10 +908,10 @@ export async function executeSlashCommand(
     // /tools <category> — filter by category
     if (args) {
       const cat = args.toLowerCase();
-      const filtered = toolEntries.filter((t) => getToolCategory(t.name) === cat);
+      const filtered = toolEntries.filter((t) => t.category === cat);
       if (filtered.length === 0) {
         const cats = new Set<string>();
-        for (const t of toolEntries) cats.add(getToolCategory(t.name));
+        for (const t of toolEntries) cats.add(t.category);
         addSystemMessage(`No tools in category "${args}". Available: ${[...cats].sort().join(', ')}`);
       } else {
         filtered.sort((a, b) => a.name.localeCompare(b.name));
@@ -925,7 +924,7 @@ export async function executeSlashCommand(
     // /tools (no args) — show categories with counts
     const counts: Record<string, number> = {};
     for (const t of toolEntries) {
-      const cat = getToolCategory(t.name);
+      const cat = t.category;
       counts[cat] = (counts[cat] || 0) + 1;
     }
     const sorted = Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));

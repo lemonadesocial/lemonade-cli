@@ -13,6 +13,7 @@ describe('Tool Registry', () => {
   it('each tool has required fields', () => {
     for (const tool of tools) {
       expect(tool.name).toBeTruthy();
+      expect(tool.category).toBeTruthy();
       expect(tool.displayName).toBeTruthy();
       expect(tool.description).toBeTruthy();
       expect(typeof tool.destructive).toBe('boolean');
@@ -648,5 +649,41 @@ describe('Tool Registry', () => {
     expect(registry.event_set_photos.destructive).toBe(true);
     expect(registry.event_set_photos.params.find((p) => p.name === 'event_id')?.required).toBe(true);
     expect(registry.event_set_photos.params.find((p) => p.name === 'file_ids')?.required).toBe(true);
+  });
+
+  it('every tool category is in the known allowlist', () => {
+    const VALID_CATEGORIES = new Set([
+      'connector',
+      'event',
+      'file',
+      'launchpad',
+      'newsletter',
+      'notifications',
+      'page',
+      'payment',
+      'rewards',
+      'session',
+      'space',
+      'subscription',
+      'system',
+      'template',
+      'tempo',
+      'theme',
+      'tickets',
+      'user',
+      'voting',
+    ]);
+
+    for (const [name, tool] of Object.entries(registry)) {
+      expect(
+        VALID_CATEGORIES.has(tool.category),
+        `Tool "${name}" has unknown category "${tool.category}". Add it to the allowlist if intentional.`,
+      ).toBe(true);
+    }
+
+    const usedCategories = new Set(tools.map((t) => t.category));
+    for (const cat of VALID_CATEGORIES) {
+      expect(usedCategories.has(cat), `category '${cat}' in allowlist but no tools use it`).toBe(true);
+    }
   });
 });

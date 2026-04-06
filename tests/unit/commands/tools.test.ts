@@ -1,22 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { getToolCategory, getCategories } from '../../../src/commands/tools/index';
+import { getCategories } from '../../../src/commands/tools/index';
 import { buildToolRegistry } from '../../../src/chat/tools/registry';
 import { parseSlashCommand } from '../../../src/chat/ui/SlashCommands';
-
-describe('getToolCategory', () => {
-  it('extracts prefix before first underscore', () => {
-    expect(getToolCategory('event_create')).toBe('event');
-    expect(getToolCategory('space_list')).toBe('space');
-    expect(getToolCategory('tickets_buy')).toBe('tickets');
-    expect(getToolCategory('event_ticket_sold_insight')).toBe('event');
-  });
-
-  it('handles edge cases in tool name format', () => {
-    expect(getToolCategory('get_me')).toBe('get');
-    expect(getToolCategory('nounderscore')).toBe('general');
-    expect(getToolCategory('_leadingunderscore')).toBe('general');
-  });
-});
 
 describe('getCategories', () => {
   it('returns sorted unique categories from the full registry', () => {
@@ -29,28 +14,6 @@ describe('getCategories', () => {
     // Sorted
     for (let i = 1; i < cats.length; i++) {
       expect(cats[i].localeCompare(cats[i - 1])).toBeGreaterThanOrEqual(0);
-    }
-  });
-});
-
-describe('tool discoverability coverage', () => {
-  const registry = buildToolRegistry();
-
-  it('every tool gets a non-empty category', () => {
-    for (const [name] of Object.entries(registry)) {
-      const cat = getToolCategory(name);
-      expect(cat).toBeTruthy();
-      expect(cat.length).toBeGreaterThan(0);
-    }
-  });
-
-  it('categories have at least 1 tool each', () => {
-    const cats = getCategories(registry);
-    for (const cat of cats) {
-      const count = Object.keys(registry).filter(
-        (name) => getToolCategory(name) === cat,
-      ).length;
-      expect(count).toBeGreaterThan(0);
     }
   });
 });
