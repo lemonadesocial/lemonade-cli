@@ -179,6 +179,17 @@ describe('checkDrift', () => {
     rmSync(tmpDir, { recursive: true });
   });
 
+  it('throws descriptive error when schema file is not found', () => {
+    mockedGetAll.mockReturnValue([]);
+
+    expect(() => checkDrift('/nonexistent/path/backend-resolvers.json')).toThrow(
+      'Backend resolver schema not found',
+    );
+    expect(() => checkDrift('/nonexistent/path/backend-resolvers.json')).toThrow(
+      'Use --schema <path>',
+    );
+  });
+
   it('returns empty report for empty schema', () => {
     const schemaPath = writeSchema(tmpDir, [], []);
     mockedGetAll.mockReturnValue([]);

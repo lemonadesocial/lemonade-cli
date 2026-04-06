@@ -219,28 +219,31 @@ export function registerCapabilitiesCommands(program: Command): void {
           return;
         }
 
-        if (opts.broken) {
-          if (report.broken.length === 0) {
-            console.log('No broken mappings found.');
-          } else {
-            console.log(renderTable(
-              ['Resolver', 'Tool', 'Reason'],
-              report.broken.map(b => [b.resolver, b.tool, b.reason]),
-              { title: `Broken Mappings (${report.broken.length})`, truncate: 60 },
-            ));
+        if (opts.broken || opts.gaps) {
+          if (opts.broken) {
+            if (report.broken.length === 0) {
+              console.log('No broken mappings found.');
+            } else {
+              console.log(renderTable(
+                ['Resolver', 'Tool', 'Reason'],
+                report.broken.map(b => [b.resolver, b.tool, b.reason]),
+                { title: `Broken Mappings (${report.broken.length})`, truncate: 60 },
+              ));
+            }
           }
-          return;
-        }
 
-        if (opts.gaps) {
-          if (report.gaps.length === 0) {
-            console.log('No coverage gaps found.');
-          } else {
-            console.log(renderTable(
-              ['Resolver', 'Type'],
-              report.gaps.map(g => [g.resolver, g.type]),
-              { title: `Coverage Gaps (${report.gaps.length})` },
-            ));
+          if (opts.broken && opts.gaps) console.log('');
+
+          if (opts.gaps) {
+            if (report.gaps.length === 0) {
+              console.log('No coverage gaps found.');
+            } else {
+              console.log(renderTable(
+                ['Resolver', 'Type'],
+                report.gaps.map(g => [g.resolver, g.type]),
+                { title: `Coverage Gaps (${report.gaps.length})` },
+              ));
+            }
           }
           return;
         }

@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getAllCapabilities } from '../chat/tools/registry.js';
@@ -45,6 +45,12 @@ function loadBackendResolvers(schemaPath?: string): BackendResolvers {
     dirname(fileURLToPath(import.meta.url)),
     '../../schema/backend-resolvers.json',
   );
+  if (!existsSync(path)) {
+    throw new Error(
+      `Backend resolver schema not found at "${path}". ` +
+      'Use --schema <path> to provide a schema file, or run from the repository root.',
+    );
+  }
   const raw = readFileSync(path, 'utf8');
   return JSON.parse(raw) as BackendResolvers;
 }
