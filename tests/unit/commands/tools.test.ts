@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { getCategories } from '../../../src/commands/tools/index';
-import { buildToolRegistry } from '../../../src/chat/tools/registry';
+import { getAllCapabilities } from '../../../src/chat/tools/registry';
 import { parseSlashCommand } from '../../../src/chat/ui/SlashCommands';
 
 describe('getCategories', () => {
-  it('returns sorted unique categories from the full registry', () => {
-    const registry = buildToolRegistry();
-    const cats = getCategories(registry);
+  it('returns sorted unique categories from capabilities', () => {
+    const caps = getAllCapabilities();
+    const cats = getCategories(caps);
     expect(cats.length).toBeGreaterThan(5);
     expect(cats).toContain('event');
     expect(cats).toContain('space');

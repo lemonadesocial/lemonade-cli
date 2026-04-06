@@ -12,10 +12,10 @@ import { registerConfigCommands } from './commands/config/index.js';
 import { registerStatusCommands } from './commands/status/index.js';
 import { registerDoctorCommands } from './commands/doctor/index.js';
 import { registerToolCommands } from './commands/tools/index.js';
+import { registerCapabilitiesCommands } from './commands/capabilities/index.js';
 import { loadGeneratedCommands, checkSchemaVersion } from './commands/loader.js';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const { version } = require('../package.json');
+import { getPackageVersion } from './config/version.js';
+const version = getPackageVersion();
 
 const program = new Command();
 
@@ -35,6 +35,7 @@ registerConfigCommands(program);
 registerStatusCommands(program);
 registerDoctorCommands(program);
 registerToolCommands(program);
+registerCapabilitiesCommands(program);
 
 // Load auto-generated commands (MCP + GraphQL) after manual commands.
 // Manual commands take priority: generated commands with the same group:subcommand are skipped.

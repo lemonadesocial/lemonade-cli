@@ -14,6 +14,7 @@ function getSkillsDir(): string {
   return thisDir;
 }
 
+/** Hand-maintained skill files — loaded into LLM context. */
 const SKILL_FILES = [
   'personality.md',
   'events-core.md',
