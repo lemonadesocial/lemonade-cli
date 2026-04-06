@@ -59,10 +59,10 @@ function printHelp(): void {
 }
 
 async function fetchUser(): Promise<{ _id: string; name: string; email: string; first_name: string }> {
-  const result = await graphqlRequest<{ getMe: { user: { _id: string; name: string; email: string; first_name: string } } }>(
-    'query { getMe { user { _id name email first_name } } }',
+  const result = await graphqlRequest<{ aiGetMe: { user: { _id: string; name: string; email: string; first_name: string } } }>(
+    'query { aiGetMe { user { _id name email first_name } } }',
   );
-  return result.getMe.user;
+  return result.aiGetMe.user;
 }
 
 async function main(): Promise<void> {
@@ -129,10 +129,10 @@ async function main(): Promise<void> {
     if (!apiKey && isTTY) {
       let hasCredits = false;
       try {
-        const spacesResult = await graphqlRequest<{ listMySpaces: { items: Array<{ _id: string }> } }>(
-          'query { listMySpaces { items { _id } } }',
+        const spacesResult = await graphqlRequest<{ aiListMySpaces: { items: Array<{ _id: string }> } }>(
+          'query { aiListMySpaces { items { _id } } }',
         );
-        const spaces = spacesResult.listMySpaces.items;
+        const spaces = spacesResult.aiListMySpaces.items;
         if (spaces.length > 0) {
           const spaceId = getDefaultSpace() || spaces[0]._id;
           const creditsResult = await graphqlRequest<{ getStandCredits: { credits: number; subscription_tier: string } | null }>(

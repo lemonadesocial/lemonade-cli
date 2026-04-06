@@ -17,19 +17,19 @@ export const ticketsTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'listEventTicketTypes',
+    backendResolver: 'aiListEventTicketTypes',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ listEventTicketTypes: unknown }>(
+      const result = await graphqlRequest<{ aiListEventTicketTypes: unknown }>(
         `query($event: MongoID!) {
-          listEventTicketTypes(event: $event) {
+          aiListEventTicketTypes(event: $event) {
             title active private limited description
           }
         }`,
         { event: args.event_id },
       );
-      return result.listEventTicketTypes;
+      return result.aiListEventTicketTypes;
     },
   }),
   buildCapability({
@@ -50,7 +50,7 @@ export const ticketsTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'createEventTicketType',
+    backendResolver: 'aiCreateEventTicketType',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
@@ -68,15 +68,15 @@ export const ticketsTools: CanonicalCapability[] = [
       if (args.limit !== undefined) input.ticket_limit = args.limit;
       if (args.description) input.description = args.description;
 
-      const result = await graphqlRequest<{ createEventTicketType: unknown }>(
+      const result = await graphqlRequest<{ aiCreateEventTicketType: unknown }>(
         `mutation($input: EventTicketTypeInput!) {
-          createEventTicketType(input: $input) {
+          aiCreateEventTicketType(input: $input) {
             title active private limited description
           }
         }`,
         { input },
       );
-      return result.createEventTicketType;
+      return result.aiCreateEventTicketType;
     },
   }),
   buildCapability({
@@ -96,7 +96,7 @@ export const ticketsTools: CanonicalCapability[] = [
     searchHint: 'update edit ticket type price limit',
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'updateEventTicketType',
+    backendResolver: 'aiUpdateEventTicketType',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
@@ -110,15 +110,15 @@ export const ticketsTools: CanonicalCapability[] = [
       if (args.limit !== undefined) input.ticket_limit = args.limit;
       if (args.active !== undefined) input.active = args.active;
 
-      const result = await graphqlRequest<{ updateEventTicketType: unknown }>(
+      const result = await graphqlRequest<{ aiUpdateEventTicketType: unknown }>(
         `mutation($_id: MongoID!, $input: EventTicketTypeInput!) {
-          updateEventTicketType(_id: $_id, input: $input) {
+          aiUpdateEventTicketType(_id: $_id, input: $input) {
             title active private limited description
           }
         }`,
         { _id: args.ticket_type_id, input },
       );
-      return result.updateEventTicketType;
+      return result.aiUpdateEventTicketType;
     },
   }),
   buildCapability({
@@ -271,16 +271,16 @@ export const ticketsTools: CanonicalCapability[] = [
     searchHint: 'price calculate cost ticket discount preview',
     destructive: false,
     backendType: 'query',
-    backendResolver: 'calculateTicketsPricing',
+    backendResolver: 'aiCalculateTicketPrice',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       // Backend schema accepts Float for count, but ticket quantities are whole numbers
       const count = Math.floor(args.quantity != null ? (args.quantity as number) : 1);
       if (count < 1) throw new Error('Quantity must be a positive whole number.');
-      const result = await graphqlRequest<{ calculateTicketsPricing: unknown }>(
+      const result = await graphqlRequest<{ aiCalculateTicketPrice: unknown }>(
         `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
-          calculateTicketsPricing(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
+          aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
             subtotal_cents discount_cents total_cents currency
           }
         }`,
@@ -291,7 +291,7 @@ export const ticketsTools: CanonicalCapability[] = [
           discount_code: args.discount_code as string | undefined,
         },
       );
-      return result.calculateTicketsPricing;
+      return result.aiCalculateTicketPrice;
     },
     formatResult: (result) => {
       const r = result as { subtotal_cents: number; discount_cents: number; total_cents: number; currency: string };
@@ -372,14 +372,14 @@ export const ticketsTools: CanonicalCapability[] = [
     searchHint: 'my tickets purchased bought attending events',
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getMyTickets',
+    backendResolver: 'aiGetMyTickets',
     requiresSpace: false,
     requiresEvent: false,
     execute: async () => {
-      const result = await graphqlRequest<{ getMyTickets: unknown }>(
-        'query { getMyTickets { items { event_id event_title ticket_type_title status event_start event_end } } }',
+      const result = await graphqlRequest<{ aiGetMyTickets: unknown }>(
+        'query { aiGetMyTickets { items { event_id event_title ticket_type_title status event_start event_end } } }',
       );
-      return result.getMyTickets;
+      return result.aiGetMyTickets;
     },
   }),
   buildCapability({

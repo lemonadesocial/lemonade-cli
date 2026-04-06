@@ -14,15 +14,15 @@ export const notificationsTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getNotifications',
+    backendResolver: 'aiGetNotifications',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async () => {
-      const result = await graphqlRequest<{ getNotifications: Array<{ id: string; type: string; message: string; from_user_name?: string; ref_event_title?: string; read: boolean; created_at: string }> }>(
-        'query { getNotifications { id type message from_user_name ref_event_title read created_at } }',
+      const result = await graphqlRequest<{ aiGetNotifications: Array<{ id: string; type: string; message: string; from_user_name?: string; ref_event_title?: string; read: boolean; created_at: string }> }>(
+        'query { aiGetNotifications { id type message from_user_name ref_event_title read created_at } }',
       );
-      return { items: result.getNotifications };
+      return { items: result.aiGetNotifications };
     },
   }),
   buildCapability({
@@ -37,15 +37,15 @@ export const notificationsTools: CanonicalCapability[] = [
     searchHint: 'mark read notifications dismiss clear',
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'readNotifications',
+    backendResolver: 'aiReadNotifications',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const ids = args.notification_ids as string[];
       for (const id of ids) {
-        await graphqlRequest<{ readNotifications: boolean }>(
-          'mutation($id: MongoID) { readNotifications(id: $id) }',
+        await graphqlRequest<{ aiReadNotifications: boolean }>(
+          'mutation($id: MongoID) { aiReadNotifications(id: $id) }',
           { id },
         );
       }

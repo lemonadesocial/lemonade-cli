@@ -30,10 +30,10 @@ describe('generate-from-graphql', () => {
   });
 
   it('skips operations covered by manual resolvers', () => {
-    // getMe is in MANUAL_RESOLVERS, should not be generated
+    // aiGetMe is in MANUAL_RESOLVERS, should not be generated
     const files = readFileSync(join(EXTENDED_DIR, '_schema-version.json'), 'utf-8');
     const marker = JSON.parse(files);
-    // getMe (formerly aiGetMe) should be skipped
+    // aiGetMe should be skipped
     expect(existsSync(join(EXTENDED_DIR, 'ai-get-me.ts'))).toBe(false);
   });
 
