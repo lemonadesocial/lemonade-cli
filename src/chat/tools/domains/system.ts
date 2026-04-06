@@ -86,7 +86,7 @@ export const systemTools: CanonicalCapability[] = [
       const r = result as { results: Array<{ name: string; category: string; description: string; params: Array<{ name: string; required: boolean }> }>; total_matches: number };
       if (!r.results?.length) return 'No matching tools found.';
       return r.results.map((t) =>
-        `**${t.name}** (${t.category})\n  ${t.description}\n  Params: ${t.params.map((p) => `${p.name}${p.required ? '*' : ''}`).join(', ')}`
+        `**${t.name}** (${t.category})\n  ${t.description}\n  Params: ${t.params.map((p) => `${p.name}${p.required ? '*' : ''}`).join(', ')}`,
       ).join('\n\n');
     },
   }),

@@ -356,9 +356,18 @@ export async function handleTurn(
     }
 
     // C1: Dynamic schema injection after tool_search
-    // When tool_search is called, inject the discovered tool schemas into the
-    // formattedTools array and registry so the LLM can call them in subsequent
-    // iterations of this turn loop.
+    //
+    // `formattedTools` is intentionally mutated in-place to inject deferred tool
+    // schemas discovered by tool_search. The next iteration's `provider.stream()`
+    // call reads from the same array reference, so the newly injected schemas
+    // become available to the LLM without rebuilding the tool list.
+    //
+    // `dynamicallyLoadedTools` (Set<string>) prevents duplicate injection across
+    // iterations — once a tool schema is pushed, it won't be pushed again.
+    //
+    // This is the core mechanism of deferred tool loading: tools start as
+    // name-only stubs in the system prompt; tool_search resolves them to full
+    // schemas that get injected here for immediate use.
     for (const tc of toolCalls) {
       if (tc.name === 'tool_search') {
         const matchingResult = results.find(r => r.tool_use_id === tc.id);
@@ -381,8 +390,9 @@ export async function handleTurn(
                 }
               }
             }
-          } catch {
+          } catch (err) {
             // Non-fatal: if parsing fails, the LLM just won't have the schemas
+            process.stderr.write(`[tool_search] Failed to parse result for schema injection: ${err}\n`);
           }
         }
       }

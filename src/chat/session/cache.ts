@@ -54,10 +54,11 @@ ${resolvedSkills}`;
 
   if (provider === 'anthropic') {
     messages[0].cache_control = { type: 'ephemeral' };
-    // Cache the deferred tools block as well — it's static across turns
-    const deferredMsg = messages.find(m => m.text.includes('<deferred-tools>'));
-    if (deferredMsg) {
-      deferredMsg.cache_control = { type: 'ephemeral' };
+    // Cache the deferred tools block as well — it's static across turns.
+    // When present, it is always the last system message (appended after
+    // the static prompt and session block).
+    if (deferredToolsBlock) {
+      messages[messages.length - 1].cache_control = { type: 'ephemeral' };
     }
   }
 
