@@ -30,22 +30,161 @@ Durability requirement:
 
 ## Active Branch
 
-- Branch: feat/ticket-lifecycle-operations
+- Branch: (pending — Gate A for registry-architecture initiative #1)
 - Status: GATE A
-- Scope: Add 10 ticket lifecycle + payment tools
+- Scope: Add explicit category metadata to ToolDef and all 213 tools
 - Current gate: A
 
 ## Current Program Mode
 
-- Mode: architecture/features (PRODUCT-POWER PROGRAM)
-- Reason: Mission is domain power for Claude Code/Codex operators. CLI covers ~55% of operator-relevant backend surface. Systematic expansion needed.
+- Mode: architecture/features (REGISTRY-ARCHITECTURE PROGRAM)
+- Reason: CLI has 213 tools in a 6751-line monolithic registry.ts with no explicit category metadata, three disjoint definition surfaces (commands/tools/slash), and no unified capability model. Registry architecture is the next major leverage point before further domain expansion.
 
 ## Current Loop State
 
-- Last merged PR: #155
-- Last merge commit: 6b7d78b
-- Program: PRODUCT-POWER PROGRAM for Claude Code/Codex operators
+- Last merged PR: #166
+- Last merge commit: 6605ded
+- Program: REGISTRY-ARCHITECTURE PROGRAM for CLI scalability and discoverability
 - Roadmap: see below
+
+---
+
+## Registry-Architecture Program Roadmap
+
+### Discovery Report (2026-04-06, proper DISCOVERY-SUBAGENT.md)
+
+Full report: [DISCOVERY-REGISTRY-ARCHITECTURE.md](./DISCOVERY-REGISTRY-ARCHITECTURE.md)
+
+**Current state facts:**
+- 213 AI tools in single 6,751-line / 284KB registry.ts
+- 61 CLI commands across 11 groups (src/commands/)
+- 20 slash commands in hardcoded array (src/chat/ui/SlashCommands.ts)
+- ToolDef interface has 7 fields: name, displayName, description, params, destructive, execute, formatResult
+- NO explicit `category` field — derived from name prefix via getToolCategory() (src/commands/tools/index.ts:9-12), misclassifies accept_event, decline_event, get_me, list_chains, etc.
+- TOOL_TO_RESOLVER maps only 97 of 213 tools — remaining 116 use inline GraphQL with no tracking
+- Codegen pipeline (generated/, extended/ dirs) defined but dormant
+- 152+ tools are AI-only with no CLI command equivalent
+- Slash commands reimplement tool logic inline (~600 lines of duplication in SlashCommandRouter.ts)
+- Skill files are hand-maintained prose that drifts from actual tools
+- No machine-readable capability manifest
+
+**Top architectural issues (ranked):**
+1. CRITICAL — Single-file tool monolith (284KB) blocks all other improvements
+2. HIGH — No explicit metadata (category, permissions, backend dependency, surface exposure)
+3. HIGH — Three independent surfaces with no shared definition, logic duplication
+4. MEDIUM-HIGH — Backend dependency mapping incomplete (97/213), schema drift undetectable
+5. MEDIUM — Discoverability hand-maintained and duplicated
+
+### Ranked Initiatives (discovery-backed)
+
+| # | Initiative | Type | Arch Value | Op Value | Dependency | Branch Scope |
+|---|-----------|------|-----------|---------|------------|-------------|
+| 1 | **Explicit Category Metadata** | Metadata foundation | 9/10 | 7/10 | None | Add `category` to ToolDef, populate 213 tools, update CLI tools cmd + /tools slash, remove prefix derivation |
+| 2 | **Registry Modular Split** | Structural migration | 9/10 | 6/10 | #1 | Split registry.ts into ~15-20 category modules, keep buildToolRegistry() API stable, zero consumer changes |
+| 3 | **ToolDef Metadata Enrichment** | Metadata | 8/10 | 6/10 | #1 | Add backendResolver, backendType, permissions, surfaces, tags fields to ToolDef |
+| 4 | **Capability Manifest + Auto-Discovery** | Discoverability | 8/10 | 8/10 | #3 | Auto-generate capability manifest JSON, skill files from metadata, deduplicate /tools and CLI tools |
+| 5 | **Backend Dependency Tracking** | Drift prevention | 8/10 | 5/10 | #3 | Complete TOOL_TO_RESOLVER for all 213 tools, activate codegen pipeline, add CI drift check |
+| 6 | **Surface Unification** | Parity | 7/10 | 7/10 | #3, #4 | Generate slash handlers + CLI commands from capability definitions, eliminate SlashCommandRouter duplication |
+
+**Dependency graph:** #1 → #2 → #3 → (#4, #5, #6 in parallel)
+
+### Deferred (outside registry-architecture scope)
+- Store/Merch, Rooms, Posts/Social, Badges, User Discovery — domain power work
+- Backend schema drift audit — quarterly maintenance
+
+---
+
+## Session 7 — Registry-Architecture Program (2026-04-06)
+
+### Branch: feat/tool-category-metadata
+
+#### Gate A
+
+- Date: 2026-04-06
+- Branch: feat/tool-category-metadata
+- Initiative: #1 — Explicit Category Metadata
+- Why highest-leverage: Categories are currently derived from name prefixes at runtime (fragile heuristic in getToolCategory() at src/commands/tools/index.ts:9-12). Misclassifies accept_event, decline_event, get_me, list_chains, etc. Adding explicit `category` field to ToolDef is the prerequisite for modularization (#2), capability manifest (#4), and proper discoverability. Every downstream initiative depends on tools having canonical category metadata.
+- Scope:
+  1. Add `category` field to ToolDef interface in src/chat/providers/interface.ts
+  2. Populate `category` on all 213 tool definitions in src/chat/tools/registry.ts
+  3. Update tools list/categories/info commands (src/commands/tools/index.ts) to use explicit category
+  4. Update /tools slash command handler (src/chat/runtime/SlashCommandRouter.ts) to use explicit category
+  5. Remove name-prefix category derivation heuristic
+  6. Update tests
+- Key files:
+  - src/chat/providers/interface.ts — ToolDef interface
+  - src/chat/tools/registry.ts — all 213 tool definitions
+  - src/commands/tools/index.ts — CLI tools commands
+  - src/chat/runtime/SlashCommandRouter.ts — /tools slash command handler
+  - tests/unit/chat/registry.test.ts — tool registry tests
+  - tests/unit/commands/tools.test.ts — tools command tests
+- Operator value: 7/10 — enables proper filtering, reliable category assignment
+- Architectural value: 9/10 — prerequisite for modularization and manifest
+- Backend assumptions: None (pure client-side metadata)
+- Agent plan: implementation → audit → remediation → PR → Karen → final audit → merge
+
+#### Implementation
+
+- Commit: 4ee3c04
+- Branch: feat/tool-category-metadata (1 commit ahead of main)
+- Files changed: src/chat/providers/interface.ts, src/chat/tools/registry.ts, src/commands/tools/index.ts, src/chat/runtime/SlashCommandRouter.ts, tests/unit/chat/registry.test.ts, tests/unit/commands/tools.test.ts
+- Checks: tsc clean, vitest (1086 tests pass), build clean
+- Durable: YES
+- Notes: getToolCategory() signature changed from (name: string) to (tool: ToolDef). All consumers updated (SlashCommandRouter + tests). Test added verifying every tool has non-empty category.
+
+#### Hostile Audit Round 1
+
+- 3 LOW (payment_account underscore inconsistency, safe_free_limit miscategorized, template_clone_to_config miscategorized), 3 NIT (getToolCategory trivial passthrough, redundant tests, no category allowlist), 1 INFO (exported function signature change)
+- Verdict: SAFE TO CONTINUE — all findings must be fixed
+
+#### Remediation
+
+- Commit: 7274641
+- Files: src/chat/tools/registry.ts, src/commands/tools/index.ts, tests/unit/commands/tools.test.ts, tests/unit/chat/registry.test.ts
+- All 7 findings fixed: payment_account→payment (10 tools), safe_free_limit→payment, template_clone→page, getToolCategory removed (direct .category access), redundant tests removed, category allowlist test added
+- Checks: tsc clean, vitest (1083 tests), build clean
+- Durable: YES
+
+#### Hostile Audit Round 2
+
+- All 7 Round 1 findings: RESOLVED
+- 3 new findings: 1 LOW (payment vs payments ambiguity), 2 NIT (stale doc refs, redundant test)
+- Verdict: SAFE TO CONTINUE
+
+#### Remediation Round 2
+
+- Commit: d3de1db
+- Files: src/chat/tools/registry.ts, tests/unit/chat/registry.test.ts, docs/orchestrator/DISCOVERY-REGISTRY-ARCHITECTURE.md
+- N1: merged payments→payment (5 tools), allowlist now 19 categories
+- N2: updated stale getToolCategory() refs in architecture doc
+- N3: removed redundant category non-emptiness test
+- Checks: tsc clean, vitest (1082 tests), build clean
+- Durable: YES
+
+#### Hostile Audit Round 3
+
+- All 3 Round 2 findings: RESOLVED
+- 3 new NIT findings (all in DISCOVERY-REGISTRY-ARCHITECTURE.md doc — stale metadata table, stale ToolDef code block, stale category table)
+- Verdict: SAFE TO CONTINUE
+
+#### Remediation Round 3
+
+- Commit: 6c5c8eb
+- Files: docs/orchestrator/DISCOVERY-REGISTRY-ARCHITECTURE.md
+- N1-N3: all doc inconsistencies fixed
+- Checks: tsc clean, vitest (1082 tests)
+- Durable: YES
+
+#### Gate B
+
+- Status: PASS
+- Commits: 4ee3c04 (impl), 7274641 (remediation R1), d3de1db (remediation R2), 6c5c8eb (remediation R3)
+- Files changed: src/chat/providers/interface.ts, src/chat/tools/registry.ts, src/commands/tools/index.ts, src/chat/runtime/SlashCommandRouter.ts, tests/unit/chat/registry.test.ts, tests/unit/commands/tools.test.ts, docs/orchestrator/DISCOVERY-REGISTRY-ARCHITECTURE.md
+- Checks: tsc clean, build clean, 1082 tests pass
+- Code zero-findings: achieved at audit round 2
+- Doc zero-findings: achieved at audit round 3 remediation
+- Residual risks: single-tool `template` category could disappear silently if template_list removed (accepted)
+- Ready for PR: YES
 
 ---
 
