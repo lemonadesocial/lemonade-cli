@@ -9,6 +9,9 @@ import { getAiMode, getAiModeDisplay } from '../aiMode.js';
 import { getCreditsSpaceId } from '../spaceSelection.js';
 import { graphqlRequest } from '../../api/graphql.js';
 import type { UIMessage } from '../ui/hooks/useChatEngine.js';
+import { executeCapability, CapabilityNotAvailableError } from './slash-helpers.js';
+import { getAllCapabilities } from '../tools/registry.js';
+import { filterCapabilities, getCategories, findCapability, getSuggestions } from '../../capabilities/filter.js';
 
 /** Runtime-only dependencies — no React/Ink types leak in. */
 export interface SlashCommandRuntimeDeps {
@@ -283,125 +286,20 @@ export async function executeSlashCommand(
     return;
   }
 
+  // --- Capability-delegated commands ---
+
   if (slashResult.action === 'events') {
-    addSystemMessage('Fetching events...');
-    try {
-      const tool = getRegistryTool(registry, 'event_list', addSystemMessage);
-      if (!tool) return;
-      const args: Record<string, unknown> = {};
-      if (slashResult.args) {
-        if (slashResult.args === '--draft' || slashResult.args === 'draft') {
-          args.draft = true;
-        } else {
-          args.search = slashResult.args;
-        }
-      }
-      const result = await tool.execute(args) as { items?: Array<Record<string, unknown>> };
-      if (!result?.items?.length) {
-        addSystemMessage('No events found.');
-      } else {
-        const lines = result.items.map((e: Record<string, unknown>, i: number) => {
-          const status = e.published ? 'Published' : 'Draft';
-          const date = e.start ? new Date(e.start as string).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
-          return `${i + 1}. ${e.title} — ${date} — ${status}`;
-        });
-        addSystemMessage(lines.join('\n'));
-      }
-    } catch (err) {
-      addSystemMessage(`Failed to fetch events: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
+    await handleEvents(slashResult, addSystemMessage, registry);
     return;
   }
 
   if (slashResult.action === 'spaces') {
-    try {
-      let spaces: Array<{ _id: string; title: string; slug?: string }>;
-      // Use cache for subcommands (number/name switch); always refresh on bare /spaces
-      const useCache = slashResult.args && cachedSpacesRef.current;
-      if (useCache) {
-        spaces = cachedSpacesRef.current!;
-      } else {
-        addSystemMessage('Fetching spaces...');
-        const tool = getRegistryTool(registry, 'space_list', addSystemMessage);
-        if (!tool) return;
-        const result = await tool.execute({}) as { items?: Array<{ _id: string; title: string; slug?: string }> };
-        if (!result?.items?.length) {
-          addSystemMessage('No spaces found.');
-          return;
-        }
-        spaces = result.items;
-        cachedSpacesRef.current = spaces;
-      }
-
-      // /spaces <number> — switch directly using cached list
-      if (slashResult.args && /^\d+$/.test(slashResult.args)) {
-        const idx = parseInt(slashResult.args, 10) - 1;
-        if (idx >= 0 && idx < spaces.length) {
-          const switchTool = getRegistryTool(registry, 'space_switch', addSystemMessage);
-          if (!switchTool) return;
-          const switched = await switchTool.execute({ space_id: spaces[idx]._id }) as { _id: string; title: string };
-          addSystemMessage(`Switched to ${switched.title}.`);
-          setSpaceName(switched.title);
-        } else {
-          addSystemMessage(`Invalid number. Use 1-${spaces.length}.`);
-        }
-        return;
-      }
-
-      // /spaces <name> — fuzzy match and switch
-      if (slashResult.args) {
-        const query = slashResult.args.toLowerCase();
-        const match = spaces.find(s => s.title.toLowerCase().includes(query));
-        if (match) {
-          const switchTool = getRegistryTool(registry, 'space_switch', addSystemMessage);
-          if (!switchTool) return;
-          const switched = await switchTool.execute({ space_id: match._id }) as { _id: string; title: string };
-          addSystemMessage(`Switched to ${switched.title}.`);
-          setSpaceName(switched.title);
-        } else {
-          addSystemMessage(`No space matching "${slashResult.args}". Use /spaces to see all.`);
-        }
-        return;
-      }
-
-      // /spaces (no args) — list with hint
-      const lines = spaces.map((s, i) => {
-        const current = session.currentSpace?._id === s._id ? ' (current)' : '';
-        return `${i + 1}. ${s.title}${current}`;
-      });
-      lines.push('');
-      lines.push('Type /spaces <number> to switch, e.g. /spaces 3');
-      addSystemMessage(lines.join('\n'));
-    } catch (err) {
-      addSystemMessage(`Failed to fetch spaces: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
+    await handleSpaces(slashResult, deps);
     return;
   }
 
   if (slashResult.action === 'credits') {
-    if (getAiMode() === 'own_key') {
-      addSystemMessage(
-        'You are in BYOK mode (Own API Key). Credits do not apply.\n' +
-        'To use community AI credits, switch with /mode credits.',
-      );
-      return;
-    }
-    try {
-      const tool = registry['credits_balance'];
-      if (!tool) {
-        addSystemMessage('Credits tool not available. Check your space selection with /spaces.');
-        return;
-      }
-      const result = await tool.execute({}) as Record<string, unknown>;
-      const lines: string[] = [];
-      if (result.credits !== undefined) lines.push(`Credits: ${result.credits}`);
-      if (result.subscription_tier) lines.push(`Tier: ${result.subscription_tier}`);
-      if (result.subscription_renewal_date) lines.push(`Renews: ${result.subscription_renewal_date}`);
-      if (lines.length === 0) lines.push('No credits information available.');
-      addSystemMessage(lines.join('\n'));
-    } catch (err) {
-      addSystemMessage(`Failed to fetch credits: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
+    await handleCredits(addSystemMessage, registry);
     return;
   }
 
@@ -423,516 +321,22 @@ export async function executeSlashCommand(
   }
 
   if (slashResult.action === 'export') {
-    const parts = (slashResult.args || '').split(/\s+/);
-    const exportType = parts[0];
-    const exportId = parts[1];
-
-    if (!exportType || !exportId) {
-      addSystemMessage('Usage:\n  /export guests <event_id> — Export guest list as CSV\n  /export apps <event_id> — Export applications as CSV');
-      return;
-    }
-
-    if (exportType === 'guests') {
-      addSystemMessage('Exporting guests...');
-      try {
-        const tool = getRegistryTool(registry, 'event_export_guests', addSystemMessage);
-        if (!tool) return;
-        const result = await tool.execute({ event_id: exportId }) as { count: number; tickets: Array<Record<string, unknown>> };
-        if (!result?.tickets?.length) {
-          addSystemMessage('No guest data found.');
-          return;
-        }
-        const headers = ['Name', 'Email', 'Ticket Type', 'Amount', 'Currency', 'Purchase Date', 'Check-in Date', 'Active'];
-        const rows = result.tickets.map((t: Record<string, unknown>) => [
-          t.buyer_name || '',
-          t.buyer_email || '',
-          t.ticket_type || '',
-          t.payment_amount || '',
-          t.currency || '',
-          t.purchase_date || '',
-          t.checkin_date || '',
-          t.active !== false ? 'Yes' : 'No',
-        ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
-        const csv = [headers.join(','), ...rows].join('\n');
-        const filename = `guests-${exportId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.csv`;
-        const { writeFileSync, chmodSync } = await import('fs');
-        writeFileSync(filename, csv);
-        chmodSync(filename, 0o600);
-        addSystemMessage(`Exported ${result.count} guests to ${filename}`);
-      } catch (err) {
-        addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-      return;
-    }
-
-    if (exportType === 'apps' || exportType === 'applications') {
-      addSystemMessage('Exporting applications...');
-      try {
-        const tool = getRegistryTool(registry, 'event_application_export', addSystemMessage);
-        if (!tool) return;
-        const result = await tool.execute({ event_id: exportId }) as { applications: Array<Record<string, unknown>>; count: number };
-        if (!result?.applications?.length) {
-          addSystemMessage('No application data found.');
-          return;
-        }
-        const firstApp = result.applications[0] as Record<string, unknown>;
-        const questions = (firstApp.questions as string[]) || [];
-        const headers = ['Name', 'Email', ...questions];
-        const rows = result.applications.map((app: Record<string, unknown>) => {
-          const user = (app.user || app.non_login_user) as Record<string, unknown> | undefined;
-          const answers = (app.answers as Array<Record<string, unknown>>) || [];
-          const answerValues = answers.map(a => String(a.answer || ''));
-          return [
-            user?.name || '',
-            user?.email || '',
-            ...answerValues,
-          ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
-        });
-        const csv = [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','), ...rows].join('\n');
-        const filename = `applications-${exportId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.csv`;
-        const { writeFileSync, chmodSync } = await import('fs');
-        writeFileSync(filename, csv);
-        chmodSync(filename, 0o600);
-        addSystemMessage(`Exported ${result.count} applications to ${filename}`);
-      } catch (err) {
-        addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-      return;
-    }
-
-    addSystemMessage(`Unknown export type: ${exportType}. Use "guests" or "apps".`);
+    await handleExport(slashResult, addSystemMessage, registry);
     return;
   }
 
   if (slashResult.action === 'connectors') {
-    const parts = (slashResult.args || '').split(/\s+/);
-    const subcommand = parts[0];
-    const subArg = parts.slice(1).join(' ');
-
-    if (!subcommand || subcommand === 'list') {
-      addSystemMessage('Fetching available connectors...');
-      try {
-        const tool = getRegistryTool(registry, 'connectors_list', addSystemMessage);
-        if (!tool) return;
-        const result = await tool.execute({}) as Array<Record<string, unknown>>;
-        const connectors = Array.isArray(result) ? result : [];
-        if (connectors.length === 0) {
-          addSystemMessage('No connectors available.');
-        } else {
-          const lines = connectors.map((c: Record<string, unknown>, i: number) =>
-            `${i + 1}. ${c.name} (${c.id}) — ${c.authType} — ${(c.capabilities as string[])?.join(', ') || ''}`,
-          );
-          addSystemMessage(lines.join('\n'));
-        }
-      } catch (err) {
-        addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-      return;
-    }
-
-    if (subcommand === 'connected') {
-      if (!session.currentSpace) {
-        addSystemMessage('No space selected. Use /spaces to switch first.');
-        return;
-      }
-      addSystemMessage('Fetching connections...');
-      try {
-        const tool = getRegistryTool(registry, 'space_connectors', addSystemMessage);
-        if (!tool) return;
-        const result = await tool.execute({ space_id: session.currentSpace._id }) as Array<Record<string, unknown>>;
-        const connections = Array.isArray(result) ? result : [];
-        if (connections.length === 0) {
-          addSystemMessage('No connected integrations for this space.');
-        } else {
-          const lines = connections.map((c: Record<string, unknown>, i: number) => {
-            const status = c.status || 'unknown';
-            const lastSync = c.lastSyncAt ? new Date(c.lastSyncAt as string).toLocaleDateString() : 'never';
-            const enabled = c.enabled ? '' : ' (disabled)';
-            return `${i + 1}. ${c.connectorType} — ${status}${enabled} — last sync: ${lastSync}\n   ID: ${c.id}`;
-          });
-          addSystemMessage(lines.join('\n'));
-        }
-      } catch (err) {
-        addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-      return;
-    }
-
-    if (subcommand === 'logs' && subArg) {
-      addSystemMessage('Fetching logs...');
-      try {
-        const tool = getRegistryTool(registry, 'connector_logs', addSystemMessage);
-        if (!tool) return;
-        const result = await tool.execute({ connection_id: subArg }) as { logs: Array<Record<string, unknown>>; count: number };
-        if (!result.logs?.length) {
-          addSystemMessage('No sync logs found.');
-        } else {
-          const lines = result.logs.map((l: Record<string, unknown>, i: number) => {
-            const icon = l.status === 'success' ? '\u2714' : '\u2718';
-            const records = l.recordsProcessed !== undefined ? ` (${l.recordsProcessed} records)` : '';
-            const date = l.createdAt ? new Date(l.createdAt as string).toLocaleString() : '';
-            return `${i + 1}. ${icon} ${l.actionId} — ${l.status}${records} — ${l.triggerType} — ${date}`;
-          });
-          addSystemMessage(lines.join('\n'));
-        }
-      } catch (err) {
-        addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-      return;
-    }
-
-    if (subcommand === 'connect' && subArg) {
-      if (!session.currentSpace) {
-        addSystemMessage('No space selected. Use /spaces to switch first.');
-        return;
-      }
-      addSystemMessage(`Connecting ${subArg}...`);
-      try {
-        const connectTool = getRegistryTool(registry, 'connector_connect', addSystemMessage);
-        if (!connectTool) return;
-        const connectResult = await connectTool.execute({
-          space_id: session.currentSpace._id,
-          connector_type: subArg,
-        }) as { connectionId: string; authUrl?: string; requiresApiKey: boolean };
-
-        if (connectResult.requiresApiKey) {
-          addSystemMessage('This connector requires an API key.');
-          addSystemMessage(`Type your ${subArg} API key below and press Enter:`);
-          addSystemMessage('(Your key will be sent securely to the backend — it will NOT be stored in chat history.)');
-          setApiKeyPrompt({
-            connectionId: connectResult.connectionId,
-            connectorType: subArg,
-          });
-        } else if (connectResult.authUrl) {
-          addSystemMessage('Opening browser for authorization...');
-          try {
-            const open = (await import('open')).default;
-            await open(connectResult.authUrl);
-          } catch {
-            addSystemMessage(`Open this URL in your browser:\n${connectResult.authUrl}`);
-          }
-
-          addSystemMessage('Waiting for authorization... (this may take up to 2 minutes)');
-
-          const connectionId = connectResult.connectionId;
-          const startTime = Date.now();
-          const TIMEOUT_MS = 120_000;
-          const POLL_INTERVAL_MS = 3_000;
-
-          const pollForConnection = async (): Promise<boolean> => {
-            while (Date.now() - startTime < TIMEOUT_MS) {
-              await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
-              if (!session.currentSpace) {
-                addSystemMessage('Space changed during authorization. Aborting poll.');
-                return false;
-              }
-              try {
-                const connTool = registry['space_connectors'];
-                if (!connTool) {
-                  addSystemMessage('space_connectors tool not available.');
-                  return false;
-                }
-                const connResult = await connTool.execute({ space_id: session.currentSpace._id }) as Array<Record<string, unknown>>;
-                const connections = Array.isArray(connResult) ? connResult : [];
-                const match = connections.find(c => c.id === connectionId);
-                if (match && match.status !== 'pending') {
-                  if (match.status === 'connected' || match.status === 'active') {
-                    addSystemMessage(`Connected! ${subArg} is ready. Use /connectors connected to verify.`);
-                    return true;
-                  } else {
-                    addSystemMessage(`Connection failed: ${match.errorMessage || match.status}`);
-                    return false;
-                  }
-                }
-              } catch {
-                // Polling error — continue
-              }
-            }
-            addSystemMessage('Authorization timed out (2 minutes). Try again with /connectors connect ' + subArg);
-            return false;
-          };
-
-          await pollForConnection();
-        } else {
-          addSystemMessage(`Connected! (ID: ${connectResult.connectionId})`);
-        }
-      } catch (err) {
-        addSystemMessage(`Failed to connect: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-      return;
-    }
-
-    if ((subcommand === 'run' || subcommand === 'sync') && subArg) {
-      const runParts = subArg.split(/\s+/);
-      const connId = runParts[0];
-      const actionId = runParts[1] || 'sync-events';
-      addSystemMessage(`Running ${actionId} on ${connId}...`);
-      try {
-        const tool = getRegistryTool(registry, 'connectors_sync', addSystemMessage);
-        if (!tool) return;
-        const result = await tool.execute({ connection_id: connId, action: actionId }) as Record<string, unknown>;
-        if (result.success) {
-          const records = result.recordsProcessed !== undefined ? ` (${result.recordsProcessed} records)` : '';
-          addSystemMessage(`Success${records}${result.message ? ': ' + result.message : ''}`);
-        } else {
-          addSystemMessage(`Failed: ${result.error || result.message || 'Unknown error'}`);
-        }
-      } catch (err) {
-        addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-      return;
-    }
-
-    if (subcommand === 'disconnect' && subArg) {
-      addSystemMessage(`Disconnecting ${subArg}...`);
-      try {
-        const tool = getRegistryTool(registry, 'connector_disconnect', addSystemMessage);
-        if (!tool) return;
-        const result = await tool.execute({ connection_id: subArg }) as { disconnected: boolean };
-        addSystemMessage(result.disconnected ? 'Disconnected.' : 'Failed to disconnect.');
-      } catch (err) {
-        addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-      return;
-    }
-
-    addSystemMessage('Usage:\n  /connectors — list available\n  /connectors connected — show space connections\n  /connectors connect <type> — connect an integration\n  /connectors run <id> [action] — run sync or action\n  /connectors logs <id> — sync history\n  /connectors disconnect <id> — remove connection');
+    await handleConnectors(slashResult, deps);
     return;
   }
 
   if (slashResult.action === 'tempo') {
-    const subcommand = (slashResult.args || '').split(/\s+/)[0];
-
-    if (!subcommand || subcommand === 'status') {
-      try {
-        const { isTempoInstalled } = await import('../tempo/index.js');
-        if (!isTempoInstalled()) {
-          addSystemMessage('Tempo CLI is not installed.\n\n  /tempo install — install Tempo CLI\n\nAfter installing:\n  /tempo login — connect or create a wallet\n  /tempo balance — check USDC balance\n  /tempo fund — add funds\n  /tempo request <url> — make a paid MPP request');
-          return;
-        }
-        addSystemMessage('Checking Tempo wallet...');
-        const tool = getRegistryTool(registry, 'tempo_status', addSystemMessage);
-        if (!tool) return;
-        const result = await tool.execute({});
-        const formatted = tool.formatResult?.(result) || JSON.stringify(result);
-        addSystemMessage(formatted);
-      } catch (err) {
-        addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
-      }
-      return;
-    }
-
-    if (subcommand === 'install') {
-      const confirmed = await engine.requestConfirmation('tempo-install', 'Install Tempo CLI? (runs: curl -fsSL https://tempo.xyz/install | bash)');
-      if (confirmed) {
-        addSystemMessage('Installing Tempo CLI...');
-        try {
-          const { installTempo } = await import('../tempo/index.js');
-          const success = await installTempo();
-          addSystemMessage(success ? 'Tempo CLI installed! Use /tempo login to connect your wallet.' : 'Installation failed. Try manually: curl -fsSL https://tempo.xyz/install | bash');
-        } catch (err) {
-          addSystemMessage(`Installation failed: ${err instanceof Error ? err.message : 'Unknown'}`);
-        }
-      } else {
-        addSystemMessage('Installation cancelled.');
-      }
-      return;
-    }
-
-    if (subcommand === 'login') {
-      addSystemMessage('Connecting Tempo wallet...');
-      try {
-        const { tempoLogin, getWalletInfo } = await import('../tempo/index.js');
-
-        let authUrl = '';
-        const result = await tempoLogin((line) => {
-          addSystemMessage(line);
-          const urlMatch = line.match(/(https:\/\/wallet\.tempo\.xyz\/cli-auth\S+)/);
-          if (urlMatch && !authUrl) {
-            authUrl = urlMatch[1];
-            import('open').then(mod => mod.default(authUrl)).catch(() => {
-              addSystemMessage(`Open this URL in your browser: ${authUrl}`);
-            });
-            addSystemMessage('');
-            addSystemMessage('If the browser redirects away from the confirmation page:');
-            addSystemMessage('  Try opening the URL above in a private/incognito window.');
-          }
-        });
-
-        if (result.success) {
-          const info = getWalletInfo();
-          if (info.loggedIn && info.address) {
-            addSystemMessage(`Tempo wallet connected: ${info.address}`);
-            try {
-              await graphqlRequest(
-                'mutation($input: UserInput!) { updateUser(input: $input) { _id } }',
-                { input: {} },
-              );
-              addSystemMessage('Wallet linked to your Lemonade account.');
-            } catch {
-              addSystemMessage('Note: Could not auto-link wallet to Lemonade. Update manually in settings.');
-            }
-          } else {
-            addSystemMessage('Login process completed. Check /tempo status.');
-          }
-        } else {
-          const info = getWalletInfo();
-          if (info.loggedIn && info.address) {
-            addSystemMessage(`Tempo wallet connected: ${info.address}`);
-          } else {
-            addSystemMessage('Login did not complete. Try again with /tempo login.');
-            if (result.output) addSystemMessage(result.output);
-          }
-        }
-      } catch (err) {
-        addSystemMessage(`Login failed: ${err instanceof Error ? err.message : 'Unknown'}`);
-      }
-      return;
-    }
-
-    if (subcommand === 'logout') {
-      try {
-        const { tempoExec } = await import('../tempo/index.js');
-        tempoExec(['wallet', 'logout']);
-        addSystemMessage('Tempo wallet disconnected.');
-      } catch (err) {
-        addSystemMessage(`Logout failed: ${err instanceof Error ? err.message : 'Unknown'}`);
-      }
-      return;
-    }
-
-    if (subcommand === 'balance') {
-      try {
-        const tool = getRegistryTool(registry, 'tempo_status', addSystemMessage);
-        if (!tool) return;
-        const result = await tool.execute({});
-        const r = result as { installed: boolean; loggedIn: boolean; address?: string; balances?: Record<string, string> };
-        if (!r.installed) { addSystemMessage('Tempo CLI not installed. Use /tempo install.'); return; }
-        if (!r.loggedIn) { addSystemMessage('Not logged in. Use /tempo login.'); return; }
-        const bal = r.balances ? Object.entries(r.balances).map(([k, v]) => `  ${v} ${k}`).join('\n') : '  No balances';
-        let rewardInfo = '';
-        if (session.currentSpace) {
-          try {
-            const rewardTool = registry['rewards_balance'];
-            if (rewardTool) {
-              const rewards = await rewardTool.execute({ space_id: session.currentSpace._id }) as Record<string, unknown>;
-              if (rewards) {
-                const accrued = rewards.organizer_accrued_usdc || rewards.attendee_accrued_usdc || '0';
-                const pending = rewards.organizer_pending_usdc || rewards.attendee_pending_usdc || '0';
-                rewardInfo = `\n\nRewards (${session.currentSpace.title}):\n  Accrued: ${accrued} USDC\n  Pending payout: ${pending} USDC`;
-              }
-            }
-          } catch {
-            // Rewards fetch failed — skip
-          }
-        }
-        addSystemMessage(`Tempo Wallet: ${r.address}\n${bal}${rewardInfo}`);
-      } catch (err) {
-        addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
-      }
-      return;
-    }
-
-    if (subcommand === 'fund') {
-      try {
-        const { tempoExec } = await import('../tempo/index.js');
-        const output = tempoExec(['wallet', 'fund']);
-        addSystemMessage(`${output}\n\nCheck /tempo balance.`);
-      } catch (err) {
-        addSystemMessage(`Fund failed: ${err instanceof Error ? err.message : 'Unknown'}`);
-      }
-      return;
-    }
-
-    if (subcommand === 'request') {
-      const url = (slashResult.args || '').replace(/^request\s*/, '').trim();
-      if (!url) {
-        addSystemMessage('Usage: /tempo request <url>');
-        return;
-      }
-      addSystemMessage(`Making paid request to ${url}...`);
-      try {
-        const { tempoExec } = await import('../tempo/index.js');
-        const output = tempoExec(['request', '-t', url]);
-        addSystemMessage(output);
-      } catch (err) {
-        addSystemMessage(`Request failed: ${err instanceof Error ? err.message : 'Unknown'}`);
-      }
-      return;
-    }
-
-    addSystemMessage('Usage:\n  /tempo — check status\n  /tempo install — install Tempo CLI\n  /tempo login — connect wallet\n  /tempo logout — disconnect\n  /tempo balance — check USDC balance\n  /tempo fund — add funds\n  /tempo request <url> — make a paid MPP request');
+    await handleTempo(slashResult, deps);
     return;
   }
 
   if (slashResult.action === 'tools') {
-    const args = slashResult.args;
-    const toolEntries = Object.values(registry);
-
-    // /tools info <name> — show details for a single tool
-    if (args === 'info') {
-      addSystemMessage('Usage: /tools info <tool_name>\nExample: /tools info event_create');
-      return;
-    }
-    if (args && args.startsWith('info ')) {
-      const toolName = args.slice(5).trim();
-      const tool = registry[toolName] ||
-        toolEntries.find(
-          (t) => t.displayName.toLowerCase() === toolName.toLowerCase() ||
-                 t.name.toLowerCase() === toolName.toLowerCase(),
-        );
-      if (!tool) {
-        const suggestions = Object.keys(registry)
-          .filter((k) => k.toLowerCase().includes(toolName.toLowerCase()))
-          .slice(0, 5);
-        const hint = suggestions.length ? `\nDid you mean: ${suggestions.join(', ')}` : '';
-        addSystemMessage(`Tool "${toolName}" not found.${hint}`);
-      } else {
-        const params = tool.params.length > 0
-          ? tool.params.map((p) => {
-            const type = typeof p.type === 'object' ? 'object' : p.type;
-            const suffix = p.enum ? ` [${p.enum.join(', ')}]` : p.default !== undefined ? ` (default: ${p.default})` : '';
-            return `  ${p.required ? p.name : `[${p.name}]`} (${type}) — ${p.description}${suffix}`;
-          }).join('\n')
-          : '  (none)';
-        addSystemMessage(
-          `${tool.name} — ${tool.displayName}\n` +
-          `${tool.description}\n` +
-          `Destructive: ${tool.destructive ? 'yes' : 'no'}\n\n` +
-          `Parameters:\n${params}`,
-        );
-      }
-      return;
-    }
-
-    // /tools <category> — filter by category
-    if (args) {
-      const cat = args.toLowerCase();
-      const filtered = toolEntries.filter((t) => t.category === cat);
-      if (filtered.length === 0) {
-        const cats = new Set<string>();
-        for (const t of toolEntries) cats.add(t.category);
-        addSystemMessage(`No tools in category "${args}". Available: ${[...cats].sort().join(', ')}`);
-      } else {
-        filtered.sort((a, b) => a.name.localeCompare(b.name));
-        const lines = filtered.map((t) => `  ${t.name} — ${t.description.length > 60 ? t.description.slice(0, 57) + '...' : t.description}`);
-        addSystemMessage(`${cat} tools (${filtered.length}):\n${lines.join('\n')}\n\nUse /tools info <name> for details.`);
-      }
-      return;
-    }
-
-    // /tools (no args) — show categories with counts
-    const counts: Record<string, number> = {};
-    for (const t of toolEntries) {
-      const cat = t.category;
-      counts[cat] = (counts[cat] || 0) + 1;
-    }
-    const sorted = Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
-    const lines = sorted.map(([cat, count]) => `  ${cat} (${count})`);
-    addSystemMessage(
-      `${toolEntries.length} tools in ${sorted.length} categories:\n${lines.join('\n')}\n\n` +
-      'Usage:\n  /tools <category>     List tools in a category\n  /tools info <name>    Show tool details',
-    );
+    handleTools(slashResult, addSystemMessage);
     return;
   }
 
@@ -941,4 +345,648 @@ export async function executeSlashCommand(
     addSystemMessage(slashResult.output);
     return;
   }
+}
+
+// --- /events: delegate to event_list capability ---
+
+async function handleEvents(
+  slashResult: SlashCommandResult,
+  addSystemMessage: (text: string) => void,
+  registry: Record<string, ToolDef>,
+): Promise<void> {
+  addSystemMessage('Fetching events...');
+  try {
+    const args: Record<string, unknown> = {};
+    if (slashResult.args) {
+      if (slashResult.args === '--draft' || slashResult.args === 'draft') {
+        args.draft = true;
+      } else {
+        args.search = slashResult.args;
+      }
+    }
+    const { result } = await executeCapability('event_list', args, registry);
+    const data = result as { items?: Array<Record<string, unknown>> };
+    if (!data?.items?.length) {
+      addSystemMessage('No events found.');
+    } else {
+      const lines = data.items.map((e: Record<string, unknown>, i: number) => {
+        const status = e.published ? 'Published' : 'Draft';
+        const date = e.start ? new Date(e.start as string).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+        return `${i + 1}. ${e.title} — ${date} — ${status}`;
+      });
+      addSystemMessage(lines.join('\n'));
+    }
+  } catch (err) {
+    if (err instanceof CapabilityNotAvailableError) {
+      addSystemMessage(err.message);
+    } else {
+      addSystemMessage(`Failed to fetch events: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  }
+}
+
+// --- /credits: delegate to credits_balance capability ---
+
+async function handleCredits(
+  addSystemMessage: (text: string) => void,
+  registry: Record<string, ToolDef>,
+): Promise<void> {
+  if (getAiMode() === 'own_key') {
+    addSystemMessage(
+      'You are in BYOK mode (Own API Key). Credits do not apply.\n' +
+      'To use community AI credits, switch with /mode credits.',
+    );
+    return;
+  }
+  try {
+    const { result } = await executeCapability('credits_balance', {}, registry);
+    const data = result as Record<string, unknown>;
+    const lines: string[] = [];
+    if (data.credits !== undefined) lines.push(`Credits: ${data.credits}`);
+    if (data.subscription_tier) lines.push(`Tier: ${data.subscription_tier}`);
+    if (data.subscription_renewal_date) lines.push(`Renews: ${data.subscription_renewal_date}`);
+    if (lines.length === 0) lines.push('No credits information available.');
+    addSystemMessage(lines.join('\n'));
+  } catch (err) {
+    if (err instanceof CapabilityNotAvailableError) {
+      addSystemMessage('Credits tool not available. Check your space selection with /spaces.');
+    } else {
+      addSystemMessage(`Failed to fetch credits: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  }
+}
+
+// --- /spaces: delegate listing to space_list capability, keep switch orchestration ---
+
+async function handleSpaces(
+  slashResult: SlashCommandResult,
+  deps: SlashCommandDeps,
+): Promise<void> {
+  const { addSystemMessage, registry, session, setSpaceName, cachedSpacesRef } = deps;
+  try {
+    let spaces: Array<{ _id: string; title: string; slug?: string }>;
+    // Use cache for subcommands (number/name switch); always refresh on bare /spaces
+    const useCache = slashResult.args && cachedSpacesRef.current;
+    if (useCache) {
+      spaces = cachedSpacesRef.current!;
+    } else {
+      addSystemMessage('Fetching spaces...');
+      const { result } = await executeCapability('space_list', {}, registry);
+      const data = result as { items?: Array<{ _id: string; title: string; slug?: string }> };
+      if (!data?.items?.length) {
+        addSystemMessage('No spaces found.');
+        return;
+      }
+      spaces = data.items;
+      cachedSpacesRef.current = spaces;
+    }
+
+    // /spaces <number> — switch directly using cached list
+    if (slashResult.args && /^\d+$/.test(slashResult.args)) {
+      const idx = parseInt(slashResult.args, 10) - 1;
+      if (idx >= 0 && idx < spaces.length) {
+        const switchTool = getRegistryTool(registry, 'space_switch', addSystemMessage);
+        if (!switchTool) return;
+        const switched = await switchTool.execute({ space_id: spaces[idx]._id }) as { _id: string; title: string };
+        addSystemMessage(`Switched to ${switched.title}.`);
+        setSpaceName(switched.title);
+      } else {
+        addSystemMessage(`Invalid number. Use 1-${spaces.length}.`);
+      }
+      return;
+    }
+
+    // /spaces <name> — fuzzy match and switch
+    if (slashResult.args) {
+      const query = slashResult.args.toLowerCase();
+      const match = spaces.find(s => s.title.toLowerCase().includes(query));
+      if (match) {
+        const switchTool = getRegistryTool(registry, 'space_switch', addSystemMessage);
+        if (!switchTool) return;
+        const switched = await switchTool.execute({ space_id: match._id }) as { _id: string; title: string };
+        addSystemMessage(`Switched to ${switched.title}.`);
+        setSpaceName(switched.title);
+      } else {
+        addSystemMessage(`No space matching "${slashResult.args}". Use /spaces to see all.`);
+      }
+      return;
+    }
+
+    // /spaces (no args) — list with hint
+    const lines = spaces.map((s, i) => {
+      const current = session.currentSpace?._id === s._id ? ' (current)' : '';
+      return `${i + 1}. ${s.title}${current}`;
+    });
+    lines.push('');
+    lines.push('Type /spaces <number> to switch, e.g. /spaces 3');
+    addSystemMessage(lines.join('\n'));
+  } catch (err) {
+    addSystemMessage(`Failed to fetch spaces: ${err instanceof Error ? err.message : 'Unknown error'}`);
+  }
+}
+
+// --- /export: delegate data fetching to capabilities, keep CSV/file logic ---
+
+async function handleExport(
+  slashResult: SlashCommandResult,
+  addSystemMessage: (text: string) => void,
+  registry: Record<string, ToolDef>,
+): Promise<void> {
+  const parts = (slashResult.args || '').split(/\s+/);
+  const exportType = parts[0];
+  const exportId = parts[1];
+
+  if (!exportType || !exportId) {
+    addSystemMessage('Usage:\n  /export guests <event_id> — Export guest list as CSV\n  /export apps <event_id> — Export applications as CSV');
+    return;
+  }
+
+  if (exportType === 'guests') {
+    addSystemMessage('Exporting guests...');
+    try {
+      const { result } = await executeCapability('event_export_guests', { event_id: exportId }, registry);
+      const data = result as { count: number; tickets: Array<Record<string, unknown>> };
+      if (!data?.tickets?.length) {
+        addSystemMessage('No guest data found.');
+        return;
+      }
+      const headers = ['Name', 'Email', 'Ticket Type', 'Amount', 'Currency', 'Purchase Date', 'Check-in Date', 'Active'];
+      const rows = data.tickets.map((t: Record<string, unknown>) => [
+        t.buyer_name || '',
+        t.buyer_email || '',
+        t.ticket_type || '',
+        t.payment_amount || '',
+        t.currency || '',
+        t.purchase_date || '',
+        t.checkin_date || '',
+        t.active !== false ? 'Yes' : 'No',
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+      const csv = [headers.join(','), ...rows].join('\n');
+      const filename = `guests-${exportId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.csv`;
+      const { writeFileSync, chmodSync } = await import('fs');
+      writeFileSync(filename, csv);
+      chmodSync(filename, 0o600);
+      addSystemMessage(`Exported ${data.count} guests to ${filename}`);
+    } catch (err) {
+      addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    return;
+  }
+
+  if (exportType === 'apps' || exportType === 'applications') {
+    addSystemMessage('Exporting applications...');
+    try {
+      const { result } = await executeCapability('event_application_export', { event_id: exportId }, registry);
+      const data = result as { applications: Array<Record<string, unknown>>; count: number };
+      if (!data?.applications?.length) {
+        addSystemMessage('No application data found.');
+        return;
+      }
+      const firstApp = data.applications[0] as Record<string, unknown>;
+      const questions = (firstApp.questions as string[]) || [];
+      const headers = ['Name', 'Email', ...questions];
+      const rows = data.applications.map((app: Record<string, unknown>) => {
+        const user = (app.user || app.non_login_user) as Record<string, unknown> | undefined;
+        const answers = (app.answers as Array<Record<string, unknown>>) || [];
+        const answerValues = answers.map(a => String(a.answer || ''));
+        return [
+          user?.name || '',
+          user?.email || '',
+          ...answerValues,
+        ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+      });
+      const csv = [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','), ...rows].join('\n');
+      const filename = `applications-${exportId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.csv`;
+      const { writeFileSync, chmodSync } = await import('fs');
+      writeFileSync(filename, csv);
+      chmodSync(filename, 0o600);
+      addSystemMessage(`Exported ${data.count} applications to ${filename}`);
+    } catch (err) {
+      addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    return;
+  }
+
+  addSystemMessage(`Unknown export type: ${exportType}. Use "guests" or "apps".`);
+}
+
+// --- /connectors: delegate data ops to capabilities, keep orchestration ---
+
+async function handleConnectors(
+  slashResult: SlashCommandResult,
+  deps: SlashCommandDeps,
+): Promise<void> {
+  const { addSystemMessage, registry, session, setApiKeyPrompt } = deps;
+  const parts = (slashResult.args || '').split(/\s+/);
+  const subcommand = parts[0];
+  const subArg = parts.slice(1).join(' ');
+
+  if (!subcommand || subcommand === 'list') {
+    addSystemMessage('Fetching available connectors...');
+    try {
+      const { result } = await executeCapability('connectors_list', {}, registry);
+      const connectors = Array.isArray(result) ? result : [];
+      if (connectors.length === 0) {
+        addSystemMessage('No connectors available.');
+      } else {
+        const lines = connectors.map((c: Record<string, unknown>, i: number) =>
+          `${i + 1}. ${c.name} (${c.id}) — ${c.authType} — ${(c.capabilities as string[])?.join(', ') || ''}`,
+        );
+        addSystemMessage(lines.join('\n'));
+      }
+    } catch (err) {
+      addSystemMessage(err instanceof CapabilityNotAvailableError ? err.message : `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'connected') {
+    if (!session.currentSpace) {
+      addSystemMessage('No space selected. Use /spaces to switch first.');
+      return;
+    }
+    addSystemMessage('Fetching connections...');
+    try {
+      const { result } = await executeCapability('space_connectors', { space_id: session.currentSpace._id }, registry);
+      const connections = Array.isArray(result) ? result : [];
+      if (connections.length === 0) {
+        addSystemMessage('No connected integrations for this space.');
+      } else {
+        const lines = connections.map((c: Record<string, unknown>, i: number) => {
+          const status = c.status || 'unknown';
+          const lastSync = c.lastSyncAt ? new Date(c.lastSyncAt as string).toLocaleDateString() : 'never';
+          const enabled = c.enabled ? '' : ' (disabled)';
+          return `${i + 1}. ${c.connectorType} — ${status}${enabled} — last sync: ${lastSync}\n   ID: ${c.id}`;
+        });
+        addSystemMessage(lines.join('\n'));
+      }
+    } catch (err) {
+      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'logs' && subArg) {
+    addSystemMessage('Fetching logs...');
+    try {
+      const { result } = await executeCapability('connector_logs', { connection_id: subArg }, registry);
+      const data = result as { logs: Array<Record<string, unknown>>; count: number };
+      if (!data.logs?.length) {
+        addSystemMessage('No sync logs found.');
+      } else {
+        const lines = data.logs.map((l: Record<string, unknown>, i: number) => {
+          const icon = l.status === 'success' ? '\u2714' : '\u2718';
+          const records = l.recordsProcessed !== undefined ? ` (${l.recordsProcessed} records)` : '';
+          const date = l.createdAt ? new Date(l.createdAt as string).toLocaleString() : '';
+          return `${i + 1}. ${icon} ${l.actionId} — ${l.status}${records} — ${l.triggerType} — ${date}`;
+        });
+        addSystemMessage(lines.join('\n'));
+      }
+    } catch (err) {
+      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'connect' && subArg) {
+    if (!session.currentSpace) {
+      addSystemMessage('No space selected. Use /spaces to switch first.');
+      return;
+    }
+    addSystemMessage(`Connecting ${subArg}...`);
+    try {
+      const { result } = await executeCapability('connector_connect', {
+        space_id: session.currentSpace._id,
+        connector_type: subArg,
+      }, registry);
+      const connectResult = result as { connectionId: string; authUrl?: string; requiresApiKey: boolean };
+
+      if (connectResult.requiresApiKey) {
+        addSystemMessage('This connector requires an API key.');
+        addSystemMessage(`Type your ${subArg} API key below and press Enter:`);
+        addSystemMessage('(Your key will be sent securely to the backend — it will NOT be stored in chat history.)');
+        setApiKeyPrompt({
+          connectionId: connectResult.connectionId,
+          connectorType: subArg,
+        });
+      } else if (connectResult.authUrl) {
+        addSystemMessage('Opening browser for authorization...');
+        try {
+          const open = (await import('open')).default;
+          await open(connectResult.authUrl);
+        } catch {
+          addSystemMessage(`Open this URL in your browser:\n${connectResult.authUrl}`);
+        }
+
+        addSystemMessage('Waiting for authorization... (this may take up to 2 minutes)');
+        await pollForOAuthConnection(connectResult.connectionId, subArg, deps);
+      } else {
+        addSystemMessage(`Connected! (ID: ${connectResult.connectionId})`);
+      }
+    } catch (err) {
+      addSystemMessage(`Failed to connect: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    return;
+  }
+
+  if ((subcommand === 'run' || subcommand === 'sync') && subArg) {
+    const runParts = subArg.split(/\s+/);
+    const connId = runParts[0];
+    const actionId = runParts[1] || 'sync-events';
+    addSystemMessage(`Running ${actionId} on ${connId}...`);
+    try {
+      const { result } = await executeCapability('connectors_sync', { connection_id: connId, action: actionId }, registry);
+      const data = result as Record<string, unknown>;
+      if (data.success) {
+        const records = data.recordsProcessed !== undefined ? ` (${data.recordsProcessed} records)` : '';
+        addSystemMessage(`Success${records}${data.message ? ': ' + data.message : ''}`);
+      } else {
+        addSystemMessage(`Failed: ${data.error || data.message || 'Unknown error'}`);
+      }
+    } catch (err) {
+      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'disconnect' && subArg) {
+    addSystemMessage(`Disconnecting ${subArg}...`);
+    try {
+      const { result } = await executeCapability('connector_disconnect', { connection_id: subArg }, registry);
+      const data = result as { disconnected: boolean };
+      addSystemMessage(data.disconnected ? 'Disconnected.' : 'Failed to disconnect.');
+    } catch (err) {
+      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    return;
+  }
+
+  addSystemMessage('Usage:\n  /connectors — list available\n  /connectors connected — show space connections\n  /connectors connect <type> — connect an integration\n  /connectors run <id> [action] — run sync or action\n  /connectors logs <id> — sync history\n  /connectors disconnect <id> — remove connection');
+}
+
+/** OAuth polling loop for connector connect — slash-specific orchestration. */
+async function pollForOAuthConnection(
+  connectionId: string,
+  connectorType: string,
+  deps: SlashCommandDeps,
+): Promise<void> {
+  const { addSystemMessage, registry, session } = deps;
+  const startTime = Date.now();
+  const TIMEOUT_MS = 120_000;
+  const POLL_INTERVAL_MS = 3_000;
+
+  while (Date.now() - startTime < TIMEOUT_MS) {
+    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+    if (!session.currentSpace) {
+      addSystemMessage('Space changed during authorization. Aborting poll.');
+      return;
+    }
+    try {
+      const { result } = await executeCapability('space_connectors', { space_id: session.currentSpace._id }, registry);
+      const connections = Array.isArray(result) ? result : [];
+      const match = (connections as Array<Record<string, unknown>>).find(c => c.id === connectionId);
+      if (match && match.status !== 'pending') {
+        if (match.status === 'connected' || match.status === 'active') {
+          addSystemMessage(`Connected! ${connectorType} is ready. Use /connectors connected to verify.`);
+          return;
+        } else {
+          addSystemMessage(`Connection failed: ${match.errorMessage || match.status}`);
+          return;
+        }
+      }
+    } catch {
+      // Polling error — continue
+    }
+  }
+  addSystemMessage('Authorization timed out (2 minutes). Try again with /connectors connect ' + connectorType);
+}
+
+// --- /tempo: delegate data ops to capabilities, keep CLI integration ---
+
+async function handleTempo(
+  slashResult: SlashCommandResult,
+  deps: SlashCommandDeps,
+): Promise<void> {
+  const { addSystemMessage, engine, exit, registry, session } = deps;
+  const subcommand = (slashResult.args || '').split(/\s+/)[0];
+
+  if (!subcommand || subcommand === 'status') {
+    try {
+      const { isTempoInstalled } = await import('../tempo/index.js');
+      if (!isTempoInstalled()) {
+        addSystemMessage('Tempo CLI is not installed.\n\n  /tempo install — install Tempo CLI\n\nAfter installing:\n  /tempo login — connect or create a wallet\n  /tempo balance — check USDC balance\n  /tempo fund — add funds\n  /tempo request <url> — make a paid MPP request');
+        return;
+      }
+      addSystemMessage('Checking Tempo wallet...');
+      const { formatted } = await executeCapability('tempo_status', {}, registry);
+      addSystemMessage(formatted);
+    } catch (err) {
+      addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'install') {
+    const confirmed = await engine.requestConfirmation('tempo-install', 'Install Tempo CLI? (runs: curl -fsSL https://tempo.xyz/install | bash)');
+    if (confirmed) {
+      addSystemMessage('Installing Tempo CLI...');
+      try {
+        const { installTempo } = await import('../tempo/index.js');
+        const success = await installTempo();
+        addSystemMessage(success ? 'Tempo CLI installed! Use /tempo login to connect your wallet.' : 'Installation failed. Try manually: curl -fsSL https://tempo.xyz/install | bash');
+      } catch (err) {
+        addSystemMessage(`Installation failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+      }
+    } else {
+      addSystemMessage('Installation cancelled.');
+    }
+    return;
+  }
+
+  if (subcommand === 'login') {
+    addSystemMessage('Connecting Tempo wallet...');
+    try {
+      const { tempoLogin, getWalletInfo } = await import('../tempo/index.js');
+
+      let authUrl = '';
+      const result = await tempoLogin((line) => {
+        addSystemMessage(line);
+        const urlMatch = line.match(/(https:\/\/wallet\.tempo\.xyz\/cli-auth\S+)/);
+        if (urlMatch && !authUrl) {
+          authUrl = urlMatch[1];
+          import('open').then(mod => mod.default(authUrl)).catch(() => {
+            addSystemMessage(`Open this URL in your browser: ${authUrl}`);
+          });
+          addSystemMessage('');
+          addSystemMessage('If the browser redirects away from the confirmation page:');
+          addSystemMessage('  Try opening the URL above in a private/incognito window.');
+        }
+      });
+
+      if (result.success) {
+        const info = getWalletInfo();
+        if (info.loggedIn && info.address) {
+          addSystemMessage(`Tempo wallet connected: ${info.address}`);
+          try {
+            await graphqlRequest(
+              'mutation($input: UserInput!) { updateUser(input: $input) { _id } }',
+              { input: {} },
+            );
+            addSystemMessage('Wallet linked to your Lemonade account.');
+          } catch {
+            addSystemMessage('Note: Could not auto-link wallet to Lemonade. Update manually in settings.');
+          }
+        } else {
+          addSystemMessage('Login process completed. Check /tempo status.');
+        }
+      } else {
+        const info = getWalletInfo();
+        if (info.loggedIn && info.address) {
+          addSystemMessage(`Tempo wallet connected: ${info.address}`);
+        } else {
+          addSystemMessage('Login did not complete. Try again with /tempo login.');
+          if (result.output) addSystemMessage(result.output);
+        }
+      }
+    } catch (err) {
+      addSystemMessage(`Login failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'logout') {
+    try {
+      const { tempoExec } = await import('../tempo/index.js');
+      tempoExec(['wallet', 'logout']);
+      addSystemMessage('Tempo wallet disconnected.');
+    } catch (err) {
+      addSystemMessage(`Logout failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'balance') {
+    try {
+      const { result } = await executeCapability('tempo_status', {}, registry);
+      const r = result as { installed: boolean; loggedIn: boolean; address?: string; balances?: Record<string, string> };
+      if (!r.installed) { addSystemMessage('Tempo CLI not installed. Use /tempo install.'); return; }
+      if (!r.loggedIn) { addSystemMessage('Not logged in. Use /tempo login.'); return; }
+      const bal = r.balances ? Object.entries(r.balances).map(([k, v]) => `  ${v} ${k}`).join('\n') : '  No balances';
+      let rewardInfo = '';
+      if (session.currentSpace) {
+        try {
+          const rewardTool = registry['rewards_balance'];
+          if (rewardTool) {
+            const rewards = await rewardTool.execute({ space_id: session.currentSpace._id }) as Record<string, unknown>;
+            if (rewards) {
+              const accrued = rewards.organizer_accrued_usdc || rewards.attendee_accrued_usdc || '0';
+              const pending = rewards.organizer_pending_usdc || rewards.attendee_pending_usdc || '0';
+              rewardInfo = `\n\nRewards (${session.currentSpace.title}):\n  Accrued: ${accrued} USDC\n  Pending payout: ${pending} USDC`;
+            }
+          }
+        } catch {
+          // Rewards fetch failed — skip
+        }
+      }
+      addSystemMessage(`Tempo Wallet: ${r.address}\n${bal}${rewardInfo}`);
+    } catch (err) {
+      addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'fund') {
+    try {
+      const { tempoExec } = await import('../tempo/index.js');
+      const output = tempoExec(['wallet', 'fund']);
+      addSystemMessage(`${output}\n\nCheck /tempo balance.`);
+    } catch (err) {
+      addSystemMessage(`Fund failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'request') {
+    const url = (slashResult.args || '').replace(/^request\s*/, '').trim();
+    if (!url) {
+      addSystemMessage('Usage: /tempo request <url>');
+      return;
+    }
+    addSystemMessage(`Making paid request to ${url}...`);
+    try {
+      const { tempoExec } = await import('../tempo/index.js');
+      const output = tempoExec(['request', '-t', url]);
+      addSystemMessage(output);
+    } catch (err) {
+      addSystemMessage(`Request failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+    }
+    return;
+  }
+
+  addSystemMessage('Usage:\n  /tempo — check status\n  /tempo install — install Tempo CLI\n  /tempo login — connect wallet\n  /tempo logout — disconnect\n  /tempo balance — check USDC balance\n  /tempo fund — add funds\n  /tempo request <url> — make a paid MPP request');
+}
+
+// --- /tools: delegate to capability registry ---
+
+function handleTools(
+  slashResult: SlashCommandResult,
+  addSystemMessage: (text: string) => void,
+): void {
+  const args = slashResult.args;
+  const caps = getAllCapabilities();
+
+  // /tools info <name> — show details for a single tool
+  if (args === 'info') {
+    addSystemMessage('Usage: /tools info <tool_name>\nExample: /tools info event_create');
+    return;
+  }
+  if (args && args.startsWith('info ')) {
+    const toolName = args.slice(5).trim();
+    const cap = findCapability(caps, toolName);
+    if (!cap) {
+      const suggestions = getSuggestions(caps, toolName);
+      const hint = suggestions.length ? `\nDid you mean: ${suggestions.join(', ')}` : '';
+      addSystemMessage(`Tool "${toolName}" not found.${hint}`);
+    } else {
+      const params = cap.params.length > 0
+        ? cap.params.map((p) => {
+          const type = typeof p.type === 'object' ? 'object' : p.type;
+          const suffix = p.enum ? ` [${p.enum.join(', ')}]` : p.default !== undefined ? ` (default: ${p.default})` : '';
+          return `  ${p.required ? p.name : `[${p.name}]`} (${type}) — ${p.description}${suffix}`;
+        }).join('\n')
+        : '  (none)';
+      addSystemMessage(
+        `${cap.name} — ${cap.displayName}\n` +
+        `${cap.description}\n` +
+        `Destructive: ${cap.destructive ? 'yes' : 'no'}\n\n` +
+        `Parameters:\n${params}`,
+      );
+    }
+    return;
+  }
+
+  // /tools <category> — filter by category
+  if (args) {
+    const filtered = filterCapabilities(caps, { category: args });
+    if (filtered.length === 0) {
+      const cats = getCategories(caps);
+      addSystemMessage(`No tools in category "${args}". Available: ${cats.join(', ')}`);
+    } else {
+      const lines = filtered.map((c) => `  ${c.name} — ${c.description.length > 60 ? c.description.slice(0, 57) + '...' : c.description}`);
+      addSystemMessage(`${args.toLowerCase()} tools (${filtered.length}):\n${lines.join('\n')}\n\nUse /tools info <name> for details.`);
+    }
+    return;
+  }
+
+  // /tools (no args) — show categories with counts
+  const categories = getCategories(caps);
+  const counts: Record<string, number> = {};
+  for (const c of caps) {
+    counts[c.category] = (counts[c.category] || 0) + 1;
+  }
+  const lines = categories.map(cat => `  ${cat} (${counts[cat]})`);
+  addSystemMessage(
+    `${caps.length} tools in ${categories.length} categories:\n${lines.join('\n')}\n\n` +
+    'Usage:\n  /tools <category>     List tools in a category\n  /tools info <name>    Show tool details',
+  );
 }
