@@ -88,6 +88,6 @@ describe('generate-from-mcp', () => {
   it('includes auto-generated header comment', () => {
     const content = readFileSync(join(GENERATED_DIR, 'event-search.ts'), 'utf-8');
     expect(content).toContain('Auto-generated from mcp-schema.json');
-    expect(content).toContain('MCP tool: event_search');
+    expect(content).toContain('Tool: event_search');
   });
 });
