@@ -1,5 +1,4 @@
-import { ToolParam } from '../chat/providers/interface.js';
-import type { ToolCategory } from '../chat/providers/interface.js';
+import { ToolParam, type ToolCategory } from '../chat/providers/interface.js';
 
 // Re-export ToolCategory from interface.ts (don't duplicate)
 export type { ToolCategory } from '../chat/providers/interface.js';

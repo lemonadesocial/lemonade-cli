@@ -20,7 +20,7 @@ export function buildCapability(input: CapabilityInput): CanonicalCapability {
     displayName: input.displayName,
     description: input.description,
     category: input.category,
-    params: input.params,
+    params: [...input.params],
     destructive: input.destructive,
     execute: input.execute,
     backendType: input.backendType,
@@ -32,7 +32,7 @@ export function buildCapability(input: CapabilityInput): CanonicalCapability {
     deprecated: input.deprecated ?? DEFAULTS.deprecated,
     experimental: input.experimental ?? DEFAULTS.experimental,
     whenToUse: input.whenToUse,
-    tags: input.tags,
+    tags: input.tags ? [...input.tags] : undefined,
     surfaces: input.surfaces ?? [...DEFAULTS.surfaces],
     ...(input.formatResult ? { formatResult: input.formatResult } : {}),
   };
