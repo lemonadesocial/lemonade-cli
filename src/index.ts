@@ -14,9 +14,8 @@ import { registerDoctorCommands } from './commands/doctor/index.js';
 import { registerToolCommands } from './commands/tools/index.js';
 import { registerCapabilitiesCommands } from './commands/capabilities/index.js';
 import { loadGeneratedCommands, checkSchemaVersion } from './commands/loader.js';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const { version } = require('../package.json');
+import { getPackageVersion } from './config/version.js';
+const version = getPackageVersion();
 
 const program = new Command();
 

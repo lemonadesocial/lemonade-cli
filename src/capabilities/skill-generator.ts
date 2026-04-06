@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { getAllCapabilities } from '../chat/tools/registry.js';
@@ -6,13 +6,19 @@ import type { CanonicalCapability } from './types.js';
 
 const HEADER = '<!-- Auto-generated from capability registry. Do not edit manually. -->';
 
+function findProjectRoot(startDir: string): string {
+  let dir = startDir;
+  while (dir !== dirname(dir)) {
+    if (existsSync(join(dir, 'package.json'))) return dir;
+    dir = dirname(dir);
+  }
+  return startDir;
+}
+
 function getGeneratedDir(): string {
   const thisDir = dirname(fileURLToPath(import.meta.url));
-  if (thisDir.includes('/dist/')) {
-    const projectRoot = thisDir.replace(/\/dist\/capabilities$/, '');
-    return join(projectRoot, 'src', 'chat', 'skills', 'generated');
-  }
-  return join(thisDir, '..', 'chat', 'skills', 'generated');
+  const projectRoot = findProjectRoot(thisDir);
+  return join(projectRoot, 'src', 'chat', 'skills', 'generated');
 }
 
 function formatParam(p: { name: string; type: string; required: boolean; description: string }): string {
@@ -75,13 +81,6 @@ function generateCategoryFile(category: string, capabilities: CanonicalCapabilit
     lines.push('---');
     lines.push('');
   }
-
-  // Related tools section
-  const names = sorted.map(c => `\`${c.name}\``);
-  lines.push('## Related Tools');
-  lines.push('');
-  lines.push(names.join(', '));
-  lines.push('');
 
   return lines.join('\n');
 }

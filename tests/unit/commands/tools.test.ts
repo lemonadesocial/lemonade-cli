@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { getCategories, getCategoriesFromRegistry } from '../../../src/commands/tools/index';
-import { getAllCapabilities, buildToolRegistry } from '../../../src/chat/tools/registry';
+import { getCategories } from '../../../src/commands/tools/index';
+import { getAllCapabilities } from '../../../src/chat/tools/registry';
 import { parseSlashCommand } from '../../../src/chat/ui/SlashCommands';
 
 describe('getCategories', () => {
@@ -15,13 +15,6 @@ describe('getCategories', () => {
     for (let i = 1; i < cats.length; i++) {
       expect(cats[i].localeCompare(cats[i - 1])).toBeGreaterThanOrEqual(0);
     }
-  });
-
-  it('getCategoriesFromRegistry works with legacy registry shape', () => {
-    const registry = buildToolRegistry();
-    const cats = getCategoriesFromRegistry(registry);
-    expect(cats.length).toBeGreaterThan(5);
-    expect(cats).toContain('event');
   });
 });
 

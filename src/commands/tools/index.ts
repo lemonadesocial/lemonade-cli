@@ -3,28 +3,11 @@ import { getAllCapabilities } from '../../chat/tools/registry.js';
 import { jsonSuccess } from '../../output/json.js';
 import { renderTable, renderKeyValue } from '../../output/table.js';
 import { handleError } from '../../output/error.js';
+import { filterCapabilities, getCategories, findCapability, getSuggestions } from '../../capabilities/filter.js';
 import type { CanonicalCapability } from '../../capabilities/types.js';
 
-/** Get sorted unique categories from capabilities. */
-export function getCategories(caps: CanonicalCapability[]): string[] {
-  const cats = new Set<string>();
-  for (const cap of caps) {
-    cats.add(cap.category);
-  }
-  return [...cats].sort();
-}
-
-/**
- * Overload that accepts the legacy Record<string, ToolDef> shape for backward
- * compatibility with existing tests and callers.
- */
-export function getCategoriesFromRegistry(tools: Record<string, { category: string }>): string[] {
-  const cats = new Set<string>();
-  for (const tool of Object.values(tools)) {
-    cats.add(tool.category);
-  }
-  return [...cats].sort();
-}
+// Re-export for consumers
+export { getCategories } from '../../capabilities/filter.js';
 
 function formatParamType(p: { type: string | object }): string {
   if (typeof p.type === 'object') return 'object';
@@ -57,22 +40,15 @@ export function registerToolCommands(program: Command): void {
     .option('--json', 'Output as JSON')
     .action((opts) => {
       try {
-        let entries = getCaps();
+        const entries = filterCapabilities(getCaps(), {
+          category: opts.category,
+          surface: opts.surface,
+        });
 
-        if (opts.category) {
-          const cat = opts.category.toLowerCase();
-          entries = entries.filter((t) => t.category === cat);
-          if (entries.length === 0) {
-            const available = getCategories(getCaps()).join(', ');
-            throw new Error(`No tools in category "${opts.category}". Available categories: ${available}`);
-          }
+        if (opts.category && entries.length === 0) {
+          const available = getCategories(getCaps()).join(', ');
+          throw new Error(`No tools in category "${opts.category}". Available categories: ${available}`);
         }
-
-        if (opts.surface) {
-          entries = entries.filter((t) => t.surfaces.includes(opts.surface));
-        }
-
-        entries.sort((a, b) => a.name.localeCompare(b.name));
 
         if (opts.json) {
           const data = entries.map((t) => ({
@@ -113,17 +89,11 @@ export function registerToolCommands(program: Command): void {
     .action((name: string, opts) => {
       try {
         const caps = getCaps();
-        const cap = caps.find(c => c.name === name) ??
-          caps.find(c =>
-            c.displayName.toLowerCase() === name.toLowerCase() ||
-            c.name.toLowerCase() === name.toLowerCase(),
-          );
+        const cap = findCapability(caps, name) ??
+          caps.find(c => c.displayName.toLowerCase() === name.toLowerCase());
 
         if (!cap) {
-          const suggestions = caps
-            .filter((c) => c.name.toLowerCase().includes(name.toLowerCase()))
-            .slice(0, 5)
-            .map(c => c.name);
+          const suggestions = getSuggestions(caps, name);
           const hint = suggestions.length
             ? `\nDid you mean: ${suggestions.join(', ')}`
             : '';

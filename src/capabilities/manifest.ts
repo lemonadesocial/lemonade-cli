@@ -6,7 +6,8 @@ export interface CapabilityManifest {
   generated: string;
   totalCapabilities: number;
   categories: Record<string, number>;
-  backendDistribution: Record<string, number>;
+  backendServiceDistribution: Record<string, number>;
+  backendTypeDistribution: Record<string, number>;
   surfaceDistribution: Record<string, number>;
   capabilities: CapabilitySummary[];
 }
@@ -30,16 +31,18 @@ export interface CapabilitySummary {
   tags?: string[];
 }
 
-export function generateManifest(version: string): CapabilityManifest {
+export function generateManifest(version: string, timestamp?: string): CapabilityManifest {
   const capabilities = getAllCapabilities();
 
   const categories: Record<string, number> = {};
-  const backendDistribution: Record<string, number> = {};
+  const backendServiceDistribution: Record<string, number> = {};
+  const backendTypeDistribution: Record<string, number> = {};
   const surfaceDistribution: Record<string, number> = {};
 
   for (const cap of capabilities) {
     categories[cap.category] = (categories[cap.category] || 0) + 1;
-    backendDistribution[cap.backendService] = (backendDistribution[cap.backendService] || 0) + 1;
+    backendServiceDistribution[cap.backendService] = (backendServiceDistribution[cap.backendService] || 0) + 1;
+    backendTypeDistribution[cap.backendType] = (backendTypeDistribution[cap.backendType] || 0) + 1;
     for (const surface of cap.surfaces) {
       surfaceDistribution[surface] = (surfaceDistribution[surface] || 0) + 1;
     }
@@ -47,10 +50,11 @@ export function generateManifest(version: string): CapabilityManifest {
 
   return {
     version,
-    generated: new Date().toISOString(),
+    generated: timestamp ?? new Date().toISOString(),
     totalCapabilities: capabilities.length,
     categories,
-    backendDistribution,
+    backendServiceDistribution,
+    backendTypeDistribution,
     surfaceDistribution,
     capabilities: capabilities.map(capToSummary),
   };

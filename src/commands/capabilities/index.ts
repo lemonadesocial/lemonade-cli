@@ -1,15 +1,8 @@
 import { Command } from 'commander';
-import { createRequire } from 'module';
 import { jsonSuccess } from '../../output/json.js';
 import { renderTable, renderKeyValue } from '../../output/table.js';
 import { handleError } from '../../output/error.js';
-
-const require = createRequire(import.meta.url);
-
-function getVersion(): string {
-  const { version } = require('../../../package.json');
-  return version as string;
-}
+import { getPackageVersion } from '../../config/version.js';
 
 export function registerCapabilitiesCommands(program: Command): void {
   const capabilities = program
@@ -23,13 +16,14 @@ export function registerCapabilitiesCommands(program: Command): void {
     .action(async (opts) => {
       try {
         const { generateManifest } = await import('../../capabilities/manifest.js');
-        const manifest = generateManifest(getVersion());
+        const manifest = generateManifest(getPackageVersion());
 
         if (opts.json) {
           console.log(jsonSuccess({
             total: manifest.totalCapabilities,
             categories: manifest.categories,
-            backendDistribution: manifest.backendDistribution,
+            backendServiceDistribution: manifest.backendServiceDistribution,
+            backendTypeDistribution: manifest.backendTypeDistribution,
             surfaceDistribution: manifest.surfaceDistribution,
           }));
         } else {
@@ -42,10 +36,16 @@ export function registerCapabilitiesCommands(program: Command): void {
           console.log(renderTable(['Category', 'Count'], catRows, { title: 'Categories' }));
 
           console.log('');
-          const backendRows = Object.entries(manifest.backendDistribution)
+          const serviceRows = Object.entries(manifest.backendServiceDistribution)
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([svc, count]) => [svc, String(count)]);
-          console.log(renderTable(['Backend Service', 'Count'], backendRows, { title: 'Backend Distribution' }));
+          console.log(renderTable(['Backend Service', 'Count'], serviceRows, { title: 'Backend Service Distribution' }));
+
+          console.log('');
+          const typeRows = Object.entries(manifest.backendTypeDistribution)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([t, count]) => [t, String(count)]);
+          console.log(renderTable(['Backend Type', 'Count'], typeRows, { title: 'Backend Type Distribution' }));
 
           console.log('');
           const surfaceRows = Object.entries(manifest.surfaceDistribution)
@@ -60,15 +60,14 @@ export function registerCapabilitiesCommands(program: Command): void {
 
   capabilities
     .command('export')
-    .description('Export full capability manifest')
-    .option('--format <format>', 'Output format (json)', 'json')
-    .action(async (opts) => {
+    .description('Export full capability manifest as JSON')
+    .action(async () => {
       try {
         const { generateManifest } = await import('../../capabilities/manifest.js');
-        const manifest = generateManifest(getVersion());
+        const manifest = generateManifest(getPackageVersion());
         console.log(JSON.stringify(manifest, null, 2));
       } catch (error) {
-        handleError(error, opts.format === 'json');
+        handleError(error, true);
       }
     });
 
@@ -83,14 +82,13 @@ export function registerCapabilitiesCommands(program: Command): void {
     .action(async (opts) => {
       try {
         const { getAllCapabilities } = await import('../../chat/tools/registry.js');
-        let caps = getAllCapabilities();
-
-        if (opts.category) caps = caps.filter(c => c.category === opts.category);
-        if (opts.surface) caps = caps.filter(c => c.surfaces.includes(opts.surface));
-        if (opts.backendType) caps = caps.filter(c => c.backendType === opts.backendType);
-        if (opts.destructive) caps = caps.filter(c => c.destructive);
-
-        caps.sort((a, b) => a.name.localeCompare(b.name));
+        const { filterCapabilities } = await import('../../capabilities/filter.js');
+        const caps = filterCapabilities(getAllCapabilities(), {
+          category: opts.category,
+          surface: opts.surface,
+          backendType: opts.backendType,
+          destructive: opts.destructive,
+        });
 
         if (caps.length === 0) {
           const msg = 'No capabilities match the given filters.';
@@ -141,15 +139,12 @@ export function registerCapabilitiesCommands(program: Command): void {
     .action(async (name: string, opts) => {
       try {
         const { getAllCapabilities } = await import('../../chat/tools/registry.js');
+        const { findCapability, getSuggestions } = await import('../../capabilities/filter.js');
         const caps = getAllCapabilities();
-        const cap = caps.find(c => c.name === name) ??
-          caps.find(c => c.name.toLowerCase() === name.toLowerCase());
+        const cap = findCapability(caps, name);
 
         if (!cap) {
-          const suggestions = caps
-            .filter(c => c.name.toLowerCase().includes(name.toLowerCase()))
-            .slice(0, 5)
-            .map(c => c.name);
+          const suggestions = getSuggestions(caps, name);
           const hint = suggestions.length ? `\nDid you mean: ${suggestions.join(', ')}` : '';
           throw new Error(`Capability "${name}" not found.${hint}`);
         }

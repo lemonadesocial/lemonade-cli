@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { getConfig, setConfigValue } from '../../auth/store.js';
@@ -14,7 +14,7 @@ function getSkillsDir(): string {
   return thisDir;
 }
 
-/** Hand-maintained skill files — loaded first, take precedence. */
+/** Hand-maintained skill files — loaded into LLM context. */
 const SKILL_FILES = [
   'personality.md',
   'events-core.md',
@@ -26,36 +26,12 @@ const SKILL_FILES = [
   'tempo.md',
 ] as const;
 
-/** Load generated skill files from the generated/ subdirectory. */
-function loadGeneratedSkills(dir: string): string[] {
-  const generatedDir = join(dir, 'generated');
-  try {
-    const files = readdirSync(generatedDir)
-      .filter(f => f.endsWith('.md'))
-      .sort();
-    const parts: string[] = [];
-    for (const file of files) {
-      try {
-        const content = readFileSync(join(generatedDir, file), 'utf-8');
-        parts.push(content.trim());
-      } catch {
-        // Skip unreadable files
-      }
-    }
-    return parts;
-  } catch {
-    // generated/ directory doesn't exist yet — that's fine
-    return [];
-  }
-}
-
 export function loadSkills(): string {
   if (cachedSkills !== null) return cachedSkills;
 
   const dir = getSkillsDir();
   const parts: string[] = [];
 
-  // Hand-maintained files first (higher precedence)
   for (const file of SKILL_FILES) {
     try {
       const content = readFileSync(join(dir, file), 'utf-8');
@@ -64,10 +40,6 @@ export function loadSkills(): string {
       // Skip missing files gracefully
     }
   }
-
-  // Auto-generated files supplement with comprehensive tool listings
-  const generated = loadGeneratedSkills(dir);
-  parts.push(...generated);
 
   cachedSkills = parts.join('\n\n');
   return cachedSkills;
