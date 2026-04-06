@@ -101,6 +101,9 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   event_session_unreserve: 'deleteEventSessionReservation',
   event_votings: 'listEventVotings',
   event_vote: 'castVote',
+  space_add_member: 'aiAddSpaceMember',
+  space_remove_member: 'aiRemoveSpaceMember',
+  tickets_create_discount: 'aiCreateEventTicketDiscount',
 };
 
 // Maps canonical tool names to CLI command group + subcommand
