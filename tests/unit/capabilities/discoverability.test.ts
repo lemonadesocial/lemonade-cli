@@ -44,13 +44,13 @@ describe('Tool Discoverability Metadata', () => {
   it('alwaysLoad count stays within expected range', () => {
     const alwaysLoadCount = capabilities.filter(c => c.alwaysLoad === true).length;
     expect(alwaysLoadCount).toBeGreaterThanOrEqual(25);
-    expect(alwaysLoadCount).toBeLessThanOrEqual(35);
+    expect(alwaysLoadCount).toBeLessThanOrEqual(30);
   });
 
   it('shouldDefer count stays within expected range', () => {
     const shouldDeferCount = capabilities.filter(c => c.shouldDefer === true).length;
-    expect(shouldDeferCount).toBeGreaterThanOrEqual(80);
-    expect(shouldDeferCount).toBeLessThanOrEqual(130);
+    expect(shouldDeferCount).toBeGreaterThanOrEqual(100);
+    expect(shouldDeferCount).toBeLessThanOrEqual(120);
   });
 
   it('shouldDefer defaults to false for small categories', () => {

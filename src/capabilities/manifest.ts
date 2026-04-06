@@ -84,10 +84,10 @@ export function capToSummary(cap: CanonicalCapability): CapabilitySummary {
     })),
     deprecated: cap.deprecated || undefined,
     experimental: cap.experimental || undefined,
-    whenToUse: cap.whenToUse,
+    whenToUse: cap.whenToUse || undefined,
     tags: cap.tags,
     shouldDefer: cap.shouldDefer || undefined,
     alwaysLoad: cap.alwaysLoad || undefined,
-    searchHint: cap.searchHint,
+    searchHint: cap.searchHint || undefined,
   };
 }
