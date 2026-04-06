@@ -148,6 +148,12 @@ export async function handleTurn(
   const canUseTool = provider.capabilities.supportsToolCalling === true;
   const maxIterations = canUseTool ? MAX_TOOL_ITERATIONS : 1;
 
+  // Track which deferred tools have had their schemas dynamically injected
+  // into formattedTools (via tool_search). All tools are in `registry` for
+  // execution, but only non-deferred tools have their schemas sent initially.
+  // This set prevents duplicate schema injection.
+  const dynamicallyLoadedTools = new Set<string>();
+
   const emitAbortDone = () => {
     if (engine) {
       engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
@@ -362,12 +368,15 @@ export async function handleTurn(
             if (parsed.results) {
               const allCaps = getAllCapabilities();
               for (const searchResult of parsed.results) {
-                if (!registry[searchResult.name]) {
+                if (!dynamicallyLoadedTools.has(searchResult.name)) {
                   const cap = allCaps.find(c => c.name === searchResult.name);
                   if (cap) {
                     const toolDef = toToolDef(cap);
-                    registry[searchResult.name] = toolDef;
+                    if (!registry[searchResult.name]) {
+                      registry[searchResult.name] = toolDef;
+                    }
                     formattedTools.push(...provider.formatTools([toolDef]));
+                    dynamicallyLoadedTools.add(searchResult.name);
                   }
                 }
               }

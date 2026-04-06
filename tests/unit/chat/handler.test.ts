@@ -4,6 +4,24 @@ import { AIProvider, StreamEvent, Message, ToolDef, SystemMessage } from '../../
 import { createSessionState } from '../../../src/chat/session/state';
 import { ChatEngine } from '../../../src/chat/engine/ChatEngine';
 
+vi.mock('../../../src/chat/tools/registry', () => ({
+  getAllCapabilities: vi.fn().mockReturnValue([]),
+}));
+
+vi.mock('../../../src/capabilities/adapter', () => ({
+  toToolDef: vi.fn((cap: Record<string, unknown>) => ({
+    name: cap.name,
+    displayName: cap.displayName || cap.name,
+    description: cap.description || '',
+    params: cap.params || [],
+    destructive: false,
+    execute: vi.fn().mockResolvedValue({ ok: true }),
+  })),
+}));
+
+import { getAllCapabilities } from '../../../src/chat/tools/registry';
+import { toToolDef } from '../../../src/capabilities/adapter';
+
 function createMockProvider(
   responses: StreamEvent[][],
   overrides?: Partial<AIProvider>,
@@ -811,6 +829,189 @@ describe('handleTurn', () => {
       expect(warningMessages).toHaveLength(1);
       expect(warningMessages[0].toLowerCase()).toContain('retrying');
       expect(warningMessages[0]).toContain('attempt 1');
+    });
+  });
+
+  describe('dynamic schema injection via tool_search', () => {
+    afterEach(() => {
+      vi.mocked(getAllCapabilities).mockReturnValue([]);
+    });
+
+    it('injects deferred tool schema into formattedTools after tool_search', async () => {
+      // Setup: a deferred capability that is in the registry (for execution)
+      // but whose schema was NOT in formattedTools initially
+      const deferredCap = {
+        name: 'deferred_tool',
+        displayName: 'Deferred Tool',
+        description: 'A deferred tool',
+        params: [],
+        destructive: false,
+        execute: vi.fn().mockResolvedValue({ ok: true }),
+      };
+
+      vi.mocked(getAllCapabilities).mockReturnValue([deferredCap as never]);
+      vi.mocked(toToolDef).mockImplementation((cap: never) => {
+        const c = cap as typeof deferredCap;
+        return {
+          name: c.name,
+          displayName: c.displayName,
+          description: c.description,
+          params: c.params,
+          destructive: c.destructive,
+          execute: c.execute,
+        };
+      });
+
+      // The tool_search tool must be in the registry for execution
+      const toolSearchTool = mockTool({
+        name: 'tool_search',
+        params: [
+          { name: 'query', type: 'string', required: true, description: 'Search query' },
+          { name: 'max_results', type: 'number', required: false, description: 'Max results' },
+        ],
+        execute: vi.fn().mockResolvedValue({
+          results: [{ name: 'deferred_tool', description: 'A deferred tool' }],
+        }),
+      });
+
+      // The deferred tool is already in registry (for execution) but NOT in formattedTools
+      const deferredToolDef = mockTool({ name: 'deferred_tool' });
+      const registry: Record<string, ToolDef> = {
+        tool_search: toolSearchTool,
+        deferred_tool: deferredToolDef,
+      };
+
+      let callCount = 0;
+      const provider: AIProvider = {
+        name: 'injection-test',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream(params) {
+          callCount++;
+          if (callCount === 1) {
+            // First iteration: LLM calls tool_search
+            yield {
+              type: 'tool_call' as const,
+              toolCall: {
+                id: 'ts1',
+                name: 'tool_search',
+                arguments: { query: 'deferred' },
+              },
+            };
+            yield { type: 'done' as const, stopReason: 'tool_use' as const };
+          } else {
+            // Second iteration: LLM should now see the deferred tool in formattedTools
+            // Verify formattedTools was expanded by checking params.tools length
+            yield { type: 'text_delta' as const, text: `tools_count:${(params.tools as unknown[]).length}` };
+            yield { type: 'done' as const, stopReason: 'end_turn' as const };
+          }
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'search for tools' }];
+
+      // Start with only tool_search in formattedTools (simulating deferred loading)
+      const formattedTools: unknown[] = [toolSearchTool];
+
+      await handleTurn(
+        provider,
+        messages,
+        formattedTools,
+        systemPrompt,
+        session,
+        registry,
+        null,
+        false,
+      );
+
+      // formattedTools should now include the deferred tool's schema
+      expect(formattedTools.length).toBe(2);
+      expect((formattedTools[1] as ToolDef).name).toBe('deferred_tool');
+    });
+
+    it('does not duplicate schema on repeated tool_search for same tool', async () => {
+      const deferredCap = {
+        name: 'deferred_tool',
+        displayName: 'Deferred Tool',
+        description: 'A deferred tool',
+        params: [],
+        destructive: false,
+        execute: vi.fn().mockResolvedValue({ ok: true }),
+      };
+
+      vi.mocked(getAllCapabilities).mockReturnValue([deferredCap as never]);
+      vi.mocked(toToolDef).mockImplementation((cap: never) => {
+        const c = cap as typeof deferredCap;
+        return {
+          name: c.name,
+          displayName: c.displayName,
+          description: c.description,
+          params: c.params,
+          destructive: c.destructive,
+          execute: c.execute,
+        };
+      });
+
+      const toolSearchTool = mockTool({
+        name: 'tool_search',
+        params: [
+          { name: 'query', type: 'string', required: true, description: 'Search query' },
+          { name: 'max_results', type: 'number', required: false, description: 'Max results' },
+        ],
+        execute: vi.fn().mockResolvedValue({
+          results: [{ name: 'deferred_tool', description: 'A deferred tool' }],
+        }),
+      });
+
+      const deferredToolDef = mockTool({ name: 'deferred_tool' });
+      const registry: Record<string, ToolDef> = {
+        tool_search: toolSearchTool,
+        deferred_tool: deferredToolDef,
+      };
+
+      let callCount = 0;
+      const provider: AIProvider = {
+        name: 'no-dup-test',
+        model: 'test',
+        capabilities: { supportsToolCalling: true },
+        formatTools: (tools) => tools,
+        async *stream() {
+          callCount++;
+          if (callCount <= 2) {
+            // Two iterations calling tool_search for same tool
+            yield {
+              type: 'tool_call' as const,
+              toolCall: {
+                id: `ts${callCount}`,
+                name: 'tool_search',
+                arguments: { query: 'deferred' },
+              },
+            };
+            yield { type: 'done' as const, stopReason: 'tool_use' as const };
+          } else {
+            yield { type: 'text_delta' as const, text: 'done' };
+            yield { type: 'done' as const, stopReason: 'end_turn' as const };
+          }
+        },
+      };
+
+      const messages: Message[] = [{ role: 'user', content: 'search twice' }];
+      const formattedTools: unknown[] = [toolSearchTool];
+
+      await handleTurn(
+        provider,
+        messages,
+        formattedTools,
+        systemPrompt,
+        session,
+        registry,
+        null,
+        false,
+      );
+
+      // Should only have been injected once despite two tool_search calls
+      expect(formattedTools.length).toBe(2);
     });
   });
 });
