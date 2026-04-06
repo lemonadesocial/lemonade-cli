@@ -1,8 +1,9 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const templateTools: ToolDef[] = [
-  {
+export const templateTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'template_list',
     category: 'template',
     displayName: 'template list',
@@ -18,6 +19,10 @@ export const templateTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listTemplates',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const vars: Record<string, unknown> = {};
       if (args.category) vars.category = args.category;
@@ -39,8 +44,8 @@ export const templateTools: ToolDef[] = [
       );
       return result.listTemplates;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'template_clone_to_config',
     category: 'template',
     displayName: 'template clone to config',
@@ -52,6 +57,10 @@ export const templateTools: ToolDef[] = [
       { name: 'owner_id', type: 'string', description: 'Event or space ObjectId', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'cloneTemplateToConfig',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ cloneTemplateToConfig: unknown }>(
         `mutation($template_id: MongoID!, $owner_type: String!, $owner_id: MongoID!) {
@@ -63,5 +72,5 @@ export const templateTools: ToolDef[] = [
       );
       return result.cloneTemplateToConfig;
     },
-  },
+  }),
 ];

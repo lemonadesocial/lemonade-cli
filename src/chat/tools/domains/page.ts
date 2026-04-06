@@ -1,9 +1,10 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 import { parseJsonObject, parseJsonArray } from '../utils/index.js';
 
-export const pageTools: ToolDef[] = [
-  {
+export const pageTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'site_generate',
     category: 'page',
     displayName: 'site generate',
@@ -16,6 +17,11 @@ export const pageTools: ToolDef[] = [
       { name: 'style', type: 'string', description: 'Style hints', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiGeneratePageFromDescription',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const input: Record<string, unknown> = {
         owner_id: args.owner_id,
@@ -36,8 +42,8 @@ export const pageTools: ToolDef[] = [
       );
       return result.aiGeneratePageFromDescription;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'site_create_page',
     category: 'page',
     displayName: 'site create-page',
@@ -52,6 +58,11 @@ export const pageTools: ToolDef[] = [
       { name: 'template_id', type: 'string', description: 'Template ID to base config on', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiCreatePageConfig',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const input: Record<string, unknown> = {
         owner_id: args.owner_id,
@@ -77,8 +88,8 @@ export const pageTools: ToolDef[] = [
       const r = result as Record<string, unknown>;
       return `Page config created: ${r._id} "${r.name || '(unnamed)'}" [${r.status}]`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'site_update_section',
     category: 'page',
     displayName: 'site update-section',
@@ -89,6 +100,11 @@ export const pageTools: ToolDef[] = [
       { name: 'updates', type: 'string', description: 'Section updates as JSON object', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'aiUpdatePageConfigSection',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const parsedUpdates = parseJsonObject(args.updates as string, 'updates');
 
@@ -111,8 +127,8 @@ export const pageTools: ToolDef[] = [
       const r = result as Record<string, unknown>;
       return `Section updated. Page "${r.name || '(unnamed)'}" now at version ${r.version}.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'site_deploy',
     category: 'page',
     displayName: 'site deploy',
@@ -121,6 +137,10 @@ export const pageTools: ToolDef[] = [
       { name: 'page_id', type: 'string', description: 'Page ID', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'publishPageConfig',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ publishPageConfig: unknown }>(
         `mutation($id: MongoID!) {
@@ -130,8 +150,8 @@ export const pageTools: ToolDef[] = [
       );
       return result.publishPageConfig;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'site_templates',
     category: 'page',
     displayName: 'site templates',
@@ -143,6 +163,11 @@ export const pageTools: ToolDef[] = [
       { name: 'context', type: 'string', description: 'Context for AI suggestions', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiSuggestSections',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const variables: Record<string, unknown> = {
         owner_type: args.owner_type,
@@ -166,8 +191,8 @@ export const pageTools: ToolDef[] = [
       if (!suggestions.length) return 'No section suggestions found.';
       return `${suggestions.length} suggestion(s):\n${suggestions.map(s => `- ${s.type}: ${s.name} — ${s.reason}`).join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'page_archive',
     category: 'page',
     displayName: 'page archive',
@@ -176,6 +201,10 @@ export const pageTools: ToolDef[] = [
       { name: 'page_id', type: 'string', description: 'PageConfig ObjectId', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'archivePageConfig',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ archivePageConfig: unknown }>(
         `mutation($id: MongoID!) {
@@ -185,8 +214,8 @@ export const pageTools: ToolDef[] = [
       );
       return result.archivePageConfig;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'page_save_version',
     category: 'page',
     displayName: 'page save version',
@@ -196,6 +225,10 @@ export const pageTools: ToolDef[] = [
       { name: 'name', type: 'string', description: 'Version name', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'saveConfigVersion',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const vars: Record<string, unknown> = { config_id: args.config_id };
       if (args.name) vars.name = args.name;
@@ -210,8 +243,8 @@ export const pageTools: ToolDef[] = [
       );
       return result.saveConfigVersion;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'page_restore_version',
     category: 'page',
     displayName: 'page restore version',
@@ -221,6 +254,10 @@ export const pageTools: ToolDef[] = [
       { name: 'version', type: 'number', description: 'Version number to restore', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'restoreConfigVersion',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ restoreConfigVersion: unknown }>(
         `mutation($config_id: MongoID!, $version: Float!) {
@@ -232,8 +269,8 @@ export const pageTools: ToolDef[] = [
       );
       return result.restoreConfigVersion;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'page_list_versions',
     category: 'page',
     displayName: 'page list versions',
@@ -242,6 +279,10 @@ export const pageTools: ToolDef[] = [
       { name: 'config_id', type: 'string', description: 'PageConfig ObjectId', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listConfigVersions',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ listConfigVersions: unknown }>(
         `query($config_id: MongoID!) {
@@ -253,14 +294,18 @@ export const pageTools: ToolDef[] = [
       );
       return result.listConfigVersions;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'page_section_catalog',
     category: 'page',
     displayName: 'page section catalog',
     description: 'Get the catalog of available section types for page building.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSectionCatalog',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async () => {
       const result = await graphqlRequest<{ getSectionCatalog: unknown }>(
         `query {
@@ -269,8 +314,8 @@ export const pageTools: ToolDef[] = [
       );
       return result.getSectionCatalog;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'page_config_get',
     category: 'page',
     displayName: 'page config get',
@@ -279,6 +324,10 @@ export const pageTools: ToolDef[] = [
       { name: 'config_id', type: 'string', description: 'Page config ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getPageConfig',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getPageConfig: unknown }>(
         `query($id: MongoID!) {
@@ -301,8 +350,8 @@ export const pageTools: ToolDef[] = [
       if (r.template_id) lines.push(`Template: ${r.template_id}`);
       return lines.join('\n');
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'page_config_update',
     category: 'page',
     displayName: 'page config update',
@@ -315,6 +364,10 @@ export const pageTools: ToolDef[] = [
       { name: 'sections', type: 'string', description: 'Sections as JSON array', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'updatePageConfig',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.name !== undefined) input.name = args.name;
@@ -339,8 +392,8 @@ export const pageTools: ToolDef[] = [
       const r = result as Record<string, unknown>;
       return `Page "${r.name || '(unnamed)'}" updated [${r.status}] v${r.version}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'page_config_published',
     category: 'page',
     displayName: 'page config published',
@@ -351,6 +404,10 @@ export const pageTools: ToolDef[] = [
       { name: 'owner_id', type: 'string', description: 'Event or space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getPublishedConfig',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getPublishedConfig: unknown }>(
         `query($owner_type: String!, $owner_id: MongoID!) {
@@ -372,8 +429,8 @@ export const pageTools: ToolDef[] = [
       if (sections?.length) lines.push(`Sections: ${sections.length} (${sections.map((s: Record<string, unknown>) => s.type).join(', ')})`);
       return lines.join('\n');
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'page_preview_link',
     category: 'page',
     displayName: 'page preview link',
@@ -384,6 +441,10 @@ export const pageTools: ToolDef[] = [
       { name: 'expires_in_hours', type: 'number', description: 'Link expiry in hours', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'generatePreviewLink',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const variables: Record<string, unknown> = {
         config_id: args.config_id,
@@ -414,8 +475,8 @@ export const pageTools: ToolDef[] = [
       const r = result as { url: string; expires_at?: string };
       return r.expires_at ? `Preview: ${r.url} (expires ${r.expires_at})` : `Preview: ${r.url}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'page_config_create',
     category: 'page',
     displayName: 'page config create',
@@ -430,6 +491,11 @@ export const pageTools: ToolDef[] = [
       { name: 'sections', type: 'string', description: 'Sections as JSON array', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createPageConfig',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const input: Record<string, unknown> = {
         owner_type: args.owner_type,
@@ -455,5 +521,5 @@ export const pageTools: ToolDef[] = [
       const r = result as Record<string, unknown>;
       return `Page config created: ${r._id} "${r.name || '(unnamed)'}" [${r.status}]`;
     },
-  },
+  }),
 ];

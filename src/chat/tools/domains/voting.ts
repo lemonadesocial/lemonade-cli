@@ -1,8 +1,9 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const votingTools: ToolDef[] = [
-  {
+export const votingTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'event_votings',
     category: 'voting',
     displayName: 'event votings',
@@ -13,6 +14,9 @@ export const votingTools: ToolDef[] = [
       { name: 'hidden', type: 'boolean', description: 'Include hidden votings', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listEventVotings',
+    requiresSpace: false,
     execute: async (args) => {
       const variables: Record<string, unknown> = { event: args.event_id };
       // param 'voting_ids' maps to backend arg 'votings' (array of MongoID)
@@ -39,8 +43,8 @@ export const votingTools: ToolDef[] = [
       const lines = items.map(v => `  [${v._id}] "${v.title}" (${v.state ?? 'unknown'})`);
       return `${items.length} voting(s):\n${lines.join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_vote',
     category: 'voting',
     displayName: 'event vote',
@@ -50,6 +54,9 @@ export const votingTools: ToolDef[] = [
       { name: 'option_id', type: 'string', description: 'Option ID to vote for (omit to unvote)', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'castVote',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = { voting_id: args.voting_id };
       if (args.option_id !== undefined) input.option_id = args.option_id;
@@ -65,5 +72,5 @@ export const votingTools: ToolDef[] = [
       if (result === null || result === undefined) return 'Error: no response from server.';
       return result ? 'Vote submitted successfully.' : 'No changes applied.';
     },
-  },
+  }),
 ];

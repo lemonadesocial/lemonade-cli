@@ -1,4 +1,5 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
 const CREATE_PAYMENT_ACCOUNT_MUTATION = `mutation($input: CreateNewPaymentAccountInput!) {
@@ -7,8 +8,8 @@ const CREATE_PAYMENT_ACCOUNT_MUTATION = `mutation($input: CreateNewPaymentAccoun
     }
   }`;
 
-export const paymentTools: ToolDef[] = [
-  {
+export const paymentTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'event_payment_stats',
     category: 'payment',
     displayName: 'event payment stats',
@@ -17,6 +18,10 @@ export const paymentTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetEventPaymentStats',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventPaymentStats: unknown }>(
         `query($event: MongoID!) {
@@ -39,8 +44,8 @@ export const paymentTools: ToolDef[] = [
         : 'none';
       return `${payments} payments. Revenue: ${revSummary}.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'list_payment_accounts',
     category: 'payment',
     displayName: 'payment accounts list',
@@ -53,6 +58,10 @@ export const paymentTools: ToolDef[] = [
       { name: 'account_ids', type: 'string', description: 'Comma-separated account IDs to filter', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listNewPaymentAccounts',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       let skip = 0;
       if (args.skip !== undefined) {
@@ -108,8 +117,8 @@ export const paymentTools: ToolDef[] = [
       });
       return `${accounts.length} payment account(s):\n${lines.join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'payment_account_create_wallet',
     category: 'payment',
     displayName: 'payment account create wallet',
@@ -121,6 +130,10 @@ export const paymentTools: ToolDef[] = [
       { name: 'title', type: 'string', description: 'Display name (defaults to address)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createNewPaymentAccount',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (currencies.length === 0) throw new Error('At least one currency is required');
@@ -144,8 +157,8 @@ export const paymentTools: ToolDef[] = [
       const r = result as { _id: string; type: string; title?: string; active: boolean };
       return `Wallet payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, ${r.active ? 'active' : 'inactive'})`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'payment_account_create_safe',
     category: 'payment',
     displayName: 'payment account create safe',
@@ -159,6 +172,10 @@ export const paymentTools: ToolDef[] = [
       { name: 'title', type: 'string', description: 'Display name', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createNewPaymentAccount',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const threshold = Math.floor(Number(args.threshold));
       if (isNaN(threshold) || threshold < 1) {
@@ -193,8 +210,8 @@ export const paymentTools: ToolDef[] = [
       const r = result as { _id: string; type: string; title?: string; provider?: string; active: boolean };
       return `Safe payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, provider: ${r.provider || 'safe'}, ${r.active ? 'active' : 'inactive'})`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'payment_account_create_escrow',
     category: 'payment',
     displayName: 'payment account create escrow',
@@ -207,6 +224,10 @@ export const paymentTools: ToolDef[] = [
       { name: 'title', type: 'string', description: 'Display name', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createNewPaymentAccount',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const minimumDepositPercent = Number(args.minimum_deposit_percent);
       if (isNaN(minimumDepositPercent) || minimumDepositPercent < 0 || minimumDepositPercent > 100) {
@@ -235,8 +256,8 @@ export const paymentTools: ToolDef[] = [
       const r = result as { _id: string; type: string; title?: string; active: boolean };
       return `Escrow payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, ${r.active ? 'active' : 'inactive'})`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'payment_account_create_relay',
     category: 'payment',
     displayName: 'payment account create relay',
@@ -248,6 +269,10 @@ export const paymentTools: ToolDef[] = [
       { name: 'title', type: 'string', description: 'Display name', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createNewPaymentAccount',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (currencies.length === 0) throw new Error('At least one currency is required');
@@ -271,8 +296,8 @@ export const paymentTools: ToolDef[] = [
       const r = result as { _id: string; type: string; title?: string; active: boolean };
       return `Relay payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, ${r.active ? 'active' : 'inactive'})`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'payment_account_create_stake',
     category: 'payment',
     displayName: 'payment account create stake',
@@ -285,6 +310,10 @@ export const paymentTools: ToolDef[] = [
       { name: 'title', type: 'string', description: 'Display name', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createNewPaymentAccount',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const currencies = (args.currencies as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (currencies.length === 0) throw new Error('At least one currency is required');
@@ -316,8 +345,8 @@ export const paymentTools: ToolDef[] = [
       const r = result as { _id: string; type: string; title?: string; active: boolean };
       return `Stake payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, ${r.active ? 'active' : 'inactive'})`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'payment_account_create_stripe',
     category: 'payment',
     displayName: 'payment account create stripe',
@@ -326,6 +355,10 @@ export const paymentTools: ToolDef[] = [
       { name: 'title', type: 'string', description: 'Display name', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createNewPaymentAccount',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         type: 'digital',
@@ -343,8 +376,8 @@ export const paymentTools: ToolDef[] = [
       const r = result as { _id: string; type: string; title?: string; provider?: string; active: boolean };
       return `Stripe payment account created: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, provider: ${r.provider || 'stripe'}, ${r.active ? 'active' : 'inactive'})`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'payment_account_update',
     category: 'payment',
     displayName: 'payment account update',
@@ -355,6 +388,10 @@ export const paymentTools: ToolDef[] = [
       { name: 'title', type: 'string', description: 'New display name', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'updateNewPaymentAccount',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       let parsedInfo: unknown;
       try {
@@ -385,14 +422,18 @@ export const paymentTools: ToolDef[] = [
       const r = result as { _id: string; type: string; title?: string; active: boolean };
       return `Payment account updated: ${r._id}${r.title ? ` "${r.title}"` : ''} (${r.type}, ${r.active ? 'active' : 'inactive'})`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'stripe_disconnect',
     category: 'payment',
     displayName: 'stripe disconnect',
     description: 'Disconnect Stripe payment account. This is irreversible.',
     params: [],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'disconnectStripeAccount',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async () => {
       const result = await graphqlRequest<{ disconnectStripeAccount: boolean }>(
         'mutation { disconnectStripeAccount }',
@@ -404,14 +445,18 @@ export const paymentTools: ToolDef[] = [
       const r = result as { disconnected: boolean };
       return r.disconnected ? 'Stripe account disconnected successfully.' : 'Failed to disconnect Stripe account.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'stripe_capabilities',
     category: 'payment',
     displayName: 'stripe capabilities',
     description: 'View Stripe payment method capabilities (card, Apple Pay, Google Pay).',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getStripeConnectedAccountCapability',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async () => {
       const result = await graphqlRequest<{ getStripeConnectedAccountCapability: unknown }>(
         `query {
@@ -437,8 +482,8 @@ export const paymentTools: ToolDef[] = [
       );
       return `Stripe capabilities (${r.id}):\n${lines.join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'safe_free_limit',
     category: 'payment',
     displayName: 'safe free limit',
@@ -447,6 +492,10 @@ export const paymentTools: ToolDef[] = [
       { name: 'network', type: 'string', description: "Chain ID (numeric string, e.g. '8453' for Base). Use list_chains to find available networks.", required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSafeFreeLimit',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getSafeFreeLimit: unknown }>(
         `query($network: String!) {
@@ -463,8 +512,8 @@ export const paymentTools: ToolDef[] = [
       const r = result as { current: number; max: number };
       return `Used ${r.current} of ${r.max} free Safe deployments.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_payment_summary',
     category: 'payment',
     displayName: 'event payment summary',
@@ -473,6 +522,9 @@ export const paymentTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventPaymentSummary',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventPaymentSummary: Array<{ currency: string; decimals: number; amount: string; transfer_amount: string; pending_transfer_amount: string }> }>(
         `query($event: MongoID!) {
@@ -491,8 +543,8 @@ export const paymentTools: ToolDef[] = [
       }
       return JSON.stringify(result);
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_payments_list',
     category: 'payment',
     displayName: 'event payments list',
@@ -505,6 +557,9 @@ export const paymentTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listEventPayments',
+    requiresSpace: false,
     execute: async (args) => {
       let limit = 25;
       if (args.limit !== undefined) {
@@ -545,8 +600,8 @@ export const paymentTools: ToolDef[] = [
       }
       return JSON.stringify(result);
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_payment_detail',
     category: 'payment',
     displayName: 'event payment detail',
@@ -556,6 +611,9 @@ export const paymentTools: ToolDef[] = [
       { name: 'payment_id', type: 'string', description: 'Payment ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventPayment',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventPayment: unknown }>(
         `query($event: MongoID!, $_id: MongoID!) {
@@ -578,8 +636,8 @@ export const paymentTools: ToolDef[] = [
       }
       return JSON.stringify(result);
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_payment_statistics',
     category: 'payment',
     displayName: 'event payment statistics',
@@ -588,6 +646,9 @@ export const paymentTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventPaymentStatistics',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventPaymentStatistics: unknown }>(
         `query($event: MongoID!) {
@@ -608,5 +669,5 @@ export const paymentTools: ToolDef[] = [
       }
       return JSON.stringify(result);
     },
-  },
+  }),
 ];

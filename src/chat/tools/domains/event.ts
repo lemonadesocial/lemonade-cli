@@ -1,11 +1,12 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 import { registrySearch } from '../../../api/registry.js';
 import { getDefaultSpace } from '../../../auth/store.js';
 import { parseJsonObject } from '../utils/index.js';
 
-export const eventTools: ToolDef[] = [
-  {
+export const eventTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'event_create',
     category: 'event',
     displayName: 'event create',
@@ -38,6 +39,10 @@ export const eventTools: ToolDef[] = [
       { name: 'light_theme_image', type: 'string', description: 'File ID for light mode background image (from file_upload)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createEvent',
+    requiresEvent: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const spaceId = (args.space as string) || getDefaultSpace();
       const input: Record<string, unknown> = {
@@ -100,8 +105,8 @@ export const eventTools: ToolDef[] = [
       const configStr = config.length > 0 ? ` [${config.join(', ')}]` : '';
       return `Event created: "${r.title}" (${r.published ? 'published' : 'draft'})${configStr}. Add tickets with /plan tickets_create_type.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_list',
     category: 'event',
     displayName: 'event list',
@@ -113,6 +118,11 @@ export const eventTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetHostingEvents',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool', 'slashCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetHostingEvents: { items: Array<Record<string, unknown>> } }>(
         `query($draft: Boolean, $search: String, $limit: Int, $skip: Int) {
@@ -129,8 +139,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiGetHostingEvents;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_search',
     category: 'event',
     displayName: 'event search',
@@ -150,6 +160,12 @@ export const eventTools: ToolDef[] = [
       { name: 'limit', type: 'number', description: 'Max results', required: false, default: '10' },
     ],
     destructive: false,
+    backendType: 'query',
+    backendService: 'external',
+    // No backendResolver — uses external registry search API, not GraphQL
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       return registrySearch({
         q: args.query as string,
@@ -165,8 +181,8 @@ export const eventTools: ToolDef[] = [
         limit: (args.limit as number) || 10,
       });
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_get',
     category: 'event',
     displayName: 'event get',
@@ -175,6 +191,11 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetEvent',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEvent: unknown }>(
         `query($id: MongoID!) {
@@ -191,8 +212,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiGetEvent;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_update',
     category: 'event',
     displayName: 'event update',
@@ -225,6 +246,10 @@ export const eventTools: ToolDef[] = [
       { name: 'light_theme_image', type: 'string', description: 'File ID for light mode background image (from file_upload)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'updateEvent',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.title !== undefined) input.title = args.title;
@@ -277,8 +302,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { _id: string; title: string };
       return `"${r.title}" updated.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_publish',
     category: 'event',
     displayName: 'event publish',
@@ -287,6 +312,10 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiPublishEvent',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiPublishEvent: unknown }>(
         `mutation($id: MongoID!) {
@@ -300,8 +329,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { _id: string; title: string };
       return `"${r.title}" is now published and live.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_cancel',
     category: 'event',
     displayName: 'event cancel',
@@ -310,6 +339,10 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'aiCancelEvent',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       await graphqlRequest(
         'mutation($id: MongoID!) { aiCancelEvent(id: $id) }',
@@ -317,8 +350,8 @@ export const eventTools: ToolDef[] = [
       );
       return { cancelled: true, event_id: args.event_id };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_ticket_sold_insight',
     category: 'event',
     displayName: 'event ticket sales',
@@ -327,6 +360,10 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetEventTicketSoldInsight',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventTicketSoldInsight: unknown }>(
         `query($event: MongoID!) {
@@ -339,8 +376,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiGetEventTicketSoldInsight;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_view_insight',
     category: 'event',
     displayName: 'event view stats',
@@ -349,6 +386,10 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetEventViewInsight',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventViewInsight: unknown }>(
         `query($event: MongoID!) {
@@ -362,8 +403,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiGetEventViewInsight;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_guest_stats',
     category: 'event',
     displayName: 'event guest stats',
@@ -372,6 +413,10 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetEventGuestStats',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventGuestStats: unknown }>(
         `query($event: MongoID!) {
@@ -387,8 +432,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { going: number; pending_approval: number; pending_invite: number; declined: number; checked_in: number; total: number };
       return `Guests: ${r.going} going, ${r.pending_approval} pending approval, ${r.pending_invite} pending invite, ${r.declined} declined, ${r.checked_in} checked in (${r.total} total).`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_guests',
     category: 'event',
     displayName: 'event guests',
@@ -400,6 +445,10 @@ export const eventTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetEventGuests',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventGuests: unknown }>(
         `query($event: MongoID!, $search: String, $limit: Int, $skip: Int) {
@@ -416,8 +465,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiGetEventGuests;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_invite',
     category: 'event',
     displayName: 'event invite',
@@ -427,6 +476,10 @@ export const eventTools: ToolDef[] = [
       { name: 'emails', type: 'string[]', description: 'Email addresses to invite', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiInviteEvent',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       await graphqlRequest(
         'mutation($input: InviteEventInput!) { aiInviteEvent(input: $input) }',
@@ -434,8 +487,8 @@ export const eventTools: ToolDef[] = [
       );
       return { sent: true, count: (args.emails as string[]).length };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_approvals',
     category: 'event',
     displayName: 'event approvals',
@@ -447,6 +500,10 @@ export const eventTools: ToolDef[] = [
       { name: 'request_ids', type: 'string[]', description: 'Specific request IDs (optional)', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'aiDecideEventJoinRequests',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiDecideEventJoinRequests: unknown }>(
         `mutation($event: MongoID!, $decision: String!, $request_ids: [MongoID!]) {
@@ -462,8 +519,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiDecideEventJoinRequests;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_feedback_summary',
     category: 'event',
     displayName: 'event feedback summary',
@@ -472,6 +529,10 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetEventFeedbackSummary',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventFeedbackSummary: unknown }>(
         `query($event: MongoID!) {
@@ -488,8 +549,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { average_rating: number; total_reviews: number };
       return `Feedback: ${r.average_rating}/5 average from ${r.total_reviews} reviews.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_feedbacks',
     category: 'event',
     displayName: 'event feedbacks',
@@ -501,6 +562,10 @@ export const eventTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiListEventFeedbacks',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiListEventFeedbacks: unknown }>(
         `query($event: MongoID!, $rate_value: Float, $limit: Int, $skip: Int) {
@@ -517,8 +582,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiListEventFeedbacks;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_checkins',
     category: 'event',
     displayName: 'event checkins',
@@ -529,6 +594,10 @@ export const eventTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetEventCheckins',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventCheckins: unknown }>(
         `query($event: MongoID!, $limit: Int, $skip: Int) {
@@ -544,8 +613,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiGetEventCheckins;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_application_answers',
     category: 'event',
     displayName: 'event applications',
@@ -554,6 +623,10 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetEventApplicationAnswers',
+    requiresSpace: false,
+    surfaces: ['aiTool'],
     execute: async (args) => {
       // Returns [AIEventApplicationAnswerEntry!]! — flat list, no items wrapper
       const result = await graphqlRequest<{ aiGetEventApplicationAnswers: unknown }>(
@@ -566,8 +639,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiGetEventApplicationAnswers;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'accept_event',
     category: 'event',
     displayName: 'accept event',
@@ -576,6 +649,10 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiAcceptEvent',
+    requiresSpace: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiAcceptEvent: unknown }>(
         'mutation($id: MongoID!) { aiAcceptEvent(id: $id) }',
@@ -583,8 +660,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiAcceptEvent;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'decline_event',
     category: 'event',
     displayName: 'decline event',
@@ -593,6 +670,10 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiDeclineEvent',
+    requiresSpace: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiDeclineEvent: unknown }>(
         'mutation($id: MongoID!) { aiDeclineEvent(id: $id) }',
@@ -600,8 +681,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.aiDeclineEvent;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_clone',
     category: 'event',
     displayName: 'event clone',
@@ -611,6 +692,9 @@ export const eventTools: ToolDef[] = [
       { name: 'dates', type: 'string[]', description: 'Array of ISO 8601 dates for the cloned events', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'cloneEvent',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ cloneEvent: string[] }>(
         `mutation($input: CloneEventInput!) {
@@ -624,8 +708,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { cloned_event_ids: string[]; count: number };
       return `Cloned ${r.count} event(s). IDs: ${r.cloned_event_ids.join(', ')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_recurring_dates',
     category: 'event',
     displayName: 'event recurring dates',
@@ -639,6 +723,10 @@ export const eventTools: ToolDef[] = [
       { name: 'count', type: 'number', description: 'Number of dates to generate (max 100)', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'generateRecurringDates',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         start: args.start,
@@ -660,8 +748,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { dates: string[]; count: number };
       return `Generated ${r.count} dates: ${r.dates.slice(0, 5).join(', ')}${r.count > 5 ? ` ... and ${r.count - 5} more` : ''}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_list_cohost_requests',
     category: 'event',
     displayName: 'event cohost requests',
@@ -672,6 +760,9 @@ export const eventTools: ToolDef[] = [
         enum: ['DECLINED', 'ACCEPTED', 'PENDING'] },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventCohostRequests',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = { event: args.event_id };
       if (args.state) input.state = args.state;
@@ -686,8 +777,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventCohostRequests;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_add_cohost',
     category: 'event',
     displayName: 'event add cohost',
@@ -700,6 +791,9 @@ export const eventTools: ToolDef[] = [
         enum: ['cohost', 'gatekeeper', 'representative'] },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'manageEventCohostRequests',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -717,8 +811,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.manageEventCohostRequests;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_remove_cohost',
     category: 'event',
     displayName: 'event remove cohost',
@@ -729,6 +823,9 @@ export const eventTools: ToolDef[] = [
       { name: 'user_id', type: 'string', description: 'Target user ObjectId', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'manageEventCohostRequests',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -745,8 +842,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.manageEventCohostRequests;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_broadcast_create',
     category: 'event',
     displayName: 'event broadcast create',
@@ -763,6 +860,9 @@ export const eventTools: ToolDef[] = [
       { name: 'position', type: 'number', description: 'Display order', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createEventBroadcast',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         provider: args.provider,
@@ -782,8 +882,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.createEventBroadcast;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_broadcast_update',
     category: 'event',
     displayName: 'event broadcast update',
@@ -795,6 +895,9 @@ export const eventTools: ToolDef[] = [
       { name: 'position', type: 'number', description: 'New display order', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'updateEventBroadcast',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.description) input.description = args.description;
@@ -808,8 +911,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.updateEventBroadcast;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_broadcast_delete',
     category: 'event',
     displayName: 'event broadcast delete',
@@ -819,6 +922,9 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteEventBroadcast',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ deleteEventBroadcast: boolean }>(
         `mutation($_id: MongoID!, $event: MongoID!) {
@@ -828,8 +934,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.deleteEventBroadcast;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_emails_list',
     category: 'event',
     displayName: 'event emails list',
@@ -841,6 +947,9 @@ export const eventTools: ToolDef[] = [
       { name: 'sent', type: 'boolean', description: 'Filter by sent emails', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listEventEmailSettings',
+    requiresSpace: false,
     execute: async (args) => {
       const vars: Record<string, unknown> = { event: args.event_id };
       if (args.system !== undefined) vars.system = args.system;
@@ -857,8 +966,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.listEventEmailSettings;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_email_create',
     category: 'event',
     displayName: 'event email create',
@@ -872,6 +981,9 @@ export const eventTools: ToolDef[] = [
       { name: 'disabled', type: 'boolean', description: 'Start disabled', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createEventEmailSetting',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -892,8 +1004,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.createEventEmailSetting;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_email_update',
     category: 'event',
     displayName: 'event email update',
@@ -905,6 +1017,10 @@ export const eventTools: ToolDef[] = [
       { name: 'disabled', type: 'boolean', description: 'Enable/disable', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'updateEventEmailSetting',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = { _id: args.email_setting_id };
       if (args.custom_subject_html) input.custom_subject_html = args.custom_subject_html;
@@ -921,8 +1037,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.updateEventEmailSetting;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_email_delete',
     category: 'event',
     displayName: 'event email delete',
@@ -931,6 +1047,10 @@ export const eventTools: ToolDef[] = [
       { name: 'email_setting_id', type: 'string', description: 'Email setting ObjectId', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteEventEmailSetting',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ deleteEventEmailSetting: boolean }>(
         `mutation($_id: MongoID!) {
@@ -940,8 +1060,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.deleteEventEmailSetting;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_email_toggle',
     category: 'event',
     displayName: 'event email toggle',
@@ -952,6 +1072,9 @@ export const eventTools: ToolDef[] = [
       { name: 'disabled', type: 'boolean', description: 'true to disable, false to enable', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'toggleEventEmailSettings',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ toggleEventEmailSettings: boolean }>(
         `mutation($event: MongoID!, $ids: [MongoID!]!, $disabled: Boolean!) {
@@ -961,8 +1084,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.toggleEventEmailSettings;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_email_test',
     category: 'event',
     displayName: 'event email test',
@@ -976,6 +1099,10 @@ export const eventTools: ToolDef[] = [
       { name: 'custom_body_html', type: 'string', description: 'Override body for test', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'sendEventEmailSettingTestEmails',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         test_recipients: args.test_recipients,
@@ -994,8 +1121,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.sendEventEmailSettingTestEmails;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_ticket_statistics',
     category: 'event',
     displayName: 'event ticket statistics',
@@ -1004,6 +1131,9 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getTicketStatistics',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getTicketStatistics: unknown }>(
         `query($id: MongoID!) {
@@ -1017,8 +1147,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getTicketStatistics;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_export_guests',
     category: 'event',
     displayName: 'event export guests',
@@ -1030,6 +1160,10 @@ export const eventTools: ToolDef[] = [
       { name: 'limit', type: 'number', description: 'Max results', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'exportEventTickets',
+    requiresSpace: false,
+    surfaces: ['aiTool', 'slashCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ exportEventTickets: unknown }>(
         `query($_id: MongoID!, $search_text: String, $checked_in: Boolean, $pagination: PaginationInput) {
@@ -1052,8 +1186,8 @@ export const eventTools: ToolDef[] = [
       if (r.count === 0) return 'No guest data found.';
       return `${r.count} guests exported. Use /export to save as CSV.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_guest_detail',
     category: 'event',
     displayName: 'event guest detail',
@@ -1064,6 +1198,9 @@ export const eventTools: ToolDef[] = [
       { name: 'email', type: 'string', description: 'Guest email', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventGuestDetail',
+    requiresSpace: false,
     execute: async (args) => {
       const vars: Record<string, unknown> = { event: args.event_id };
       if (args.user_id) vars.user = args.user_id;
@@ -1083,8 +1220,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventGuestDetail;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_guests_statistics',
     category: 'event',
     displayName: 'event guests statistics',
@@ -1093,6 +1230,9 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventGuestsStatistics',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventGuestsStatistics: unknown }>(
         `query($event: MongoID!) {
@@ -1105,8 +1245,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventGuestsStatistics;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_guests_list',
     category: 'event',
     displayName: 'event guests list',
@@ -1128,6 +1268,9 @@ export const eventTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listEventGuests',
+    requiresSpace: false,
     execute: async (args) => {
       const vars: Record<string, unknown> = { event: args.event_id };
       if (args.search) vars.search = args.search;
@@ -1153,8 +1296,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.listEventGuests;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_invitation_stats',
     category: 'event',
     displayName: 'event invitation stats',
@@ -1164,6 +1307,9 @@ export const eventTools: ToolDef[] = [
       { name: 'limit', type: 'number', description: 'Max guest results', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventInvitedStatistics',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventInvitedStatistics: unknown }>(
         `query($_id: MongoID!, $limit: Int) {
@@ -1179,8 +1325,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { total: number; total_joined: number; total_declined: number; emails_opened: number };
       return `Invitations: ${r.total} sent, ${r.total_joined} joined, ${r.total_declined} declined, ${r.emails_opened} emails opened.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_cancel_invitations',
     category: 'event',
     displayName: 'event cancel invitations',
@@ -1190,6 +1336,9 @@ export const eventTools: ToolDef[] = [
       { name: 'invitation_ids', type: 'string[]', description: 'Array of invitation IDs to cancel', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'cancelEventInvitations',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ cancelEventInvitations: boolean }>(
         `mutation($input: CancelEventInvitationsInput!) {
@@ -1203,8 +1352,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { cancelled: boolean };
       return r.cancelled ? 'Invitations cancelled.' : 'Failed to cancel invitations.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_sales_chart',
     category: 'event',
     displayName: 'event sales chart',
@@ -1216,6 +1365,9 @@ export const eventTools: ToolDef[] = [
       { name: 'ticket_type_ids', type: 'string[]', description: 'Filter by ticket type IDs', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventTicketSoldChartData',
+    requiresSpace: false,
     execute: async (args) => {
       const vars: Record<string, unknown> = {
         event: args.event_id,
@@ -1234,8 +1386,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventTicketSoldChartData;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_checkin_chart',
     category: 'event',
     displayName: 'event checkin chart',
@@ -1246,6 +1398,9 @@ export const eventTools: ToolDef[] = [
       { name: 'end', type: 'string', description: 'End date ISO 8601', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventCheckinChartData',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventCheckinChartData: unknown }>(
         `query($event: MongoID!, $start: DateTime!, $end: DateTime!) {
@@ -1257,8 +1412,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventCheckinChartData;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_views_chart',
     category: 'event',
     displayName: 'event views chart',
@@ -1269,6 +1424,9 @@ export const eventTools: ToolDef[] = [
       { name: 'end', type: 'string', description: 'End date ISO 8601', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventViewChartData',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventViewChartData: unknown }>(
         `query($event: MongoID!, $start: DateTime!, $end: DateTime!) {
@@ -1280,8 +1438,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventViewChartData;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_view_stats',
     category: 'event',
     displayName: 'event view stats',
@@ -1291,6 +1449,9 @@ export const eventTools: ToolDef[] = [
       { name: 'ranges', type: 'object[]', description: 'Array of { start, end } date ranges', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventViewStats',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventViewStats: unknown }>(
         `query($event: MongoID!, $ranges: [DateRangeInput!]!) {
@@ -1302,8 +1463,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventViewStats;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_top_views',
     category: 'event',
     displayName: 'event top views',
@@ -1314,6 +1475,9 @@ export const eventTools: ToolDef[] = [
       { name: 'source_limit', type: 'number', description: 'Max sources to return', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventTopViews',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventTopViews: unknown }>(
         `query($event: MongoID!, $city_limit: Int!, $source_limit: Int!) {
@@ -1327,8 +1491,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventTopViews;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_top_inviters',
     category: 'event',
     displayName: 'event top inviters',
@@ -1339,6 +1503,9 @@ export const eventTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventTopInviters',
+    requiresSpace: false,
     execute: async (args) => {
       const vars: Record<string, unknown> = { event: args.event_id };
       if (args.limit !== undefined) vars.limit = args.limit;
@@ -1355,8 +1522,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventTopInviters;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_token_gates_list',
     category: 'event',
     displayName: 'event token gates list',
@@ -1368,6 +1535,9 @@ export const eventTools: ToolDef[] = [
       { name: 'search', type: 'string', description: 'Search by name', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listEventTokenGates',
+    requiresSpace: false,
     execute: async (args) => {
       const vars: Record<string, unknown> = { event: args.event_id };
       if (args.networks) vars.networks = args.networks;
@@ -1384,8 +1554,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.listEventTokenGates;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_token_gate_create',
     category: 'event',
     displayName: 'event token gate create',
@@ -1402,6 +1572,9 @@ export const eventTools: ToolDef[] = [
       { name: 'gated_ticket_types', type: 'string[]', description: 'Ticket type IDs this gate applies to', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createEventTokenGate',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -1425,8 +1598,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.createEventTokenGate;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_token_gate_update',
     category: 'event',
     displayName: 'event token gate update',
@@ -1440,6 +1613,9 @@ export const eventTools: ToolDef[] = [
       { name: 'gated_ticket_types', type: 'string[]', description: 'Ticket type IDs', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'updateEventTokenGate',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         _id: args.token_gate_id,
@@ -1460,8 +1636,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.updateEventTokenGate;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_token_gate_delete',
     category: 'event',
     displayName: 'event token gate delete',
@@ -1471,6 +1647,9 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteEventTokenGate',
+    requiresSpace: false,
     execute: async (args) => {
       await graphqlRequest(
         `mutation($_id: MongoID!, $event: MongoID!) {
@@ -1480,8 +1659,8 @@ export const eventTools: ToolDef[] = [
       );
       return { deleted: true, token_gate_id: args.token_gate_id };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_poap_list',
     category: 'event',
     displayName: 'event poap list',
@@ -1490,6 +1669,9 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listPoapDrops',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ listPoapDrops: unknown }>(
         `query($event: MongoID!) {
@@ -1501,8 +1683,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.listPoapDrops;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_poap_create',
     category: 'event',
     displayName: 'event poap create',
@@ -1520,6 +1702,9 @@ export const eventTools: ToolDef[] = [
       { name: 'minting_network', type: 'string', description: 'Chain ID for minting network', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createPoapDrop',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -1543,8 +1728,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.createPoapDrop;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_poap_update',
     category: 'event',
     displayName: 'event poap update',
@@ -1560,6 +1745,10 @@ export const eventTools: ToolDef[] = [
       { name: 'minting_network', type: 'string', description: 'Chain ID', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'updatePoapDrop',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.name) input.name = args.name;
@@ -1579,8 +1768,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.updatePoapDrop;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_poap_import',
     category: 'event',
     displayName: 'event poap import',
@@ -1595,6 +1784,9 @@ export const eventTools: ToolDef[] = [
       { name: 'ticket_types', type: 'string[]', description: 'Ticket type IDs', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'importPoapDrop',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -1613,8 +1805,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.importPoapDrop;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_ticket_categories_list',
     category: 'event',
     displayName: 'event ticket categories list',
@@ -1623,6 +1815,9 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ObjectId', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventTicketCategories',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventTicketCategories: unknown }>(
         `query($event: MongoID!) {
@@ -1634,8 +1829,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventTicketCategories;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_ticket_category_create',
     category: 'event',
     displayName: 'event ticket category create',
@@ -1648,6 +1843,9 @@ export const eventTools: ToolDef[] = [
       { name: 'ticket_types', type: 'string[]', description: 'Ticket type IDs to assign', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createEventTicketCategory',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -1667,8 +1865,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.createEventTicketCategory;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_ticket_category_update',
     category: 'event',
     displayName: 'event ticket category update',
@@ -1682,6 +1880,9 @@ export const eventTools: ToolDef[] = [
       { name: 'ticket_types', type: 'string[]', description: 'New set of ticket type IDs', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'updateEventTicketCategory',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         _id: args.category_id,
@@ -1700,8 +1901,8 @@ export const eventTools: ToolDef[] = [
       );
       return { updated: true, category_id: args.category_id };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_ticket_category_delete',
     category: 'event',
     displayName: 'event ticket category delete',
@@ -1711,6 +1912,9 @@ export const eventTools: ToolDef[] = [
       { name: 'category_ids', type: 'string[]', description: 'Array of category ObjectIds', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteEventTicketCategory',
+    requiresSpace: false,
     execute: async (args) => {
       await graphqlRequest(
         `mutation($event: MongoID!, $categories: [MongoID!]!) {
@@ -1720,8 +1924,8 @@ export const eventTools: ToolDef[] = [
       );
       return { deleted: true, category_ids: args.category_ids };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_ticket_category_reorder',
     category: 'event',
     displayName: 'event ticket category reorder',
@@ -1731,6 +1935,9 @@ export const eventTools: ToolDef[] = [
       { name: 'categories', type: 'object[]', description: 'Array of { _id: string, position: number }', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'reorderTicketTypeCategories',
+    requiresSpace: false,
     execute: async (args) => {
       await graphqlRequest(
         `mutation($event: MongoID!, $categories: [ReorderTicketTypeCategoryInput!]!) {
@@ -1740,8 +1947,8 @@ export const eventTools: ToolDef[] = [
       );
       return { reordered: true };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_question_create',
     category: 'event',
     displayName: 'event question create',
@@ -1752,6 +1959,9 @@ export const eventTools: ToolDef[] = [
       { name: 'session', type: 'string', description: 'Session ObjectId (if multiple sessions)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createEventQuestion',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -1769,8 +1979,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.createEventQuestion;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_question_delete',
     category: 'event',
     displayName: 'event question delete',
@@ -1779,6 +1989,10 @@ export const eventTools: ToolDef[] = [
       { name: 'question_id', type: 'string', description: 'Question ObjectId', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteEventQuestion',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       await graphqlRequest(
         `mutation($_id: MongoID!) {
@@ -1788,8 +2002,8 @@ export const eventTools: ToolDef[] = [
       );
       return { deleted: true, question_id: args.question_id };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_question_like',
     category: 'event',
     displayName: 'event question like',
@@ -1798,6 +2012,10 @@ export const eventTools: ToolDef[] = [
       { name: 'question_id', type: 'string', description: 'Question ObjectId', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'toggleEventQuestionLike',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       await graphqlRequest(
         `mutation($_id: MongoID!) {
@@ -1807,8 +2025,8 @@ export const eventTools: ToolDef[] = [
       );
       return { toggled: true, question_id: args.question_id };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_questions_list',
     category: 'event',
     displayName: 'event questions list',
@@ -1822,6 +2040,9 @@ export const eventTools: ToolDef[] = [
       { name: 'session', type: 'string', description: 'Session ObjectId filter', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventQuestions',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -1841,8 +2062,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventQuestions;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_join_requests',
     category: 'event',
     displayName: 'event join requests',
@@ -1855,6 +2076,9 @@ export const eventTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventJoinRequests',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventJoinRequests: unknown }>(
         `query($event: MongoID!, $state: EventJoinRequestState, $search: String, $limit: Int, $skip: Int) {
@@ -1873,8 +2097,8 @@ export const eventTools: ToolDef[] = [
       );
       return result.getEventJoinRequests;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_checkin',
     category: 'event',
     displayName: 'event checkin',
@@ -1884,6 +2108,9 @@ export const eventTools: ToolDef[] = [
       { name: 'user_id', type: 'string', description: 'User ID to check in', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'checkinUser',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ checkinUser: { state: string; messages?: { primary: string; secondary?: string } } }>(
         `mutation($event: MongoID!, $user: MongoID!) {
@@ -1900,8 +2127,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { state: string; messages?: { primary: string } };
       return `Check-in: ${r.state}${r.messages?.primary ? ` — ${r.messages.primary}` : ''}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_ticket_delete',
     category: 'event',
     displayName: 'event ticket delete',
@@ -1911,6 +2138,9 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteEventTicketType',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ deleteEventTicketType: boolean }>(
         `mutation($_id: MongoID!, $event: MongoID!) {
@@ -1924,8 +2154,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { deleted: boolean };
       return r.deleted ? 'Ticket type deleted.' : 'Failed to delete ticket type.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_ticket_reorder',
     category: 'event',
     displayName: 'event ticket reorder',
@@ -1935,6 +2165,9 @@ export const eventTools: ToolDef[] = [
       { name: 'ticket_type_ids', type: 'string[]', description: 'Ticket type IDs in desired order', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'reorderTicketTypes',
+    requiresSpace: false,
     execute: async (args) => {
       const ids = args.ticket_type_ids as string[];
       const types = ids.map((id, i) => ({ _id: id, position: i }));
@@ -1950,8 +2183,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { reordered: boolean };
       return r.reordered ? 'Ticket types reordered.' : 'Failed to reorder.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_discount_update',
     category: 'event',
     displayName: 'event discount update',
@@ -1965,6 +2198,9 @@ export const eventTools: ToolDef[] = [
       { name: 'ticket_limit_per', type: 'number', description: 'Tickets per user', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'updateEventTicketDiscount',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.code) input.code = args.code;
@@ -1986,8 +2222,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { title?: string };
       return `Discount updated for "${r.title || 'event'}".`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_discount_delete',
     category: 'event',
     displayName: 'event discount delete',
@@ -1997,6 +2233,9 @@ export const eventTools: ToolDef[] = [
       { name: 'discount_codes', type: 'string[]', description: 'Discount codes to delete', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteEventTicketDiscounts',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ deleteEventTicketDiscounts: unknown }>(
         `mutation($event: String!, $discounts: [String!]!) {
@@ -2012,8 +2251,8 @@ export const eventTools: ToolDef[] = [
       const r = result as { title?: string };
       return `Discount(s) deleted from "${r.title || 'event'}".`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_ticket_categories',
     category: 'event',
     displayName: 'event ticket categories',
@@ -2022,6 +2261,9 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventTicketCategories',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventTicketCategories: Array<{ _id: string; title: string; description?: string; position?: number }> }>(
         `query($event: String!) {
@@ -2038,8 +2280,8 @@ export const eventTools: ToolDef[] = [
       if (r.count === 0) return 'No ticket categories found.';
       return r.categories.map((c, i) => `${i + 1}. ${c.title}`).join('\n');
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_application_export',
     category: 'event',
     displayName: 'event application export',
@@ -2048,6 +2290,9 @@ export const eventTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'exportEventApplications',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ exportEventApplications: Array<{ user?: { _id: string; email: string; name?: string }; non_login_user?: { _id: string; email: string; name?: string }; questions: string[]; answers: Array<{ _id: string; answer?: string }> }> }>(
         `query($event: String!) {
@@ -2062,8 +2307,8 @@ export const eventTools: ToolDef[] = [
       );
       return { applications: result.exportEventApplications, count: result.exportEventApplications.length };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_latest_views',
     category: 'event',
     displayName: 'event latest views',
@@ -2073,6 +2318,9 @@ export const eventTools: ToolDef[] = [
       { name: 'limit', type: 'number', description: 'Max results', required: false, default: '20' },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventLatestViews',
+    requiresSpace: false,
     execute: async (args) => {
       let limit = 20;
       if (args.limit !== undefined) {
@@ -2099,8 +2347,8 @@ export const eventTools: ToolDef[] = [
       });
       return `${r.views.length} view(s):\n${lines.join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_set_photos',
     category: 'event',
     displayName: 'event set photos',
@@ -2111,6 +2359,9 @@ export const eventTools: ToolDef[] = [
       { name: 'file_ids', type: 'string', description: 'Comma-separated file IDs', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'updateEvent',
+    requiresSpace: false,
     execute: async (args) => {
       const eventId = args.event_id as string;
       const fileIds = (args.file_ids as string)
@@ -2135,5 +2386,5 @@ export const eventTools: ToolDef[] = [
       const r = result as { _id: string; title: string };
       return `Photos set for event "${r.title}" (${r._id}). The first photo is used as the event cover.`;
     },
-  },
+  }),
 ];

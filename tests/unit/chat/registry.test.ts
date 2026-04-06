@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { buildToolRegistry } from '../../../src/chat/tools/registry';
+import { buildToolRegistry, getAllCapabilities } from '../../../src/chat/tools/registry';
 import { buildJsonSchema } from '../../../src/chat/tools/schema';
 
 describe('Tool Registry', () => {
   const registry = buildToolRegistry();
   const tools = Object.values(registry);
 
-  it('registers at least 110 tools', () => {
-    expect(tools.length).toBeGreaterThanOrEqual(110);
+  it('registers at least 210 tools', () => {
+    expect(tools.length).toBeGreaterThanOrEqual(210);
   });
 
   it('each tool has required fields', () => {
@@ -685,5 +685,32 @@ describe('Tool Registry', () => {
     for (const cat of VALID_CATEGORIES) {
       expect(usedCategories.has(cat), `category '${cat}' in allowlist but no tools use it`).toBe(true);
     }
+  });
+
+  describe('getAllCapabilities()', () => {
+    const capabilities = getAllCapabilities();
+
+    it('returns at least 210 capabilities', () => {
+      expect(capabilities.length).toBeGreaterThanOrEqual(210);
+    });
+
+    it('every capability has backendType defined', () => {
+      for (const cap of capabilities) {
+        expect(cap.backendType, `${cap.name} missing backendType`).toBeDefined();
+      }
+    });
+
+    it('every capability has surfaces with at least one entry', () => {
+      for (const cap of capabilities) {
+        expect(Array.isArray(cap.surfaces), `${cap.name} surfaces is not an array`).toBe(true);
+        expect(cap.surfaces!.length, `${cap.name} has empty surfaces`).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    it('every capability has backendService defined', () => {
+      for (const cap of capabilities) {
+        expect(cap.backendService, `${cap.name} missing backendService`).toBeDefined();
+      }
+    });
   });
 });
