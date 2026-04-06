@@ -24,7 +24,7 @@ export const pageTools: CanonicalCapability[] = [
     backendResolver: 'aiGeneratePageFromDescription',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool'],
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const input: Record<string, unknown> = {
         owner_id: args.owner_id,
@@ -68,7 +68,7 @@ export const pageTools: CanonicalCapability[] = [
     backendResolver: 'aiCreatePageConfig',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool'],
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const input: Record<string, unknown> = {
         owner_id: args.owner_id,
@@ -112,7 +112,7 @@ export const pageTools: CanonicalCapability[] = [
     backendResolver: 'aiUpdatePageConfigSection',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool'],
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const parsedUpdates = parseJsonObject(args.updates as string, 'updates');
 
@@ -328,6 +328,7 @@ export const pageTools: CanonicalCapability[] = [
     backendResolver: 'getSectionCatalog',
     requiresSpace: false,
     requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async () => {
       const result = await graphqlRequest<{ getSectionCatalog: unknown }>(
         `query {

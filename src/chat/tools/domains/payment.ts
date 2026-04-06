@@ -24,7 +24,7 @@ export const paymentTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiGetEventPaymentStats',
     requiresSpace: false,
-    surfaces: ['aiTool'],
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventPaymentStats: unknown }>(
         `query($event: MongoID!) {
