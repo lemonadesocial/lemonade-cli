@@ -22,13 +22,6 @@ describe('Tool Registry', () => {
     }
   });
 
-  it('every tool has a non-empty category string', () => {
-    for (const tool of tools) {
-      expect(typeof tool.category, `Tool "${tool.name}" category is not a string`).toBe('string');
-      expect(tool.category.length, `Tool "${tool.name}" has an empty category`).toBeGreaterThan(0);
-    }
-  });
-
   it('tool names are unique', () => {
     const names = tools.map((t) => t.name);
     const unique = new Set(names);
@@ -668,7 +661,6 @@ describe('Tool Registry', () => {
       'notifications',
       'page',
       'payment',
-      'payments',
       'rewards',
       'session',
       'space',

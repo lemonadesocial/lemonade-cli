@@ -620,7 +620,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_payment_stats',
-    category: 'payments',
+    category: 'payment',
     displayName: 'event payment stats',
     description: 'Get payment statistics for an event.',
     params: [
@@ -4794,7 +4794,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_payment_summary',
-    category: 'payments',
+    category: 'payment',
     displayName: 'event payment summary',
     description: 'Get detailed payment breakdown for an event by currency.',
     params: [
@@ -5285,7 +5285,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_payments_list',
-    category: 'payments',
+    category: 'payment',
     displayName: 'event payments list',
     description: 'List payments for an event with optional filters.',
     params: [
@@ -5340,7 +5340,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_payment_detail',
-    category: 'payments',
+    category: 'payment',
     displayName: 'event payment detail',
     description: 'Get details of a specific payment.',
     params: [
@@ -5374,7 +5374,7 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 
   register({
     name: 'event_payment_statistics',
-    category: 'payments',
+    category: 'payment',
     displayName: 'event payment statistics',
     description: 'Get detailed payment statistics by provider (Stripe vs crypto) with network breakdowns. For simple revenue totals, use event_payment_stats.',
     params: [
