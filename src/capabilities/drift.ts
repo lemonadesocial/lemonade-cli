@@ -58,7 +58,10 @@ export function checkDrift(schemaPath?: string): DriftReport {
 
   const covered: DriftReport['covered'] = [];
   const broken: DriftReport['broken'] = [];
-  const matchedBackendResolvers = new Set<string>();
+  // Tracks resolvers actually mapped by a CLI tool (for coverage %)
+  const coveredResolvers = new Set<string>();
+  // Tracks resolvers to suppress from gaps (includes ai/non-ai counterparts)
+  const suppressedFromGaps = new Set<string>();
 
   // Check each capability with a backendResolver
   for (const cap of capabilities) {
@@ -81,10 +84,11 @@ export function checkDrift(schemaPath?: string): DriftReport {
     if (matchedResolver) {
       const type = allBackendQueries.has(matchedResolver) ? 'query' : 'mutation';
       covered.push({ resolver: matchedResolver, tool: cap.name, type });
-      matchedBackendResolvers.add(matchedResolver);
-      // Also mark the ai/non-ai counterpart as matched if it exists
-      if (allBackendResolvers.has(aiVariant)) matchedBackendResolvers.add(aiVariant);
-      if (allBackendResolvers.has(canonical)) matchedBackendResolvers.add(canonical);
+      coveredResolvers.add(matchedResolver);
+      // Suppress ai/non-ai counterparts from appearing as gaps
+      suppressedFromGaps.add(matchedResolver);
+      if (allBackendResolvers.has(aiVariant)) suppressedFromGaps.add(aiVariant);
+      if (allBackendResolvers.has(canonical)) suppressedFromGaps.add(canonical);
     } else {
       broken.push({
         resolver,
@@ -97,19 +101,19 @@ export function checkDrift(schemaPath?: string): DriftReport {
   // Find gaps: backend resolvers not covered by any CLI capability
   const gaps: DriftReport['gaps'] = [];
   for (const q of backend.queries) {
-    if (!matchedBackendResolvers.has(q)) {
+    if (!suppressedFromGaps.has(q)) {
       gaps.push({ resolver: q, type: 'query' });
     }
   }
   for (const m of backend.mutations) {
-    if (!matchedBackendResolvers.has(m)) {
+    if (!suppressedFromGaps.has(m)) {
       gaps.push({ resolver: m, type: 'mutation' });
     }
   }
 
   const totalBackend = allBackendResolvers.size;
   const coveragePercent = totalBackend > 0
-    ? Math.round((matchedBackendResolvers.size / totalBackend) * 10000) / 100
+    ? Math.round((coveredResolvers.size / totalBackend) * 10000) / 100
     : 0;
 
   const cliResolverCount = capabilities.filter(c => c.backendResolver).length;

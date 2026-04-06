@@ -194,4 +194,97 @@ describe('checkDrift', () => {
 
     rmSync(tmpDir, { recursive: true });
   });
+
+  it('does not inflate coverage by double-counting ai variants', () => {
+    // Backend has both aiCreateEvent and createEvent (2 mutations) + 2 queries = 4 total
+    const schemaPath = writeSchema(tmpDir, ['aiGetEvent', 'getEvent'], ['aiCreateEvent', 'createEvent']);
+
+    // CLI maps to aiCreateEvent and getEvent — only 2 resolvers actually covered
+    mockedGetAll.mockReturnValue([
+      makeCapability({ name: 'create_event', backendResolver: 'aiCreateEvent', backendType: 'mutation' }),
+      makeCapability({ name: 'get_event', backendResolver: 'getEvent', backendType: 'query' }),
+    ]);
+
+    const report = checkDrift(schemaPath);
+
+    expect(report.totalBackendResolvers).toBe(4);
+    expect(report.covered).toHaveLength(2);
+    // Coverage should be 2/4 = 50%, NOT 4/4 = 100%
+    expect(report.coveragePercent).toBe(50);
+    // But ai counterparts should still be suppressed from gaps
+    expect(report.gaps).toHaveLength(0);
+
+    rmSync(tmpDir, { recursive: true });
+  });
+
+  it('--broken filter: report.broken contains only broken mappings', () => {
+    const schemaPath = writeSchema(tmpDir, ['getEvent'], ['createEvent']);
+
+    mockedGetAll.mockReturnValue([
+      makeCapability({ name: 'get_event', backendResolver: 'getEvent', backendType: 'query' }),
+      makeCapability({ name: 'get_space', backendResolver: 'getSpace', backendType: 'query' }),
+      makeCapability({ name: 'update_user', backendResolver: 'updateUser', backendType: 'mutation' }),
+    ]);
+
+    const report = checkDrift(schemaPath);
+
+    // Filtering logic: --broken shows only report.broken
+    const brokenOnly = report.broken;
+    expect(brokenOnly).toHaveLength(2);
+    expect(brokenOnly.map(b => b.resolver).sort()).toEqual(['getSpace', 'updateUser']);
+    // Ensure broken items are NOT in covered
+    const coveredResolvers = new Set(report.covered.map(c => c.resolver));
+    for (const b of brokenOnly) {
+      expect(coveredResolvers.has(b.resolver)).toBe(false);
+    }
+
+    rmSync(tmpDir, { recursive: true });
+  });
+
+  it('--gaps filter: report.gaps contains only uncovered backend resolvers', () => {
+    const schemaPath = writeSchema(tmpDir, ['getEvent', 'getMe', 'getSpace'], ['createEvent']);
+
+    mockedGetAll.mockReturnValue([
+      makeCapability({ name: 'get_event', backendResolver: 'getEvent', backendType: 'query' }),
+    ]);
+
+    const report = checkDrift(schemaPath);
+
+    // Filtering logic: --gaps shows only report.gaps
+    const gapsOnly = report.gaps;
+    expect(gapsOnly).toHaveLength(3);
+    expect(gapsOnly.map(g => g.resolver).sort()).toEqual(['createEvent', 'getMe', 'getSpace']);
+    // Each gap has a type
+    for (const g of gapsOnly) {
+      expect(['query', 'mutation']).toContain(g.type);
+    }
+
+    rmSync(tmpDir, { recursive: true });
+  });
+
+  it('--json filter: report contains all expected top-level fields', () => {
+    const schemaPath = writeSchema(tmpDir, ['getEvent'], ['createEvent']);
+
+    mockedGetAll.mockReturnValue([
+      makeCapability({ name: 'get_event', backendResolver: 'getEvent', backendType: 'query' }),
+    ]);
+
+    const report = checkDrift(schemaPath);
+
+    // Filtering logic: --json outputs the full report — verify structure
+    expect(report).toHaveProperty('generated');
+    expect(report).toHaveProperty('schemaDate');
+    expect(report).toHaveProperty('totalBackendResolvers');
+    expect(report).toHaveProperty('totalCliResolvers');
+    expect(report).toHaveProperty('coveragePercent');
+    expect(report).toHaveProperty('covered');
+    expect(report).toHaveProperty('broken');
+    expect(report).toHaveProperty('gaps');
+    expect(typeof report.coveragePercent).toBe('number');
+    expect(Array.isArray(report.covered)).toBe(true);
+    expect(Array.isArray(report.broken)).toBe(true);
+    expect(Array.isArray(report.gaps)).toBe(true);
+
+    rmSync(tmpDir, { recursive: true });
+  });
 });

@@ -1,6 +1,6 @@
 {
   "generated": "2026-04-06",
-  "source": "lemonade-backend schema.generated.graphql",
+  "source": "lemonade-backend",
   "queries": [
     "aiGetBackendVersion",
     "aiGetEvent",
