@@ -33,7 +33,7 @@ export function buildCapability(input: CapabilityInput): CanonicalCapability {
     experimental: input.experimental ?? DEFAULTS.experimental,
     whenToUse: input.whenToUse,
     tags: input.tags ? [...input.tags] : undefined,
-    surfaces: input.surfaces ?? [...DEFAULTS.surfaces],
+    surfaces: input.surfaces ? [...input.surfaces] : [...DEFAULTS.surfaces],
     ...(input.formatResult ? { formatResult: input.formatResult } : {}),
   };
 }
