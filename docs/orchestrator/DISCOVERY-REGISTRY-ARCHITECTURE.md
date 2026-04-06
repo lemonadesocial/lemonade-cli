@@ -69,6 +69,7 @@ interface ToolDef {
   name: string;
   displayName: string;
   description: string;
+  category: string;
   params: ToolParam[];
   destructive: boolean;
   execute: (args: Record<string, unknown>) => Promise<unknown>;
@@ -76,34 +77,33 @@ interface ToolDef {
 }
 ```
 
-**7 metadata fields total:** `name`, `displayName`, `description`, `params`, `destructive`, `execute`, `formatResult`.
+**8 metadata fields total:** `name`, `displayName`, `description`, `category`, `params`, `destructive`, `execute`, `formatResult`.
 
 **Category determination:** Each tool now has an explicit `category` field set at registration time (e.g., `category: 'event'`). The old `getToolCategory()` helper that derived categories from tool name prefixes has been removed. Categories are accessed directly via `tool.category`.
 
-**Tools per derived category (48 categories):**
+**Tools per explicit category (19 categories):**
 
 | Category | Count |
 |---|---|
 | event | 82 |
 | space | 36 |
+| payment | 16 |
 | tickets | 13 |
-| page | 10 |
-| payment | 7 |
+| page | 11 |
+| connector | 9 |
 | newsletter | 7 |
-| connector | 7 |
-| subscription | 5 |
-| site | 5 |
 | rewards | 5 |
+| subscription | 5 |
+| system | 5 |
+| session | 4 |
 | tempo | 4 |
-| credits | 3 |
-| file | 3 |
 | launchpad | 3 |
-| user | 2 |
-| template | 2 |
-| stripe | 2 |
+| file | 2 |
 | notifications | 2 |
-| connectors | 2 |
-| (misc singletons) | ~20 |
+| user | 2 |
+| voting | 2 |
+| template | 1 |
+| theme | 1 |
 
 **Comment-based sections in registry.ts: 48** (e.g., `// --- Event ---`, `// --- Tickets ---`).
 
@@ -210,7 +210,7 @@ interface ToolDef {
 | `destructive` | EXISTS | Boolean flag |
 | `execute` | EXISTS | Implementation function |
 | `formatResult` | EXISTS (optional) | Result formatter |
-| `category` | MISSING | Derived from name prefix — unreliable |
+| `category` | EXISTS | Explicit field on every tool, 19 canonical categories enforced by allowlist test |
 | `audience`/`mode` | MISSING | No credits vs BYOK constraints |
 | `backendDependency` | MISSING | No GraphQL resolver declaration |
 | `surfaceExposure` | MISSING | No surface metadata |
