@@ -451,18 +451,18 @@ export function registerEventCommands(program: Command): void {
         setFlagApiKey(opts.apiKey);
 
         const [salesResult, viewsResult, guestsResult] = await Promise.all([
-          graphqlRequest<{ getEventTicketSoldChartData: Record<string, unknown> }>(
+          graphqlRequest<{ aiGetEventTicketSoldInsight: Record<string, unknown> }>(
             `query($event: MongoID!) {
-              getEventTicketSoldChartData(event: $event) {
+              aiGetEventTicketSoldInsight(event: $event) {
                 total_sold total_revenue_cents currency
                 by_type { ticket_type_id title sold revenue_cents }
               }
             }`,
             { event: eventId },
           ),
-          graphqlRequest<{ getEventViewChartData: Record<string, unknown> }>(
+          graphqlRequest<{ aiGetEventViewInsight: Record<string, unknown> }>(
             `query($event: MongoID!) {
-              getEventViewChartData(event: $event) {
+              aiGetEventViewInsight(event: $event) {
                 total_views unique_visitors
                 top_sources { source count }
                 top_cities { city count }
@@ -470,9 +470,9 @@ export function registerEventCommands(program: Command): void {
             }`,
             { event: eventId },
           ),
-          graphqlRequest<{ getEventGuestsStatistics: Record<string, unknown> }>(
+          graphqlRequest<{ aiGetEventGuestStats: Record<string, unknown> }>(
             `query($event: MongoID!) {
-              getEventGuestsStatistics(event: $event) {
+              aiGetEventGuestStats(event: $event) {
                 going pending_approval pending_invite declined checked_in total
               }
             }`,
@@ -481,9 +481,9 @@ export function registerEventCommands(program: Command): void {
         ]);
         setFlagApiKey(undefined);
 
-        const sales = salesResult.getEventTicketSoldChartData;
-        const views = viewsResult.getEventViewChartData;
-        const guests = guestsResult.getEventGuestsStatistics;
+        const sales = salesResult.aiGetEventTicketSoldInsight;
+        const views = viewsResult.aiGetEventViewInsight;
+        const guests = guestsResult.aiGetEventGuestStats;
 
         if (opts.json) {
           console.log(jsonSuccess({ sales, views, guests }));
@@ -603,9 +603,9 @@ export function registerEventCommands(program: Command): void {
         }
 
         const decision = opts.approve ? 'approved' : 'declined';
-        const result = await graphqlRequest<{ decideEventCohostRequest: { processed_count: number; decision: string } }>(
+        const result = await graphqlRequest<{ aiDecideEventJoinRequests: { processed_count: number; decision: string } }>(
           `mutation($event: MongoID!, $decision: String!, $request_ids: [MongoID!]) {
-            decideEventCohostRequest(event: $event, decision: $decision, request_ids: $request_ids) {
+            aiDecideEventJoinRequests(event: $event, decision: $decision, request_ids: $request_ids) {
               processed_count decision
             }
           }`,
@@ -617,7 +617,7 @@ export function registerEventCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const r = result.decideEventCohostRequest;
+        const r = result.aiDecideEventJoinRequests;
         if (opts.json) {
           console.log(jsonSuccess(r));
         } else {

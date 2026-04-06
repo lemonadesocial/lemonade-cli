@@ -385,20 +385,20 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getEventTicketSoldChartData',
+    backendResolver: 'aiGetEventTicketSoldInsight',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ getEventTicketSoldChartData: unknown }>(
+      const result = await graphqlRequest<{ aiGetEventTicketSoldInsight: unknown }>(
         `query($event: MongoID!) {
-          getEventTicketSoldChartData(event: $event) {
+          aiGetEventTicketSoldInsight(event: $event) {
             total_sold total_revenue_cents currency
             by_type { ticket_type_id title sold revenue_cents }
           }
         }`,
         { event: args.event_id },
       );
-      return result.getEventTicketSoldChartData;
+      return result.aiGetEventTicketSoldInsight;
     },
   }),
   buildCapability({
@@ -414,13 +414,13 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getEventViewChartData',
+    backendResolver: 'aiGetEventViewInsight',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ getEventViewChartData: unknown }>(
+      const result = await graphqlRequest<{ aiGetEventViewInsight: unknown }>(
         `query($event: MongoID!) {
-          getEventViewChartData(event: $event) {
+          aiGetEventViewInsight(event: $event) {
             total_views unique_visitors
             top_sources { source count }
             top_cities { city count }
@@ -428,7 +428,7 @@ export const eventTools: CanonicalCapability[] = [
         }`,
         { event: args.event_id },
       );
-      return result.getEventViewChartData;
+      return result.aiGetEventViewInsight;
     },
   }),
   buildCapability({
@@ -444,19 +444,19 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getEventGuestsStatistics',
+    backendResolver: 'aiGetEventGuestStats',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ getEventGuestsStatistics: unknown }>(
+      const result = await graphqlRequest<{ aiGetEventGuestStats: unknown }>(
         `query($event: MongoID!) {
-          getEventGuestsStatistics(event: $event) {
+          aiGetEventGuestStats(event: $event) {
             going pending_approval pending_invite declined checked_in total
           }
         }`,
         { event: args.event_id },
       );
-      return result.getEventGuestsStatistics;
+      return result.aiGetEventGuestStats;
     },
     formatResult: (result) => {
       const r = result as { going: number; pending_approval: number; pending_invite: number; declined: number; checked_in: number; total: number };

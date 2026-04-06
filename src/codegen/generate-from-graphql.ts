@@ -77,7 +77,7 @@ const MANUAL_RESOLVERS = new Set([
   // Event commands
   'createEvent', 'getHostingEvents', 'aiSearchEvents', 'getEvent',
   'updateEvent', 'aiPublishEvent', 'cancelEvent',
-  'listEventGuests', 'inviteEvent', 'decideEventCohostRequest',
+  'listEventGuests', 'inviteEvent', 'aiDecideEventJoinRequests',
   'getEventFeedbackSummary', 'listEventFeedBacks', 'getEventCheckins',
   // Ticket commands
   'listEventTicketTypes', 'createEventTicketType', 'updateEventTicketType',
@@ -87,8 +87,8 @@ const MANUAL_RESOLVERS = new Set([
   // Site commands
   'aiGeneratePageFromDescription', 'createPageConfig',
   'updatePageConfig', 'aiSuggestSections',
-  'getPageConfig', 'updatePageConfig', 'getPublishedConfig',
-  'generatePreviewLink', 'createPageConfig',
+  'getPageConfig', 'getPublishedConfig',
+  'generatePreviewLink',
   // Payment accounts
   'listNewPaymentAccounts',
   'createNewPaymentAccount',
