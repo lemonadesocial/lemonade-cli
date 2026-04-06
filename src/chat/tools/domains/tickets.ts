@@ -16,7 +16,7 @@ export const ticketsTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiListEventTicketTypes',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiListEventTicketTypes: unknown }>(
         `query($event: MongoID!) {
@@ -46,7 +46,7 @@ export const ticketsTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'aiCreateEventTicketType',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -91,7 +91,7 @@ export const ticketsTools: CanonicalCapability[] = [
     backendResolver: 'aiUpdateEventTicketType',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.name) input.title = args.name;
@@ -127,10 +127,11 @@ export const ticketsTools: CanonicalCapability[] = [
       { name: 'discount_code', type: 'string', description: 'Discount code', required: false },
     ],
     destructive: true,
+    // backendType 'mutation' = write operation (REST POST via atlas)
     backendType: 'mutation',
     backendService: 'atlas',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const quantity = args.quantity as number;
       const names = args.attendee_names as string[];
@@ -259,7 +260,7 @@ export const ticketsTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiCalculateTicketPrice',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       // Backend schema accepts Float for count, but ticket quantities are whole numbers
       const count = Math.floor(args.quantity != null ? (args.quantity as number) : 1);
@@ -326,7 +327,7 @@ export const ticketsTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'aiCreateEventTicketDiscount',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiCreateEventTicketDiscount: unknown }>(
         `mutation($event: MongoID!, $code: String!, $ratio: Float!, $limit: Int) {

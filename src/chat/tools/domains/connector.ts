@@ -14,7 +14,7 @@ export const connectorTools: CanonicalCapability[] = [
     backendResolver: 'availableConnectors',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand', 'slashCommand'],
+    surfaces: ['aiTool', 'slashCommand'],
     execute: async () => {
       const result = await graphqlRequest<{ availableConnectors: unknown }>(
         'query { availableConnectors { id name category authType capabilities } }',

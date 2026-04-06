@@ -42,7 +42,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'createEvent',
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const spaceId = (args.space as string) || getDefaultSpace();
       const input: Record<string, unknown> = {
@@ -122,7 +122,7 @@ export const eventTools: CanonicalCapability[] = [
     backendResolver: 'aiGetHostingEvents',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand', 'slashCommand'],
+    surfaces: ['aiTool', 'slashCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetHostingEvents: { items: Array<Record<string, unknown>> } }>(
         `query($draft: Boolean, $search: String, $limit: Int, $skip: Int) {
@@ -164,7 +164,7 @@ export const eventTools: CanonicalCapability[] = [
     backendService: 'external',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       return registrySearch({
         q: args.query as string,
@@ -194,7 +194,7 @@ export const eventTools: CanonicalCapability[] = [
     backendResolver: 'aiGetEvent',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEvent: unknown }>(
         `query($id: MongoID!) {
@@ -248,7 +248,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'updateEvent',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.title !== undefined) input.title = args.title;
@@ -314,7 +314,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'aiPublishEvent',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiPublishEvent: unknown }>(
         `mutation($id: MongoID!) {
@@ -341,7 +341,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'aiCancelEvent',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       await graphqlRequest(
         'mutation($id: MongoID!) { aiCancelEvent(id: $id) }',
@@ -362,7 +362,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiGetEventTicketSoldInsight',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventTicketSoldInsight: unknown }>(
         `query($event: MongoID!) {
@@ -388,7 +388,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiGetEventViewInsight',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventViewInsight: unknown }>(
         `query($event: MongoID!) {
@@ -415,7 +415,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiGetEventGuestStats',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventGuestStats: unknown }>(
         `query($event: MongoID!) {
@@ -447,7 +447,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiGetEventGuests',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventGuests: unknown }>(
         `query($event: MongoID!, $search: String, $limit: Int, $skip: Int) {
@@ -478,7 +478,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'aiInviteEvent',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       await graphqlRequest(
         'mutation($input: InviteEventInput!) { aiInviteEvent(input: $input) }',
@@ -502,7 +502,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'aiDecideEventJoinRequests',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiDecideEventJoinRequests: unknown }>(
         `mutation($event: MongoID!, $decision: String!, $request_ids: [MongoID!]) {
@@ -531,7 +531,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiGetEventFeedbackSummary',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventFeedbackSummary: unknown }>(
         `query($event: MongoID!) {
@@ -564,7 +564,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiListEventFeedbacks',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiListEventFeedbacks: unknown }>(
         `query($event: MongoID!, $rate_value: Float, $limit: Int, $skip: Int) {
@@ -596,7 +596,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiGetEventCheckins',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetEventCheckins: unknown }>(
         `query($event: MongoID!, $limit: Int, $skip: Int) {
@@ -625,7 +625,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'aiGetEventApplicationAnswers',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       // Returns [AIEventApplicationAnswerEntry!]! — flat list, no items wrapper
       const result = await graphqlRequest<{ aiGetEventApplicationAnswers: unknown }>(
@@ -1162,7 +1162,7 @@ export const eventTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'exportEventTickets',
     requiresSpace: false,
-    surfaces: ['aiTool', 'cliCommand', 'slashCommand'],
+    surfaces: ['aiTool', 'slashCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ exportEventTickets: unknown }>(
         `query($_id: MongoID!, $search_text: String, $checked_in: Boolean, $pagination: PaginationInput) {

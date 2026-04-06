@@ -94,7 +94,7 @@ export const systemTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'getStandCredits',
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand', 'slashCommand'],
+    surfaces: ['aiTool', 'slashCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ getStandCredits: unknown }>(
         `query($stand_id: String!) {

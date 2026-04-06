@@ -14,7 +14,7 @@ export const notificationsTools: CanonicalCapability[] = [
     backendResolver: 'aiGetNotifications',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async () => {
       const result = await graphqlRequest<{ aiGetNotifications: Array<{ id: string; type: string; message: string; from_user_name?: string; ref_event_title?: string; read: boolean; created_at: string }> }>(
         'query { aiGetNotifications { id type message from_user_name ref_event_title read created_at } }',
@@ -35,7 +35,7 @@ export const notificationsTools: CanonicalCapability[] = [
     backendResolver: 'aiReadNotifications',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const ids = args.notification_ids as string[];
       for (const id of ids) {

@@ -21,7 +21,7 @@ export const pageTools: CanonicalCapability[] = [
     backendResolver: 'aiGeneratePageFromDescription',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const input: Record<string, unknown> = {
         owner_id: args.owner_id,
@@ -62,7 +62,7 @@ export const pageTools: CanonicalCapability[] = [
     backendResolver: 'aiCreatePageConfig',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const input: Record<string, unknown> = {
         owner_id: args.owner_id,
@@ -104,7 +104,7 @@ export const pageTools: CanonicalCapability[] = [
     backendResolver: 'aiUpdatePageConfigSection',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const parsedUpdates = parseJsonObject(args.updates as string, 'updates');
 
@@ -167,7 +167,7 @@ export const pageTools: CanonicalCapability[] = [
     backendResolver: 'aiSuggestSections',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const variables: Record<string, unknown> = {
         owner_type: args.owner_type,
@@ -495,7 +495,7 @@ export const pageTools: CanonicalCapability[] = [
     backendResolver: 'createPageConfig',
     requiresSpace: false,
     requiresEvent: false,
-    surfaces: ['aiTool', 'cliCommand'],
+    surfaces: ['aiTool'],
     execute: async (args) => {
       const input: Record<string, unknown> = {
         owner_type: args.owner_type,
