@@ -59,10 +59,10 @@ function printHelp(): void {
 }
 
 async function fetchUser(): Promise<{ _id: string; name: string; email: string; first_name: string }> {
-  const result = await graphqlRequest<{ getMe: { user: { _id: string; name: string; email: string; first_name: string } } }>(
-    'query { getMe { user { _id name email first_name } } }',
+  const result = await graphqlRequest<{ getMe: { _id: string; name: string; email: string; first_name: string } }>(
+    'query { getMe { _id name email first_name } }',
   );
-  return result.getMe.user;
+  return result.getMe;
 }
 
 async function main(): Promise<void> {
