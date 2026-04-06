@@ -1,6 +1,5 @@
 import { getAllCapabilities } from '../tools/registry.js';
 import { findCapability } from '../../capabilities/filter.js';
-import type { CanonicalCapability } from '../../capabilities/types.js';
 import type { ToolDef } from '../providers/interface.js';
 
 /**
@@ -25,7 +24,7 @@ export async function executeCapability(
     throw new CapabilityNotAvailableError(name);
   }
   const result = await cap.execute(args);
-  const formatted = cap.formatResult ? cap.formatResult(result) : JSON.stringify(result, null, 2);
+  const formatted = cap.formatResult ? cap.formatResult(result) : JSON.stringify(result);
   return { result, formatted };
 }
 
@@ -37,11 +36,4 @@ export class CapabilityNotAvailableError extends Error {
     super(`Tool "${name}" is not available. It may require a different AI mode or space configuration.`);
     this.name = 'CapabilityNotAvailableError';
   }
-}
-
-/**
- * Find a capability by name from the global registry.
- */
-export function getCapability(name: string): CanonicalCapability | undefined {
-  return findCapability(getAllCapabilities(), name);
 }

@@ -378,7 +378,7 @@ async function handleEvents(
     }
   } catch (err) {
     if (err instanceof CapabilityNotAvailableError) {
-      addSystemMessage(err.message);
+      addSystemMessage(`Failed to fetch events: ${err.message}`);
     } else {
       addSystemMessage(`Failed to fetch events: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
@@ -595,7 +595,7 @@ async function handleConnectors(
         addSystemMessage(lines.join('\n'));
       }
     } catch (err) {
-      addSystemMessage(err instanceof CapabilityNotAvailableError ? err.message : `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
     return;
   }
@@ -754,8 +754,12 @@ async function pollForOAuthConnection(
           return;
         }
       }
-    } catch {
-      // Polling error — continue
+    } catch (err) {
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage(err.message);
+        return;
+      }
+      // Other polling errors — continue
     }
   }
   addSystemMessage('Authorization timed out (2 minutes). Try again with /connectors connect ' + connectorType);
