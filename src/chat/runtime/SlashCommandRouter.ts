@@ -481,7 +481,11 @@ async function handleSpaces(
     lines.push('Type /spaces <number> to switch, e.g. /spaces 3');
     addSystemMessage(lines.join('\n'));
   } catch (err) {
-    addSystemMessage(`Failed to fetch spaces: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    if (err instanceof CapabilityNotAvailableError) {
+      addSystemMessage('Space tools not available. Check your space selection.');
+    } else {
+      addSystemMessage(`Failed to fetch spaces: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   }
 }
 
@@ -528,7 +532,11 @@ async function handleExport(
       chmodSync(filename, 0o600);
       addSystemMessage(`Exported ${data.count} guests to ${filename}`);
     } catch (err) {
-      addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage('Export tools not available. Check your space and event selection.');
+      } else {
+        addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     return;
   }
@@ -562,7 +570,11 @@ async function handleExport(
       chmodSync(filename, 0o600);
       addSystemMessage(`Exported ${data.count} applications to ${filename}`);
     } catch (err) {
-      addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage('Export tools not available. Check your space and event selection.');
+      } else {
+        addSystemMessage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     return;
   }
@@ -621,7 +633,11 @@ async function handleConnectors(
         addSystemMessage(lines.join('\n'));
       }
     } catch (err) {
-      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage('Connector tools not available. Check your space selection.');
+      } else {
+        addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     return;
   }
@@ -643,7 +659,11 @@ async function handleConnectors(
         addSystemMessage(lines.join('\n'));
       }
     } catch (err) {
-      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage('Connector tools not available. Check your space selection.');
+      } else {
+        addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     return;
   }
@@ -684,7 +704,11 @@ async function handleConnectors(
         addSystemMessage(`Connected! (ID: ${connectResult.connectionId})`);
       }
     } catch (err) {
-      addSystemMessage(`Failed to connect: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage('Connector tools not available. Check your space selection.');
+      } else {
+        addSystemMessage(`Failed to connect: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     return;
   }
@@ -704,7 +728,11 @@ async function handleConnectors(
         addSystemMessage(`Failed: ${data.error || data.message || 'Unknown error'}`);
       }
     } catch (err) {
-      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage('Connector tools not available. Check your space selection.');
+      } else {
+        addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     return;
   }
@@ -716,7 +744,11 @@ async function handleConnectors(
       const data = result as { disconnected: boolean };
       addSystemMessage(data.disconnected ? 'Disconnected.' : 'Failed to disconnect.');
     } catch (err) {
-      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage('Connector tools not available. Check your space selection.');
+      } else {
+        addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     return;
   }
@@ -771,7 +803,7 @@ async function handleTempo(
   slashResult: SlashCommandResult,
   deps: SlashCommandDeps,
 ): Promise<void> {
-  const { addSystemMessage, engine, exit, registry, session } = deps;
+  const { addSystemMessage, engine, registry, session } = deps;
   const subcommand = (slashResult.args || '').split(/\s+/)[0];
 
   if (!subcommand || subcommand === 'status') {
@@ -785,7 +817,11 @@ async function handleTempo(
       const { formatted } = await executeCapability('tempo_status', {}, registry);
       addSystemMessage(formatted);
     } catch (err) {
-      addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage('Tempo tools not available.');
+      } else {
+        addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
+      }
     }
     return;
   }
@@ -894,7 +930,11 @@ async function handleTempo(
       }
       addSystemMessage(`Tempo Wallet: ${r.address}\n${bal}${rewardInfo}`);
     } catch (err) {
-      addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage('Tempo tools not available.');
+      } else {
+        addSystemMessage(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
+      }
     }
     return;
   }
@@ -974,7 +1014,7 @@ function handleTools(
     const filtered = filterCapabilities(caps, { category: args });
     if (filtered.length === 0) {
       const cats = getCategories(caps);
-      addSystemMessage(`No tools in category "${args}". Available: ${cats.join(', ')}`);
+      addSystemMessage(`No tools in category "${args.toLowerCase()}". Available: ${cats.join(', ')}`);
     } else {
       const lines = filtered.map((c) => `  ${c.name} — ${c.description.length > 60 ? c.description.slice(0, 57) + '...' : c.description}`);
       addSystemMessage(`${args.toLowerCase()} tools (${filtered.length}):\n${lines.join('\n')}\n\nUse /tools info <name> for details.`);
