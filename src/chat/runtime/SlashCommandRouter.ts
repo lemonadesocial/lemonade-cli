@@ -71,12 +71,9 @@ export async function executeSlashCommand(
     session,
     turnCoordinator,
     startManualPlan,
-    setSpaceName,
-    setApiKeyPrompt,
     uiMessages,
     displayOpts,
     spaceName,
-    cachedSpacesRef,
   } = deps;
 
   // /btw - ALWAYS allowed, even during active turn
