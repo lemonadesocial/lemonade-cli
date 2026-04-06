@@ -129,9 +129,9 @@ export function registerEventCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const skip = opts.cursor ? parseInt(opts.cursor, 10) : 0;
 
-        const result = await graphqlRequest<{ aiGetHostingEvents: { items: Array<Record<string, unknown>> } }>(
+        const result = await graphqlRequest<{ getHostingEvents: { items: Array<Record<string, unknown>> } }>(
           `query($draft: Boolean, $search: String, $limit: Int, $skip: Int) {
-            aiGetHostingEvents(draft: $draft, search: $search, limit: $limit, skip: $skip) {
+            getHostingEvents(draft: $draft, search: $search, limit: $limit, skip: $skip) {
               items { _id title shortid start end published }
             }
           }`,
@@ -144,7 +144,7 @@ export function registerEventCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const items = result.aiGetHostingEvents.items;
+        const items = result.getHostingEvents.items;
         if (opts.json) {
           const nextCursor = items.length === limit ? String(skip + limit) : null;
           console.log(jsonSuccess(items, { cursor: nextCursor }));
@@ -233,9 +233,9 @@ export function registerEventCommands(program: Command): void {
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
-        const result = await graphqlRequest<{ aiGetEvent: Record<string, unknown> }>(
+        const result = await graphqlRequest<{ getEvent: Record<string, unknown> }>(
           `query($id: MongoID!) {
-            aiGetEvent(id: $id) {
+            getEvent(id: $id) {
               _id title shortid start end published description
               virtual virtual_url private guest_limit guest_limit_per ticket_limit_per
               timezone approval_required application_required registration_disabled
@@ -247,7 +247,7 @@ export function registerEventCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const ev = result.aiGetEvent;
+        const ev = result.getEvent;
         const addr = ev.address as Record<string, unknown> | null;
         if (opts.json) {
           console.log(jsonSuccess(ev));
@@ -424,7 +424,7 @@ export function registerEventCommands(program: Command): void {
         setFlagApiKey(opts.apiKey);
         await graphqlRequest(
           `mutation($id: MongoID!) {
-            aiCancelEvent(id: $id)
+            cancelEvent(id: $id)
           }`,
           { id: eventId },
         );
@@ -451,18 +451,18 @@ export function registerEventCommands(program: Command): void {
         setFlagApiKey(opts.apiKey);
 
         const [salesResult, viewsResult, guestsResult] = await Promise.all([
-          graphqlRequest<{ aiGetEventTicketSoldInsight: Record<string, unknown> }>(
+          graphqlRequest<{ getEventTicketSoldChartData: Record<string, unknown> }>(
             `query($event: MongoID!) {
-              aiGetEventTicketSoldInsight(event: $event) {
+              getEventTicketSoldChartData(event: $event) {
                 total_sold total_revenue_cents currency
                 by_type { ticket_type_id title sold revenue_cents }
               }
             }`,
             { event: eventId },
           ),
-          graphqlRequest<{ aiGetEventViewInsight: Record<string, unknown> }>(
+          graphqlRequest<{ getEventViewChartData: Record<string, unknown> }>(
             `query($event: MongoID!) {
-              aiGetEventViewInsight(event: $event) {
+              getEventViewChartData(event: $event) {
                 total_views unique_visitors
                 top_sources { source count }
                 top_cities { city count }
@@ -470,9 +470,9 @@ export function registerEventCommands(program: Command): void {
             }`,
             { event: eventId },
           ),
-          graphqlRequest<{ aiGetEventGuestStats: Record<string, unknown> }>(
+          graphqlRequest<{ getEventGuestsStatistics: Record<string, unknown> }>(
             `query($event: MongoID!) {
-              aiGetEventGuestStats(event: $event) {
+              getEventGuestsStatistics(event: $event) {
                 going pending_approval pending_invite declined checked_in total
               }
             }`,
@@ -481,9 +481,9 @@ export function registerEventCommands(program: Command): void {
         ]);
         setFlagApiKey(undefined);
 
-        const sales = salesResult.aiGetEventTicketSoldInsight;
-        const views = viewsResult.aiGetEventViewInsight;
-        const guests = guestsResult.aiGetEventGuestStats;
+        const sales = salesResult.getEventTicketSoldChartData;
+        const views = viewsResult.getEventViewChartData;
+        const guests = guestsResult.getEventGuestsStatistics;
 
         if (opts.json) {
           console.log(jsonSuccess({ sales, views, guests }));
@@ -523,9 +523,9 @@ export function registerEventCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const skip = opts.cursor ? parseInt(opts.cursor, 10) : 0;
 
-        const result = await graphqlRequest<{ aiGetEventGuests: { items: Array<Record<string, unknown>> } }>(
+        const result = await graphqlRequest<{ listEventGuests: { items: Array<Record<string, unknown>> } }>(
           `query($event: MongoID!, $search: String, $limit: Int, $skip: Int) {
-            aiGetEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
+            listEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
               items { name email status ticket_type_title checked_in }
             }
           }`,
@@ -533,7 +533,7 @@ export function registerEventCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const items = result.aiGetEventGuests.items;
+        const items = result.listEventGuests.items;
         if (opts.json) {
           const nextCursor = items.length === limit ? String(skip + limit) : null;
           console.log(jsonSuccess(items, { cursor: nextCursor }));
@@ -566,7 +566,7 @@ export function registerEventCommands(program: Command): void {
         setFlagApiKey(opts.apiKey);
         await graphqlRequest(
           `mutation($input: InviteEventInput!) {
-            aiInviteEvent(input: $input)
+            inviteEvent(input: $input)
           }`,
           { input: { event: eventId, emails: opts.email } },
         );
@@ -603,9 +603,9 @@ export function registerEventCommands(program: Command): void {
         }
 
         const decision = opts.approve ? 'approved' : 'declined';
-        const result = await graphqlRequest<{ aiDecideEventJoinRequests: { processed_count: number; decision: string } }>(
+        const result = await graphqlRequest<{ decideEventCohostRequest: { processed_count: number; decision: string } }>(
           `mutation($event: MongoID!, $decision: String!, $request_ids: [MongoID!]) {
-            aiDecideEventJoinRequests(event: $event, decision: $decision, request_ids: $request_ids) {
+            decideEventCohostRequest(event: $event, decision: $decision, request_ids: $request_ids) {
               processed_count decision
             }
           }`,
@@ -617,7 +617,7 @@ export function registerEventCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const r = result.aiDecideEventJoinRequests;
+        const r = result.decideEventCohostRequest;
         if (opts.json) {
           console.log(jsonSuccess(r));
         } else {
@@ -644,9 +644,9 @@ export function registerEventCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const offset = parseInt(opts.offset, 10);
 
-        const summaryResult = await graphqlRequest<{ aiGetEventFeedbackSummary: Record<string, unknown> }>(
+        const summaryResult = await graphqlRequest<{ getEventFeedbackSummary: Record<string, unknown> }>(
           `query($event: MongoID!) {
-            aiGetEventFeedbackSummary(event: $event) {
+            getEventFeedbackSummary(event: $event) {
               average_rating total_reviews
               rating_distribution { rating count }
             }
@@ -656,9 +656,9 @@ export function registerEventCommands(program: Command): void {
 
         let feedbacks: Array<Record<string, unknown>> = [];
         if (!opts.summary) {
-          const feedbackResult = await graphqlRequest<{ aiListEventFeedbacks: { items: Array<Record<string, unknown>> } }>(
+          const feedbackResult = await graphqlRequest<{ listEventFeedBacks: { items: Array<Record<string, unknown>> } }>(
             `query($event: MongoID!, $rate_value: Float, $limit: Int, $skip: Int) {
-              aiListEventFeedbacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
+              listEventFeedBacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
                 items { user_name rating comment created_at }
               }
             }`,
@@ -669,11 +669,11 @@ export function registerEventCommands(program: Command): void {
               skip: offset,
             },
           );
-          feedbacks = feedbackResult.aiListEventFeedbacks.items;
+          feedbacks = feedbackResult.listEventFeedBacks.items;
         }
         setFlagApiKey(undefined);
 
-        const summary = summaryResult.aiGetEventFeedbackSummary;
+        const summary = summaryResult.getEventFeedbackSummary;
 
         if (opts.json) {
           console.log(jsonSuccess({ summary, feedbacks }));
@@ -713,9 +713,9 @@ export function registerEventCommands(program: Command): void {
         const limit = Math.min(parseInt(opts.limit, 10), 100);
         const offset = parseInt(opts.offset, 10);
 
-        const result = await graphqlRequest<{ aiGetEventCheckins: { items: Array<Record<string, unknown>> } }>(
+        const result = await graphqlRequest<{ getEventCheckins: { items: Array<Record<string, unknown>> } }>(
           `query($event: MongoID!, $limit: Int, $skip: Int) {
-            aiGetEventCheckins(event: $event, limit: $limit, skip: $skip) {
+            getEventCheckins(event: $event, limit: $limit, skip: $skip) {
               items { name email ticket_type_title checked_in_at }
             }
           }`,
@@ -723,7 +723,7 @@ export function registerEventCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const items = result.aiGetEventCheckins.items;
+        const items = result.getEventCheckins.items;
         if (opts.json) {
           console.log(jsonSuccess(items));
         } else {

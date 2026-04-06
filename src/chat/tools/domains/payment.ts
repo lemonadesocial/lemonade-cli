@@ -22,13 +22,13 @@ export const paymentTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventPaymentStats',
+    backendResolver: 'getEventPaymentStatistics',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventPaymentStats: unknown }>(
+      const result = await graphqlRequest<{ getEventPaymentStatistics: unknown }>(
         `query($event: MongoID!) {
-          aiGetEventPaymentStats(event: $event) {
+          getEventPaymentStatistics(event: $event) {
             total_payments
             total_revenue { currency amount_cents }
             by_provider { provider count amount_cents }
@@ -36,7 +36,7 @@ export const paymentTools: CanonicalCapability[] = [
         }`,
         { event: args.event_id },
       );
-      return result.aiGetEventPaymentStats;
+      return result.getEventPaymentStatistics;
     },
     formatResult: (result) => {
       const r = result as { total_payments?: number; total_revenue?: Array<{ currency: string; amount_cents: number }>; by_provider?: Array<{ provider: string; count: number; amount_cents: number }> };

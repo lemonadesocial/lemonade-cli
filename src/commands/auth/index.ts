@@ -7,7 +7,7 @@ import { clearAuth, setApiKey, setFlagApiKey } from '../../auth/store.js';
 import { loginWithBrowser } from '../../auth/oauth.js';
 
 interface MeResponse {
-  aiGetMe: {
+  getMe: {
     user: {
       _id: string;
       name: string;
@@ -54,13 +54,13 @@ export function registerAuthCommands(program: Command): void {
       try {
         setFlagApiKey(apiKey);
         const result = await graphqlRequest<MeResponse>(
-          'query { aiGetMe { user { _id name email first_name last_name } } }',
+          'query { getMe { user { _id name email first_name last_name } } }',
         );
         setFlagApiKey(undefined);
 
         setApiKey(apiKey);
 
-        const me = result.aiGetMe.user;
+        const me = result.getMe.user;
         if (opts.json) {
           console.log(jsonSuccess({ name: me.name, email: me.email }));
         } else {
@@ -81,11 +81,11 @@ export function registerAuthCommands(program: Command): void {
       try {
         setFlagApiKey(opts.apiKey);
         const result = await graphqlRequest<MeResponse>(
-          'query { aiGetMe { user { _id name email first_name last_name } } }',
+          'query { getMe { user { _id name email first_name last_name } } }',
         );
         setFlagApiKey(undefined);
 
-        const me = result.aiGetMe.user;
+        const me = result.getMe.user;
         if (opts.json) {
           console.log(jsonSuccess(me));
         } else {

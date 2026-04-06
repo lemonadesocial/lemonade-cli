@@ -17,10 +17,10 @@ export interface PlanModeState {
 async function fetchSpacesIfNeeded(steps: WizardStepDef[]): Promise<Array<{ _id: string; title: string }>> {
   if (steps.some(s => s.inputType === 'space_select')) {
     try {
-      const result = await graphqlRequest<{ aiListMySpaces: { items: Array<{ _id: string; title: string }> } }>(
-        'query { aiListMySpaces(limit: 100, skip: 0) { items { _id title } } }',
+      const result = await graphqlRequest<{ listMySpaces: { items: Array<{ _id: string; title: string }> } }>(
+        'query { listMySpaces(limit: 100, skip: 0) { items { _id title } } }',
       );
-      return result.aiListMySpaces.items;
+      return result.listMySpaces.items;
     } catch {
       // Fall back to text input if fetch fails
     }

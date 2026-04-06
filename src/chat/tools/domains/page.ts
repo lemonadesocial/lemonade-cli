@@ -65,7 +65,7 @@ export const pageTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiCreatePageConfig',
+    backendResolver: 'createPageConfig',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
@@ -79,15 +79,15 @@ export const pageTools: CanonicalCapability[] = [
       if (args.theme !== undefined) input.theme = parseJsonObject(args.theme as string, 'theme');
       if (args.sections !== undefined) input.sections = parseJsonArray(args.sections as string, 'sections');
 
-      const result = await graphqlRequest<{ aiCreatePageConfig: unknown }>(
+      const result = await graphqlRequest<{ createPageConfig: unknown }>(
         `mutation($input: AICreatePageConfigInput!) {
-          aiCreatePageConfig(input: $input) {
+          createPageConfig(input: $input) {
             _id name status version
           }
         }`,
         { input },
       );
-      return result.aiCreatePageConfig;
+      return result.createPageConfig;
     },
     formatResult: (result) => {
       if (result === null || result === undefined) return 'Error: no response from server.';
@@ -109,16 +109,16 @@ export const pageTools: CanonicalCapability[] = [
     searchHint: 'update edit section page website content',
     destructive: true,
     backendType: 'mutation',
-    backendResolver: 'aiUpdatePageConfigSection',
+    backendResolver: 'updatePageConfig',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const parsedUpdates = parseJsonObject(args.updates as string, 'updates');
 
-      const result = await graphqlRequest<{ aiUpdatePageConfigSection: unknown }>(
+      const result = await graphqlRequest<{ updatePageConfig: unknown }>(
         `mutation($input: AIUpdatePageConfigSectionInput!, $section_id: String!, $config_id: MongoID!) {
-          aiUpdatePageConfigSection(input: $input, section_id: $section_id, config_id: $config_id) {
+          updatePageConfig(input: $input, section_id: $section_id, config_id: $config_id) {
             _id name status version sections { id type order hidden }
           }
         }`,
@@ -128,7 +128,7 @@ export const pageTools: CanonicalCapability[] = [
           config_id: args.page_id,
         },
       );
-      return result.aiUpdatePageConfigSection;
+      return result.updatePageConfig;
     },
     formatResult: (result) => {
       if (result === null || result === undefined) return 'Error: no response from server.';

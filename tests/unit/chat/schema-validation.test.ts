@@ -29,36 +29,36 @@ const registrySource = [
  * or the response structure is opaque JSON — no field validation needed.
  */
 const BACKEND_SCHEMA: Record<string, string[]> = {
-  // === AI Tool endpoints (lemonade-backend/src/graphql/types/ai-tool.ts) ===
-  aiGetMe: ['user', '_id', 'name', 'email', 'first_name', 'last_name', 'addresses'],
-  aiGetBackendVersion: [], // scalar String
-  aiGetHostingEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count'],
-  aiGetEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'city', 'country', 'latitude', 'longitude', 'cover', 'attending_count', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'ticket_limit_per', 'timezone', 'approval_required', 'application_required', 'registration_disabled', 'currency', 'tags', 'guest_directory_enabled', 'subevent_enabled', 'terms_text', 'welcome_text', 'theme_data', 'dark_theme_image', 'light_theme_image'],
+  // === Tool endpoints (switched from ai-prefixed to direct resolvers) ===
+  getMe: ['user', '_id', 'name', 'email', 'first_name', 'last_name', 'addresses', 'stripe_connected_account', 'account_id', 'connected'],
+  aiGetBackendVersion: [], // scalar String (KEEP ai-prefixed — no direct equivalent)
+  getHostingEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count'],
+  getEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'city', 'country', 'latitude', 'longitude', 'cover', 'attending_count', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'ticket_limit_per', 'timezone', 'approval_required', 'application_required', 'registration_disabled', 'currency', 'tags', 'guest_directory_enabled', 'subevent_enabled', 'terms_text', 'welcome_text', 'theme_data', 'dark_theme_image', 'light_theme_image'],
   createEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required', 'address', 'city', 'country', 'latitude', 'longitude', 'theme_data', 'dark_theme_image', 'light_theme_image'],
   updateEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required', 'cover', 'theme_data', 'dark_theme_image', 'light_theme_image'],
-  aiPublishEvent: ['_id', 'title', 'published', 'shortid'],
-  aiCancelEvent: [], // Returns Boolean
+  aiPublishEvent: ['_id', 'title', 'published', 'shortid'], // KEEP ai-prefixed — no direct equivalent
+  cancelEvent: [], // Returns Boolean
   aiSearchEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count', 'city', 'country', 'latitude', 'longitude'],
-  aiGetEventGuestStats: ['going', 'pending_approval', 'pending_invite', 'declined', 'checked_in', 'total'],
-  aiGetEventTicketSoldInsight: ['total_sold', 'total_revenue_cents', 'currency', 'by_type', 'ticket_type_id', 'title', 'sold', 'revenue_cents'],
-  aiGetEventViewInsight: ['total_views', 'unique_visitors', 'top_sources', 'top_cities', 'source', 'count', 'city'],
-  aiGetEventGuests: ['items', 'name', 'email', 'status', 'ticket_type_title', 'checked_in'],
-  aiGetEventCheckins: ['items', 'name', 'email', 'ticket_type_title', 'checked_in_at'],
-  aiGetEventPaymentStats: ['total_payments', 'total_revenue', 'by_provider', 'currency', 'amount_cents', 'provider', 'count'],
-  aiGetEventFeedbackSummary: ['average_rating', 'total_reviews', 'rating_distribution', 'rating', 'count'],
-  aiListEventFeedbacks: ['items', 'rating', 'comment', 'user_name', 'created_at'],
-  aiGetEventApplicationAnswers: ['user_name', 'email', 'answers', 'submitted_at', 'question', 'answer'],
-  aiListEventTicketTypes: ['title', 'active', 'private', 'limited', 'description'],
-  aiCreateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
-  aiUpdateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
-  aiCreateEventTicketDiscount: ['_id', 'code', 'discount_type', 'value', 'limit', 'created_at'],
-  aiCalculateTicketPrice: ['subtotal_cents', 'discount_cents', 'total_cents', 'currency'],
-  aiInviteEvent: [], // no fields selected
-  aiDecideEventJoinRequests: ['processed_count', 'decision'],
-  aiAcceptEvent: [], // scalar
-  aiDeclineEvent: [], // scalar
-  aiGetMyTickets: ['items', 'event_title', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],
-  aiListMySpaces: ['items', '_id', 'title', 'slug', 'description', 'private', 'personal', 'image_avatar_url', 'member_count', 'event_count'],
+  getEventGuestsStatistics: ['going', 'not_going', 'pending', 'total', 'checkins', 'total_tickets_sold', 'total_revenue', 'pending_approval', 'pending_invite', 'declined', 'checked_in', 'ticket_types', 'ticket_type', 'ticket_type_title', 'guests_count'],
+  getEventTicketSoldChartData: ['total_sold', 'total_revenue_cents', 'currency', 'by_type', 'ticket_type_id', 'title', 'sold', 'revenue_cents', 'items', 'created_at', 'type'],
+  getEventViewChartData: ['total_views', 'unique_visitors', 'top_sources', 'top_cities', 'source', 'count', 'city', 'items', 'date'],
+  listEventGuests: ['total', 'items', '_id', 'user', 'name', 'email', 'status', 'state', 'ticket_type_title', 'checked_in', 'user_expanded', 'display_name', 'created_at', 'ticket', 'type', 'join_request'],
+  getEventCheckins: ['items', 'name', 'email', 'ticket_type_title', 'checked_in_at'],
+  getEventPaymentStatistics: ['total_payments', 'total_revenue', 'by_provider', 'currency', 'amount_cents', 'provider', 'count', 'stripe_payments', 'revenue', 'formatted_total_amount', 'crypto_payments', 'networks', 'chain_id'],
+  getEventFeedbackSummary: ['average_rating', 'total_reviews', 'rating_distribution', 'rating', 'count'],
+  listEventFeedBacks: ['items', 'rating', 'comment', 'user_name', 'created_at'],
+  getEventApplicationAnswers: ['user_name', 'email', 'answers', 'submitted_at', 'question', 'answer'],
+  listEventTicketTypes: ['title', 'active', 'private', 'limited', 'description'],
+  createEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
+  updateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
+  createEventTicketDiscounts: ['_id', 'code', 'discount_type', 'value', 'limit', 'created_at'],
+  calculateTicketsPricing: ['subtotal_cents', 'discount_cents', 'total_cents', 'currency'],
+  inviteEvent: [], // no fields selected
+  decideEventCohostRequest: ['processed_count', 'decision'],
+  acceptEvent: [], // scalar
+  declineEvent: [], // scalar
+  getMyTickets: ['items', 'event_title', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],
+  listMySpaces: ['items', '_id', 'title', 'slug', 'description', 'private', 'personal', 'image_avatar_url', 'member_count', 'event_count'],
   createSpace: ['_id', 'title', 'slug', 'description', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'theme_data', 'theme_name', 'dark_theme_image', 'light_theme_image', 'address', 'title', 'city', 'country'],
   updateSpace: ['_id', 'title', 'slug', 'description', 'state', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'theme_data', 'theme_name', 'dark_theme_image', 'light_theme_image', 'address', 'title', 'city', 'country', 'image_avatar', 'image_cover'],
   listNewPaymentAccounts: ['_id', 'active', 'type', 'title', 'provider', 'created_at', 'account_info', 'currencies', 'address', 'network', 'StripeAccount', 'SolanaAccount', 'EthereumAccount', 'DigitalAccount', 'SafeAccount', 'EthereumEscrowAccount', 'EthereumRelayAccount', 'EthereumStakeAccount'],
@@ -67,45 +67,37 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   disconnectStripeAccount: [], // Boolean
   getStripeConnectedAccountCapability: ['id', 'capabilities', 'type', 'detail', 'available', 'display_preference', 'overridable', 'preference', 'value'],
   getSafeFreeLimit: ['current', 'max'],
-  aiGetSpaceMembers: ['items', 'name', 'email', 'role', 'joined_at'],
-  aiGetSpaceStats: ['total_members', 'admins', 'ambassadors', 'subscribers', 'total_events', 'total_attendees', 'average_event_rating'],
-  aiAddSpaceMember: [], // scalar
-  aiRemoveSpaceMember: [], // scalar
-  aiGetNotifications: ['id', 'type', 'message', 'from_user_name', 'ref_event_title', 'read', 'created_at'],
-  aiReadNotifications: [], // Boolean
-  aiListChains: ['id', 'name', 'symbol', 'chain_id', 'rpc_url', 'platform', 'tokens', 'contract', 'decimals', 'is_native'],
-  aiListLaunchpadCoins: ['items', '_id', 'name', 'symbol', 'status'],
-  aiAddLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
-  aiUpdateLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
-  aiSuggestSections: ['type', 'name', 'reason', 'default_props'],
-  aiCreatePageConfig: ['_id', 'name', 'status', 'version'],
-  aiUpdatePageConfigSection: ['_id', 'name', 'status', 'version', 'sections', 'id', 'type', 'order', 'hidden'],
+  getSpaceMember: ['items', 'name', 'email', 'role', 'joined_at'],
+  getSpaceStatistics: ['total_members', 'admins', 'ambassadors', 'subscribers', 'total_events', 'total_attendees', 'average_event_rating', 'created_events', 'submitted_events', 'event_attendees', 'avg_event_rating'],
+  addSpaceMembers: [], // scalar
+  aiRemoveSpaceMember: [], // scalar (KEEP ai-prefixed — no direct equivalent confirmed)
+  getNotifications: ['id', 'type', 'message', 'from_user_name', 'ref_event_title', 'read', 'created_at'],
+  readNotifications: [], // Boolean
+  listChains: ['id', 'name', 'symbol', 'chain_id', 'rpc_url', 'platform', 'tokens', 'contract', 'decimals', 'is_native'],
+  listLaunchpadCoins: ['items', '_id', 'name', 'symbol', 'status'],
+  addLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
+  updateLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
+  aiSuggestSections: ['type', 'name', 'reason', 'default_props'], // KEEP ai-prefixed — no direct equivalent
+  createPageConfig: ['_id', 'owner_type', 'owner_id', 'name', 'status', 'version'],
+  updatePageConfig: ['_id', 'name', 'status', 'version', 'sections', 'id', 'type', 'order', 'hidden'],
   getPageConfig: ['_id', 'owner_type', 'owner_id', 'name', 'description', 'status', 'version', 'published_version', 'template_id', 'thumbnail_url', 'sections', 'id', 'type', 'order', 'hidden', 'props'],
-  updatePageConfig: ['_id', 'name', 'status', 'version'],
   getPublishedConfig: ['_id', 'owner_type', 'owner_id', 'name', 'status', 'version', 'sections', 'id', 'type', 'order', 'hidden'],
   generatePreviewLink: ['id', 'token', 'url', 'expires_at'],
-  createPageConfig: ['_id', 'owner_type', 'owner_id', 'name', 'status', 'version'],
   aiGeneratePageFromDescription: [], // opaque JSON
 
   // === Standard backend endpoints ===
-  getMe: ['stripe_connected_account', 'account_id', 'connected'],
   getEventJoinRequests: ['total', 'records', '_id', 'user', 'email', 'state', 'ticket_issued', 'created_at', 'user_expanded', 'name'],
   getEventTicketCategories: ['_id', 'event', 'title', 'description', 'position'],
   getEventPaymentSummary: ['currency', 'decimals', 'amount', 'transfer_amount', 'pending_transfer_amount'],
   getEventInvitedStatistics: ['total', 'total_joined', 'total_declined', 'emails_opened', 'records', '_id', 'email', 'state', 'invited_by_name', 'created_at'],
-  getSpaceStatistics: ['admins', 'ambassadors', 'subscribers', 'created_events', 'submitted_events', 'event_attendees', 'avg_event_rating'],
   getSpaceMembersLeaderboard: ['total', 'items', '_id', 'user_name', 'email', 'role', 'attended_count', 'hosted_event_count', 'submitted_event_count'],
   getSpaceEventsInsight: ['total', 'items', '_id', 'title', 'checkins', 'tickets_count', 'rating'],
   getTopSpaceHosts: ['user_expanded', '_id', 'name', 'email', 'space_member', 'hosted_event_count', 'role'],
   exportEventTickets: ['count', 'tickets', '_id', 'shortid', 'user_email', 'user_name', 'buyer_name', 'buyer_email', 'ticket_type', 'ticket_type_title', 'quantity', 'payment_amount', 'currency', 'purchase_date', 'checkin_date', 'active', 'checked_in', 'checked_in_at', 'created_at', 'state'],
   exportEventApplications: ['user', 'non_login_user', 'questions', 'answers', '_id', 'email', 'name', 'answer'],
-  getEventGuestsStatistics: ['going', 'not_going', 'pending', 'total', 'checkins', 'total_tickets_sold', 'total_revenue', 'pending_approval', 'pending_invite', 'declined', 'checked_in', 'ticket_types', 'ticket_type', 'ticket_type_title', 'guests_count'],
-  listEventGuests: ['total', 'items', '_id', 'user', 'email', 'state', 'ticket_type_title', 'checked_in', 'user_expanded', 'name', 'display_name', 'created_at', 'ticket', 'type', 'join_request'],
   getEventGuestDetail: ['_id', 'user', 'email', 'state', 'ticket_types', 'user_expanded', 'application_answers', 'payments', 'name', 'title', 'amount', 'currency', 'question', 'answer', 'image_avatar', 'ticket', 'type', 'payment', 'join_request', 'application'],
   getTicketStatistics: ['total_sold', 'total_remaining', 'by_type', '_id', 'title', 'sold', 'remaining', 'limit', 'all', 'checked_in', 'not_checked_in', 'invited', 'issued', 'cancelled', 'applicants', 'state', 'count', 'ticket_types', 'ticket_type', 'ticket_type_title'],
-  getEventTicketSoldChartData: ['items', 'created_at', 'type'],
   getEventCheckinChartData: ['items', 'created_at'],
-  getEventViewChartData: ['items', 'date'],
   getEventViewStats: ['counts'],
   getEventTopViews: ['total', 'by_city', 'by_source', 'geoip_city', 'geoip_region', 'geoip_country', 'count', 'utm_source'],
   getEventTopInviters: ['total', 'items', 'inviter', '_id', 'name', 'image_avatar', 'count'],
@@ -144,7 +136,6 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   // === Payment operation endpoints ===
   listEventPayments: ['total', 'records', '_id', 'amount', 'currency', 'state', 'formatted_total_amount', 'formatted_discount_amount', 'formatted_fee_amount', 'buyer_info', 'email', 'first_name', 'last_name', 'tickets', 'type'],
   getEventPayment: ['_id', 'amount', 'currency', 'state', 'formatted_total_amount', 'formatted_discount_amount', 'formatted_fee_amount', 'buyer_info', 'email', 'first_name', 'last_name', 'tickets', 'type', 'stripe_payment_info', 'payment_intent_id'],
-  getEventPaymentStatistics: ['total_payments', 'stripe_payments', 'count', 'revenue', 'currency', 'formatted_total_amount', 'crypto_payments', 'networks', 'chain_id'],
 
   // === Mutations returning Boolean or simple types ===
   cloneEvent: [], // Returns [ObjectId]
