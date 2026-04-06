@@ -41,7 +41,6 @@
     "bin/",
     "dist/",
     "src/chat/skills/*.md",
-    "src/chat/skills/generated/*.md",
     "README.md",
     "LICENSE"
   ],
