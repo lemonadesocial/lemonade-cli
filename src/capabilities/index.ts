@@ -6,3 +6,5 @@ export { buildCapability } from './factory.js';
 export { toToolDef, capabilitiesToRegistry } from './adapter.js';
 export { generateManifest, capToSummary } from './manifest.js';
 export { filterCapabilities, getCategories, findCapability, getSuggestions } from './filter.js';
+export type { ToolPartition } from './partitioner.js';
+export { partitionTools, formatDeferredToolList } from './partitioner.js';

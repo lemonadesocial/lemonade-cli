@@ -27,6 +27,7 @@ export async function runTerminalUI(
     firstName: string;
     agentName: string;
   },
+  deferredToolsBlock?: string,
 ): Promise<void> {
   initDiagnostics(process.env['LEMONADE_DEBUG']);
 
@@ -67,6 +68,7 @@ export async function runTerminalUI(
       firstName: bannerOpts.firstName,
       agentName: bannerOpts.agentName,
       displayOpts,
+      deferredToolsBlock,
     }),
     {
       exitOnCtrlC: false,

@@ -5,6 +5,7 @@ import { loadSkills, getAgentName } from '../skills/loader.js';
 export function buildSystemMessages(
   session: SessionState,
   provider: string,
+  deferredToolsBlock?: string,
 ): SystemMessage[] {
   const agentName = getAgentName();
   const skills = loadSkills();
@@ -44,8 +45,21 @@ ${resolvedSkills}`;
     },
   ];
 
+  if (deferredToolsBlock) {
+    messages.push({
+      type: 'text',
+      text: deferredToolsBlock,
+    });
+  }
+
   if (provider === 'anthropic') {
     messages[0].cache_control = { type: 'ephemeral' };
+    // Cache the deferred tools block as well — it's static across turns.
+    // When present, it is always the last system message (appended after
+    // the static prompt and session block).
+    if (deferredToolsBlock) {
+      messages[messages.length - 1].cache_control = { type: 'ephemeral' };
+    }
   }
 
   return messages;

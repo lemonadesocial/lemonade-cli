@@ -5,6 +5,8 @@ import { truncateHistory } from '../session/history.js';
 import { executeToolCalls } from '../tools/executor.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
 import { safeErrorMessage } from '../utils/errorMessages.js';
+import { getAllCapabilities } from '../tools/registry.js';
+import { toToolDef } from '../../capabilities/adapter.js';
 
 const TOKEN_WARN_THRESHOLD_ANTHROPIC = 150_000;
 const TOKEN_WARN_THRESHOLD_OPENAI = 90_000;
@@ -145,6 +147,12 @@ export async function handleTurn(
   let finalUsage: { input_tokens: number; output_tokens: number } | undefined;
   const canUseTool = provider.capabilities.supportsToolCalling === true;
   const maxIterations = canUseTool ? MAX_TOOL_ITERATIONS : 1;
+
+  // Track which deferred tools have had their schemas dynamically injected
+  // into formattedTools (via tool_search). All tools are in `registry` for
+  // execution, but only non-deferred tools have their schemas sent initially.
+  // This set prevents duplicate schema injection.
+  const dynamicallyLoadedTools = new Set<string>();
 
   const emitAbortDone = () => {
     if (engine) {
@@ -345,6 +353,49 @@ export async function handleTurn(
         engine.emit('turn_done', { usage: finalUsage || { input_tokens: 0, output_tokens: 0 }, turnId });
       }
       return;
+    }
+
+    // C1: Dynamic schema injection after tool_search
+    //
+    // `formattedTools` is intentionally mutated in-place to inject deferred tool
+    // schemas discovered by tool_search. The next iteration's `provider.stream()`
+    // call reads from the same array reference, so the newly injected schemas
+    // become available to the LLM without rebuilding the tool list.
+    //
+    // `dynamicallyLoadedTools` (Set<string>) prevents duplicate injection across
+    // iterations — once a tool schema is pushed, it won't be pushed again.
+    //
+    // This is the core mechanism of deferred tool loading: tools start as
+    // name-only stubs in the system prompt; tool_search resolves them to full
+    // schemas that get injected here for immediate use.
+    for (const tc of toolCalls) {
+      if (tc.name === 'tool_search') {
+        const matchingResult = results.find(r => r.tool_use_id === tc.id);
+        if (matchingResult && !matchingResult.is_error) {
+          try {
+            const parsed = JSON.parse(matchingResult.content) as { results?: Array<{ name: string }> };
+            if (parsed.results) {
+              const allCaps = getAllCapabilities();
+              for (const searchResult of parsed.results) {
+                if (!dynamicallyLoadedTools.has(searchResult.name)) {
+                  const cap = allCaps.find(c => c.name === searchResult.name);
+                  if (cap) {
+                    const toolDef = toToolDef(cap);
+                    if (!registry[searchResult.name]) {
+                      registry[searchResult.name] = toolDef;
+                    }
+                    formattedTools.push(...provider.formatTools([toolDef]));
+                    dynamicallyLoadedTools.add(searchResult.name);
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            // Non-fatal: if parsing fails, the LLM just won't have the schemas
+            process.stderr.write(`[tool_search] Failed to parse result for schema injection: ${err}\n`);
+          }
+        }
+      }
     }
 
     // OPTIMIZATION: Skip second API call for single self-describing tool
