@@ -1,13 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-// Read the registry source to extract GraphQL queries statically.
+// Read domain and utility sources to extract GraphQL queries statically.
 // This avoids importing the registry (which pulls in network modules).
-const registrySource = readFileSync(
-  join(process.cwd(), 'src/chat/tools/registry.ts'),
-  'utf-8',
-);
+const domainsDir = join(process.cwd(), 'src/chat/tools/domains');
+const utilsDir = join(process.cwd(), 'src/chat/tools/utils');
+const registrySource = [
+  ...readdirSync(domainsDir)
+    .filter(f => f.endsWith('.ts') && f !== 'index.ts')
+    .map(f => readFileSync(join(domainsDir, f), 'utf-8')),
+  ...readdirSync(utilsDir)
+    .filter(f => f.endsWith('.ts') && f !== 'index.ts')
+    .map(f => readFileSync(join(utilsDir, f), 'utf-8')),
+].join('\n');
 
 /**
  * Known valid field names for each GraphQL operation, at ALL nesting levels.
