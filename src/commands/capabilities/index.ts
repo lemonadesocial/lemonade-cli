@@ -3,6 +3,7 @@ import { jsonSuccess } from '../../output/json.js';
 import { renderTable, renderKeyValue } from '../../output/table.js';
 import { handleError } from '../../output/error.js';
 import { getPackageVersion } from '../../config/version.js';
+import { isValidSurface } from '../../capabilities/filter.js';
 
 export function registerCapabilitiesCommands(program: Command): void {
   const capabilities = program
@@ -81,6 +82,10 @@ export function registerCapabilitiesCommands(program: Command): void {
     .option('--json', 'Output as JSON')
     .action(async (opts) => {
       try {
+        if (opts.surface && !isValidSurface(opts.surface)) {
+          throw new Error(`Invalid surface "${opts.surface}". Valid surfaces: aiTool, cliCommand, slashCommand`);
+        }
+
         const { getAllCapabilities } = await import('../../chat/tools/registry.js');
         const { filterCapabilities } = await import('../../capabilities/filter.js');
         const caps = filterCapabilities(getAllCapabilities(), {
@@ -91,7 +96,13 @@ export function registerCapabilitiesCommands(program: Command): void {
         });
 
         if (caps.length === 0) {
-          const msg = 'No capabilities match the given filters.';
+          const filters: string[] = [];
+          if (opts.category) filters.push(`category "${opts.category}"`);
+          if (opts.surface) filters.push(`surface "${opts.surface}"`);
+          if (opts.backendType) filters.push(`backend-type "${opts.backendType}"`);
+          if (opts.destructive) filters.push('destructive only');
+          const filterDesc = filters.length > 0 ? filters.join(', ') : 'the given filters';
+          const msg = `No capabilities found matching ${filterDesc}.`;
           if (opts.json) {
             console.log(jsonSuccess([], { total: 0 }));
           } else {

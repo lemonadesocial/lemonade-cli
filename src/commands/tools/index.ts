@@ -3,7 +3,7 @@ import { getAllCapabilities } from '../../chat/tools/registry.js';
 import { jsonSuccess } from '../../output/json.js';
 import { renderTable, renderKeyValue } from '../../output/table.js';
 import { handleError } from '../../output/error.js';
-import { filterCapabilities, getCategories, findCapability, getSuggestions } from '../../capabilities/filter.js';
+import { filterCapabilities, getCategories, findCapability, getSuggestions, isValidSurface } from '../../capabilities/filter.js';
 import type { CanonicalCapability } from '../../capabilities/types.js';
 
 // Re-export for consumers
@@ -40,14 +40,22 @@ export function registerToolCommands(program: Command): void {
     .option('--json', 'Output as JSON')
     .action((opts) => {
       try {
+        if (opts.surface && !isValidSurface(opts.surface)) {
+          throw new Error(`Invalid surface "${opts.surface}". Valid surfaces: aiTool, cliCommand, slashCommand`);
+        }
+
         const entries = filterCapabilities(getCaps(), {
           category: opts.category,
           surface: opts.surface,
         });
 
-        if (opts.category && entries.length === 0) {
+        if (entries.length === 0) {
+          const filters: string[] = [];
+          if (opts.category) filters.push(`category "${opts.category}"`);
+          if (opts.surface) filters.push(`surface "${opts.surface}"`);
+          const filterDesc = filters.length > 0 ? filters.join(' and ') : 'the given filters';
           const available = getCategories(getCaps()).join(', ');
-          throw new Error(`No tools in category "${opts.category}". Available categories: ${available}`);
+          throw new Error(`No tools found matching ${filterDesc}. Available categories: ${available}`);
         }
 
         if (opts.json) {

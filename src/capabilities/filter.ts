@@ -1,8 +1,14 @@
-import type { CanonicalCapability } from './types.js';
+import type { CanonicalCapability, Surface } from './types.js';
+
+const VALID_SURFACES: readonly Surface[] = ['aiTool', 'cliCommand', 'slashCommand'] as const;
+
+export function isValidSurface(value: string): value is Surface {
+  return (VALID_SURFACES as readonly string[]).includes(value);
+}
 
 export interface CapabilityFilter {
   category?: string;
-  surface?: string;
+  surface?: Surface;
   backendType?: string;
   destructive?: boolean;
 }
@@ -16,7 +22,11 @@ export function filterCapabilities(caps: CanonicalCapability[], filter: Capabili
     result = result.filter(c => c.category === cat);
   }
   if (filter.surface) {
-    result = result.filter(c => c.surfaces.includes(filter.surface as 'aiTool'));
+    if (!isValidSurface(filter.surface)) {
+      console.error(`Invalid surface "${filter.surface}". Valid surfaces: ${VALID_SURFACES.join(', ')}`);
+      return [];
+    }
+    result = result.filter(c => c.surfaces.includes(filter.surface!));
   }
   if (filter.backendType) {
     result = result.filter(c => c.backendType === filter.backendType);
