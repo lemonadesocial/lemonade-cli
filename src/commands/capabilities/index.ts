@@ -203,6 +203,79 @@ export function registerCapabilitiesCommands(program: Command): void {
     });
 
   capabilities
+    .command('drift')
+    .description('Detect drift between CLI capability resolvers and backend schema')
+    .option('--json', 'Output full drift report as JSON')
+    .option('--broken', 'Show only broken mappings (CLI resolver not in backend)')
+    .option('--gaps', 'Show only coverage gaps (backend resolver with no CLI tool)')
+    .option('--schema <path>', 'Path to backend-resolvers.json (default: schema/backend-resolvers.json)')
+    .action(async (opts) => {
+      try {
+        const { checkDrift } = await import('../../capabilities/drift.js');
+        const report = checkDrift(opts.schema);
+
+        if (opts.json) {
+          console.log(JSON.stringify(report, null, 2));
+          return;
+        }
+
+        if (opts.broken) {
+          if (report.broken.length === 0) {
+            console.log('No broken mappings found.');
+          } else {
+            console.log(renderTable(
+              ['Resolver', 'Tool', 'Reason'],
+              report.broken.map(b => [b.resolver, b.tool, b.reason]),
+              { title: `Broken Mappings (${report.broken.length})`, truncate: 60 },
+            ));
+          }
+          return;
+        }
+
+        if (opts.gaps) {
+          if (report.gaps.length === 0) {
+            console.log('No coverage gaps found.');
+          } else {
+            console.log(renderTable(
+              ['Resolver', 'Type'],
+              report.gaps.map(g => [g.resolver, g.type]),
+              { title: `Coverage Gaps (${report.gaps.length})` },
+            ));
+          }
+          return;
+        }
+
+        // Summary report
+        console.log(`Backend Drift Report (schema: ${report.schemaDate})\n`);
+        console.log(`Backend resolvers: ${report.totalBackendResolvers}`);
+        console.log(`CLI resolvers:     ${report.totalCliResolvers}`);
+        console.log(`Coverage:          ${report.coveragePercent}%`);
+        console.log(`Covered:           ${report.covered.length}`);
+        console.log(`Broken:            ${report.broken.length}`);
+        console.log(`Gaps:              ${report.gaps.length}\n`);
+
+        if (report.broken.length > 0) {
+          console.log(renderTable(
+            ['Resolver', 'Tool', 'Reason'],
+            report.broken.map(b => [b.resolver, b.tool, b.reason]),
+            { title: `Broken Mappings (${report.broken.length})`, truncate: 60 },
+          ));
+          console.log('');
+        }
+
+        if (report.covered.length > 0) {
+          console.log(renderTable(
+            ['Resolver', 'Tool', 'Type'],
+            report.covered.map(c => [c.resolver, c.tool, c.type]),
+            { title: `Covered (${report.covered.length})` },
+          ));
+        }
+      } catch (error) {
+        handleError(error, opts.json);
+      }
+    });
+
+  capabilities
     .command('generate-skills')
     .description('Generate skill files from the capability registry')
     .option('--dir <directory>', 'Target directory for generated files')

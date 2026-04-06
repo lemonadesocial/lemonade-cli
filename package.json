@@ -35,6 +35,7 @@
     "generate": "yarn generate:mcp && yarn generate:graphql",
     "generate:mcp": "tsx src/codegen/generate-from-mcp.ts",
     "generate:graphql": "tsx src/codegen/generate-from-graphql.ts",
+    "drift:check": "node --loader ts-node/esm src/capabilities/drift.ts",
     "prepublishOnly": "npm run build && npm run verify-dist"
   },
   "files": [

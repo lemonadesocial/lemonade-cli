@@ -8,3 +8,5 @@ export { generateManifest, capToSummary } from './manifest.js';
 export { filterCapabilities, getCategories, findCapability, getSuggestions } from './filter.js';
 export type { ToolPartition } from './partitioner.js';
 export { partitionTools, formatDeferredToolList } from './partitioner.js';
+export type { DriftReport } from './drift.js';
+export { checkDrift } from './drift.js';
