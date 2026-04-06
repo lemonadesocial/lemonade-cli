@@ -14,6 +14,7 @@ function makeInput(overrides: Partial<Parameters<typeof buildCapability>[0]> = {
     params: [],
     destructive: false,
     execute: async () => ({ ok: true }),
+    backendType: 'mutation' as const,
     ...overrides,
   };
 }
@@ -24,8 +25,8 @@ describe('buildCapability', () => {
 
     expect(cap.backendType).toBe('mutation');
     expect(cap.backendService).toBe('graphql');
-    expect(cap.requiresSpace).toBe(false);
-    expect(cap.requiresEvent).toBe(false);
+    expect(cap.requiresSpace).toBe(true);
+    expect(cap.requiresEvent).toBe(true);
     expect(cap.deprecated).toBe(false);
     expect(cap.experimental).toBe(false);
     expect(cap.surfaces).toEqual(['aiTool']);
@@ -35,8 +36,8 @@ describe('buildCapability', () => {
     const cap = buildCapability(makeInput({
       backendType: 'query',
       backendService: 'atlas',
-      requiresSpace: true,
-      requiresEvent: true,
+      requiresSpace: false,
+      requiresEvent: false,
       deprecated: true,
       experimental: true,
       surfaces: ['cliCommand', 'slashCommand'],
@@ -44,8 +45,8 @@ describe('buildCapability', () => {
 
     expect(cap.backendType).toBe('query');
     expect(cap.backendService).toBe('atlas');
-    expect(cap.requiresSpace).toBe(true);
-    expect(cap.requiresEvent).toBe(true);
+    expect(cap.requiresSpace).toBe(false);
+    expect(cap.requiresEvent).toBe(false);
     expect(cap.deprecated).toBe(true);
     expect(cap.experimental).toBe(true);
     expect(cap.surfaces).toEqual(['cliCommand', 'slashCommand']);
@@ -63,6 +64,24 @@ describe('buildCapability', () => {
     expect(cap.whenToUse).toBe('when user asks about events');
     expect(cap.tags).toEqual(['events', 'hosting']);
     expect(cap.permissions).toEqual(['space_admin', 'event_host']);
+  });
+
+  it('uses fail-closed defaults when explicit undefined is passed for defaulted fields', () => {
+    const cap = buildCapability(makeInput({
+      requiresSpace: undefined,
+      requiresEvent: undefined,
+      backendService: undefined,
+      deprecated: undefined,
+      experimental: undefined,
+      surfaces: undefined,
+    }));
+
+    expect(cap.requiresSpace).toBe(true);
+    expect(cap.requiresEvent).toBe(true);
+    expect(cap.backendService).toBe('graphql');
+    expect(cap.deprecated).toBe(false);
+    expect(cap.experimental).toBe(false);
+    expect(cap.surfaces).toEqual(['aiTool']);
   });
 
   it('creates a fresh surfaces array (not shared reference)', () => {
@@ -173,6 +192,15 @@ describe('capabilitiesToRegistry', () => {
   it('returns empty record for empty array', () => {
     const registry = capabilitiesToRegistry([]);
     expect(registry).toEqual({});
+  });
+
+  it('throws on duplicate capability names', () => {
+    const caps = [
+      buildCapability(makeInput({ name: 'dupe_tool' })),
+      buildCapability(makeInput({ name: 'dupe_tool' })),
+    ];
+
+    expect(() => capabilitiesToRegistry(caps)).toThrow('Duplicate capability name: "dupe_tool"');
   });
 
   it('each entry is a valid ToolDef (no metadata leaks)', () => {

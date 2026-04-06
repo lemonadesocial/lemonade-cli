@@ -1,4 +1,5 @@
 import { ToolParam } from '../chat/providers/interface.js';
+import type { ToolCategory } from '../chat/providers/interface.js';
 
 // Re-export ToolCategory from interface.ts (don't duplicate)
 export type { ToolCategory } from '../chat/providers/interface.js';
@@ -13,7 +14,7 @@ export interface CanonicalCapability {
   name: string;
   displayName: string;
   description: string;
-  category: import('../chat/providers/interface.js').ToolCategory;
+  category: ToolCategory;
 
   // Schema (same as ToolDef)
   params: ToolParam[];

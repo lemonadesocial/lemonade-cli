@@ -17,6 +17,9 @@ export function toToolDef(cap: CanonicalCapability): ToolDef {
 export function capabilitiesToRegistry(capabilities: CanonicalCapability[]): Record<string, ToolDef> {
   const registry: Record<string, ToolDef> = {};
   for (const cap of capabilities) {
+    if (registry[cap.name]) {
+      throw new Error(`Duplicate capability name: "${cap.name}"`);
+    }
     registry[cap.name] = toToolDef(cap);
   }
   return registry;
