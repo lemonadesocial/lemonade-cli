@@ -342,13 +342,13 @@ export const ticketsTools: CanonicalCapability[] = [
     searchHint: 'create discount promo code coupon offer',
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'createEventTicketDiscounts',
+    backendResolver: 'aiCreateEventTicketDiscount',
     requiresSpace: false,
     surfaces: ['aiTool'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ createEventTicketDiscounts: unknown }>(
+      const result = await graphqlRequest<{ aiCreateEventTicketDiscount: unknown }>(
         `mutation($event: MongoID!, $code: String!, $ratio: Float!, $limit: Int) {
-          createEventTicketDiscounts(event: $event, code: $code, ratio: $ratio, limit: $limit) {
+          aiCreateEventTicketDiscount(event: $event, code: $code, ratio: $ratio, limit: $limit) {
             code discount_type value limit created_at
           }
         }`,
@@ -359,7 +359,7 @@ export const ticketsTools: CanonicalCapability[] = [
           limit: args.limit || undefined,
         },
       );
-      return result.createEventTicketDiscounts;
+      return result.aiCreateEventTicketDiscount;
     },
   }),
   buildCapability({

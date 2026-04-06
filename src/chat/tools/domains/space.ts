@@ -294,19 +294,19 @@ export const spaceTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'getSpaceMember',
+    backendResolver: 'aiGetSpaceMembers',
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ getSpaceMember: unknown }>(
+      const result = await graphqlRequest<{ aiGetSpaceMembers: unknown }>(
         `query($space: MongoID!) {
-          getSpaceMember(space: $space) {
+          aiGetSpaceMembers(space: $space) {
             items { name email role joined_at }
           }
         }`,
         { space: args.space_id },
       );
-      return result.getSpaceMember;
+      return result.aiGetSpaceMembers;
     },
   }),
   buildCapability({
@@ -324,16 +324,16 @@ export const spaceTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'addSpaceMembers',
+    backendResolver: 'aiAddSpaceMember',
     requiresEvent: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ addSpaceMembers: unknown }>(
+      const result = await graphqlRequest<{ aiAddSpaceMember: unknown }>(
         `mutation($space: MongoID!, $user: MongoID!, $role: String) {
-          addSpaceMembers(space: $space, user: $user, role: $role)
+          aiAddSpaceMember(space: $space, user: $user, role: $role)
         }`,
         { space: args.space_id, user: args.user_id, role: args.role || 'member' },
       );
-      return result.addSpaceMembers;
+      return result.aiAddSpaceMember;
     },
   }),
   buildCapability({

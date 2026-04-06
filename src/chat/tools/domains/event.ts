@@ -540,13 +540,13 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: true,
     backendType: 'mutation',
-    backendResolver: 'decideEventCohostRequest',
+    backendResolver: 'aiDecideEventJoinRequests',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ decideEventCohostRequest: unknown }>(
+      const result = await graphqlRequest<{ aiDecideEventJoinRequests: unknown }>(
         `mutation($event: MongoID!, $decision: String!, $request_ids: [MongoID!]) {
-          decideEventCohostRequest(event: $event, decision: $decision, request_ids: $request_ids) {
+          aiDecideEventJoinRequests(event: $event, decision: $decision, request_ids: $request_ids) {
             processed_count decision
           }
         }`,
@@ -556,7 +556,7 @@ export const eventTools: CanonicalCapability[] = [
           request_ids: args.request_ids as string[] | undefined,
         },
       );
-      return result.decideEventCohostRequest;
+      return result.aiDecideEventJoinRequests;
     },
   }),
   buildCapability({

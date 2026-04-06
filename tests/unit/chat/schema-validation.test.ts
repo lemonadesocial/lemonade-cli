@@ -51,10 +51,10 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   listEventTicketTypes: ['title', 'active', 'private', 'limited', 'description'],
   createEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
   updateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
-  createEventTicketDiscounts: ['_id', 'code', 'discount_type', 'value', 'limit', 'created_at'],
+  aiCreateEventTicketDiscount: ['_id', 'code', 'discount_type', 'value', 'limit', 'created_at'],
   calculateTicketsPricing: ['subtotal_cents', 'discount_cents', 'total_cents', 'currency'],
   inviteEvent: [], // no fields selected
-  decideEventCohostRequest: ['processed_count', 'decision'],
+  aiDecideEventJoinRequests: ['processed_count', 'decision'],
   acceptEvent: [], // scalar
   declineEvent: [], // scalar
   getMyTickets: ['items', 'event_title', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],
@@ -67,9 +67,9 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   disconnectStripeAccount: [], // Boolean
   getStripeConnectedAccountCapability: ['id', 'capabilities', 'type', 'detail', 'available', 'display_preference', 'overridable', 'preference', 'value'],
   getSafeFreeLimit: ['current', 'max'],
-  getSpaceMember: ['items', 'name', 'email', 'role', 'joined_at'],
+  aiGetSpaceMembers: ['items', 'name', 'email', 'role', 'joined_at'],
   getSpaceStatistics: ['total_members', 'admins', 'ambassadors', 'subscribers', 'total_events', 'total_attendees', 'average_event_rating', 'created_events', 'submitted_events', 'event_attendees', 'avg_event_rating'],
-  addSpaceMembers: [], // scalar
+  aiAddSpaceMember: [], // scalar
   aiRemoveSpaceMember: [], // scalar (KEEP ai-prefixed — no direct equivalent confirmed)
   getNotifications: ['id', 'type', 'message', 'from_user_name', 'ref_event_title', 'read', 'created_at'],
   readNotifications: [], // Boolean
@@ -78,6 +78,8 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   addLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
   updateLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
   aiSuggestSections: ['type', 'name', 'reason', 'default_props'], // KEEP ai-prefixed — no direct equivalent
+  aiCreatePageConfig: ['_id', 'name', 'status', 'version'],
+  aiUpdatePageConfigSection: ['_id', 'name', 'status', 'version', 'sections', 'id', 'type', 'order', 'hidden'],
   createPageConfig: ['_id', 'owner_type', 'owner_id', 'name', 'status', 'version'],
   updatePageConfig: ['_id', 'name', 'status', 'version', 'sections', 'id', 'type', 'order', 'hidden'],
   getPageConfig: ['_id', 'owner_type', 'owner_id', 'name', 'description', 'status', 'version', 'published_version', 'template_id', 'thumbnail_url', 'sections', 'id', 'type', 'order', 'hidden', 'props'],
