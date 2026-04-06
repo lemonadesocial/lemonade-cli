@@ -9,6 +9,9 @@ export const notificationsTools: CanonicalCapability[] = [
     displayName: 'notifications list',
     description: 'Get recent notifications.',
     params: [],
+    whenToUse: 'to fetch recent alerts, messages, and activity notifications',
+    searchHint: 'notifications alerts messages inbox updates',
+    alwaysLoad: true,
     destructive: false,
     backendType: 'query',
     backendResolver: 'aiGetNotifications',
@@ -30,6 +33,8 @@ export const notificationsTools: CanonicalCapability[] = [
     params: [
       { name: 'notification_ids', type: 'string[]', description: 'Notification IDs to mark as read', required: true },
     ],
+    whenToUse: 'when user wants to mark notifications as read',
+    searchHint: 'mark read notifications dismiss clear',
     destructive: false,
     backendType: 'mutation',
     backendResolver: 'aiReadNotifications',
