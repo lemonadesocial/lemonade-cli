@@ -41,14 +41,16 @@ describe('Tool Discoverability Metadata', () => {
     }
   });
 
-  it('at least 25 tools have alwaysLoad: true', () => {
+  it('alwaysLoad count stays within expected range', () => {
     const alwaysLoadCount = capabilities.filter(c => c.alwaysLoad === true).length;
     expect(alwaysLoadCount).toBeGreaterThanOrEqual(25);
+    expect(alwaysLoadCount).toBeLessThanOrEqual(35);
   });
 
-  it('at least 80 tools have shouldDefer: true', () => {
+  it('shouldDefer count stays within expected range', () => {
     const shouldDeferCount = capabilities.filter(c => c.shouldDefer === true).length;
     expect(shouldDeferCount).toBeGreaterThanOrEqual(80);
+    expect(shouldDeferCount).toBeLessThanOrEqual(130);
   });
 
   it('shouldDefer defaults to false for small categories', () => {
