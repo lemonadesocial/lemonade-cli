@@ -1,12 +1,24 @@
 import { Command } from 'commander';
-import { buildToolRegistry } from '../../chat/tools/registry.js';
+import { getAllCapabilities } from '../../chat/tools/registry.js';
 import { jsonSuccess } from '../../output/json.js';
 import { renderTable, renderKeyValue } from '../../output/table.js';
 import { handleError } from '../../output/error.js';
-import type { ToolDef, ToolParam } from '../../chat/providers/interface.js';
+import type { CanonicalCapability } from '../../capabilities/types.js';
 
-/** Get sorted unique categories from a tool record. */
-export function getCategories(tools: Record<string, ToolDef>): string[] {
+/** Get sorted unique categories from capabilities. */
+export function getCategories(caps: CanonicalCapability[]): string[] {
+  const cats = new Set<string>();
+  for (const cap of caps) {
+    cats.add(cap.category);
+  }
+  return [...cats].sort();
+}
+
+/**
+ * Overload that accepts the legacy Record<string, ToolDef> shape for backward
+ * compatibility with existing tests and callers.
+ */
+export function getCategoriesFromRegistry(tools: Record<string, { category: string }>): string[] {
   const cats = new Set<string>();
   for (const tool of Object.values(tools)) {
     cats.add(tool.category);
@@ -14,12 +26,12 @@ export function getCategories(tools: Record<string, ToolDef>): string[] {
   return [...cats].sort();
 }
 
-function formatParamType(p: ToolParam): string {
+function formatParamType(p: { type: string | object }): string {
   if (typeof p.type === 'object') return 'object';
   return p.type;
 }
 
-function formatParamSummary(params: ToolParam[]): string {
+function formatParamSummary(params: Array<{ name: string; required: boolean }>): string {
   if (params.length === 0) return '(none)';
   return params
     .map((p) => (p.required ? p.name : `[${p.name}]`))
@@ -27,11 +39,10 @@ function formatParamSummary(params: ToolParam[]): string {
 }
 
 export function registerToolCommands(program: Command): void {
-  // Lazy-init: registry is built on first subcommand invocation, then cached.
-  let _registry: Record<string, ToolDef> | null = null;
-  function getRegistry(): Record<string, ToolDef> {
-    if (!_registry) _registry = buildToolRegistry();
-    return _registry;
+  let _caps: CanonicalCapability[] | null = null;
+  function getCaps(): CanonicalCapability[] {
+    if (!_caps) _caps = getAllCapabilities();
+    return _caps;
   }
 
   const tools = program
@@ -42,19 +53,23 @@ export function registerToolCommands(program: Command): void {
     .command('list')
     .description('List all available tools')
     .option('-c, --category <category>', 'Filter by category (e.g. event, space, tickets)')
+    .option('--surface <surface>', 'Filter by surface (aiTool, cliCommand, slashCommand)')
     .option('--json', 'Output as JSON')
     .action((opts) => {
       try {
-        const registry = getRegistry();
-        let entries = Object.values(registry);
+        let entries = getCaps();
 
         if (opts.category) {
           const cat = opts.category.toLowerCase();
           entries = entries.filter((t) => t.category === cat);
           if (entries.length === 0) {
-            const available = getCategories(registry).join(', ');
+            const available = getCategories(getCaps()).join(', ');
             throw new Error(`No tools in category "${opts.category}". Available categories: ${available}`);
           }
+        }
+
+        if (opts.surface) {
+          entries = entries.filter((t) => t.surfaces.includes(opts.surface));
         }
 
         entries.sort((a, b) => a.name.localeCompare(b.name));
@@ -65,6 +80,9 @@ export function registerToolCommands(program: Command): void {
             category: t.category,
             description: t.description,
             destructive: t.destructive,
+            backendType: t.backendType,
+            backendService: t.backendService,
+            surfaces: [...t.surfaces],
             params: formatParamSummary(t.params),
           }));
           console.log(jsonSuccess(data, { total: data.length }));
@@ -72,13 +90,14 @@ export function registerToolCommands(program: Command): void {
           const rows = entries.map((t) => [
             t.name,
             t.category,
+            t.surfaces.join(', '),
             t.description,
             t.destructive ? 'yes' : '',
           ]);
-          console.log(renderTable(['Name', 'Category', 'Description', 'Destructive'], rows, { truncate: 60 }));
+          console.log(renderTable(['Name', 'Category', 'Surfaces', 'Description', 'Destructive'], rows, { truncate: 50 }));
           console.log(`\n${entries.length} tools. Use "lemonade tools info <name>" for details.`);
           if (!opts.category) {
-            const cats = getCategories(registry);
+            const cats = getCategories(getCaps());
             console.log(`Categories: ${cats.join(', ')}`);
           }
         }
@@ -93,31 +112,25 @@ export function registerToolCommands(program: Command): void {
     .option('--json', 'Output as JSON')
     .action((name: string, opts) => {
       try {
-        const registry = getRegistry();
-        const tool = registry[name];
-
-        if (!tool) {
-          // Try fuzzy match
-          const match = Object.values(registry).find(
-            (t) =>
-              t.displayName.toLowerCase() === name.toLowerCase() ||
-              t.name.toLowerCase() === name.toLowerCase(),
+        const caps = getCaps();
+        const cap = caps.find(c => c.name === name) ??
+          caps.find(c =>
+            c.displayName.toLowerCase() === name.toLowerCase() ||
+            c.name.toLowerCase() === name.toLowerCase(),
           );
-          if (!match) {
-            const suggestions = Object.keys(registry)
-              .filter((k) => k.toLowerCase().includes(name.toLowerCase()))
-              .slice(0, 5);
-            const hint = suggestions.length
-              ? `\nDid you mean: ${suggestions.join(', ')}`
-              : '';
-            throw new Error(`Tool "${name}" not found.${hint}`);
-          }
-          // Recurse with the found name
-          showToolInfo(match, opts.json);
-          return;
+
+        if (!cap) {
+          const suggestions = caps
+            .filter((c) => c.name.toLowerCase().includes(name.toLowerCase()))
+            .slice(0, 5)
+            .map(c => c.name);
+          const hint = suggestions.length
+            ? `\nDid you mean: ${suggestions.join(', ')}`
+            : '';
+          throw new Error(`Tool "${name}" not found.${hint}`);
         }
 
-        showToolInfo(tool, opts.json);
+        showToolInfo(cap, opts.json);
       } catch (error) {
         handleError(error, opts.json);
       }
@@ -129,11 +142,10 @@ export function registerToolCommands(program: Command): void {
     .option('--json', 'Output as JSON')
     .action((opts) => {
       try {
-        const registry = getRegistry();
+        const caps = getCaps();
         const counts: Record<string, number> = {};
-        for (const tool of Object.values(registry)) {
-          const cat = tool.category;
-          counts[cat] = (counts[cat] || 0) + 1;
+        for (const cap of caps) {
+          counts[cap.category] = (counts[cap.category] || 0) + 1;
         }
 
         const sorted = Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
@@ -143,7 +155,7 @@ export function registerToolCommands(program: Command): void {
         } else {
           const rows = sorted.map(([cat, count]) => [cat, String(count)]);
           console.log(renderTable(['Category', 'Tools'], rows));
-          console.log(`\n${Object.keys(registry).length} tools in ${sorted.length} categories.`);
+          console.log(`\n${caps.length} tools in ${sorted.length} categories.`);
         }
       } catch (error) {
         handleError(error, opts.json);
@@ -151,16 +163,22 @@ export function registerToolCommands(program: Command): void {
     });
 }
 
-function showToolInfo(tool: ToolDef, json: boolean): void {
+function showToolInfo(cap: CanonicalCapability, json: boolean): void {
   if (json) {
     console.log(
       jsonSuccess({
-        name: tool.name,
-        displayName: tool.displayName,
-        category: tool.category,
-        description: tool.description,
-        destructive: tool.destructive,
-        params: tool.params.map((p) => ({
+        name: cap.name,
+        displayName: cap.displayName,
+        category: cap.category,
+        description: cap.description,
+        destructive: cap.destructive,
+        backendType: cap.backendType,
+        backendService: cap.backendService,
+        backendResolver: cap.backendResolver ?? null,
+        surfaces: [...cap.surfaces],
+        requiresSpace: cap.requiresSpace,
+        requiresEvent: cap.requiresEvent,
+        params: cap.params.map((p) => ({
           name: p.name,
           type: formatParamType(p),
           required: p.required,
@@ -172,17 +190,25 @@ function showToolInfo(tool: ToolDef, json: boolean): void {
     );
   } else {
     const pairs: Array<[string, string]> = [
-      ['Name', tool.name],
-      ['Display Name', tool.displayName],
-      ['Category', tool.category],
-      ['Description', tool.description],
-      ['Destructive', tool.destructive ? 'yes' : 'no'],
+      ['Name', cap.name],
+      ['Display Name', cap.displayName],
+      ['Category', cap.category],
+      ['Description', cap.description],
+      ['Destructive', cap.destructive ? 'yes' : 'no'],
+      ['Backend Type', cap.backendType],
+      ['Backend Service', cap.backendService],
+      ['Backend Resolver', cap.backendResolver ?? '(none)'],
+      ['Surfaces', cap.surfaces.join(', ')],
+      ['Requires Space', cap.requiresSpace ? 'yes' : 'no'],
+      ['Requires Event', cap.requiresEvent ? 'yes' : 'no'],
     ];
+    if (cap.whenToUse) pairs.push(['When to Use', cap.whenToUse]);
+    if (cap.tags?.length) pairs.push(['Tags', cap.tags.join(', ')]);
     console.log(renderKeyValue(pairs));
 
-    if (tool.params.length > 0) {
+    if (cap.params.length > 0) {
       console.log('\nParameters:');
-      const rows = tool.params.map((p) => [
+      const rows = cap.params.map((p) => [
         p.name,
         formatParamType(p),
         p.required ? 'required' : 'optional',
