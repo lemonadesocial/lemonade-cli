@@ -16,6 +16,8 @@ export const themeTools: CanonicalCapability[] = [
       { name: 'font_title', type: 'string', description: 'Title font', required: false, default: 'default' },
       { name: 'font_body', type: 'string', description: 'Body font', required: false, default: 'default' },
     ],
+    whenToUse: 'when user wants to build a theme configuration',
+    searchHint: 'theme build design colors style preset',
     destructive: false,
     backendType: 'none',
     backendService: 'local',

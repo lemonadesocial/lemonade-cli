@@ -29,6 +29,9 @@ export interface CapabilitySummary {
   experimental?: boolean;
   whenToUse?: string;
   tags?: string[];
+  shouldDefer?: boolean;
+  alwaysLoad?: boolean;
+  searchHint?: string;
 }
 
 export function generateManifest(version: string, timestamp?: string): CapabilityManifest {
@@ -83,5 +86,8 @@ export function capToSummary(cap: CanonicalCapability): CapabilitySummary {
     experimental: cap.experimental || undefined,
     whenToUse: cap.whenToUse,
     tags: cap.tags,
+    shouldDefer: cap.shouldDefer || undefined,
+    alwaysLoad: cap.alwaysLoad || undefined,
+    searchHint: cap.searchHint,
   };
 }

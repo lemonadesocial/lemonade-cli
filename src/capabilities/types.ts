@@ -41,6 +41,11 @@ export interface CanonicalCapability {
   whenToUse?: string;
   tags?: string[];
 
+  // Deferred Loading (Phase 6)
+  shouldDefer?: boolean;     // true = don't send full schema to LLM upfront
+  alwaysLoad?: boolean;      // true = never defer, always send full schema
+  searchHint?: string;       // 3-10 words for keyword matching when deferred
+
   // Surface Exposure (NEW)
   surfaces: Surface[];
 }
