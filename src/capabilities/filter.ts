@@ -47,10 +47,11 @@ export function getCategories(caps: CanonicalCapability[]): string[] {
   return [...cats].sort();
 }
 
-/** Find a capability by name (case-insensitive fallback). */
+/** Find a capability by name or displayName (case-insensitive fallback). */
 export function findCapability(caps: CanonicalCapability[], name: string): CanonicalCapability | undefined {
   return caps.find(c => c.name === name) ??
-    caps.find(c => c.name.toLowerCase() === name.toLowerCase());
+    caps.find(c => c.name.toLowerCase() === name.toLowerCase()) ??
+    caps.find(c => c.displayName.toLowerCase() === name.toLowerCase());
 }
 
 /** Get suggestion names for a partial match. */
