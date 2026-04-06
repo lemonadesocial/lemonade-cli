@@ -607,7 +607,11 @@ async function handleConnectors(
         addSystemMessage(lines.join('\n'));
       }
     } catch (err) {
-      addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      if (err instanceof CapabilityNotAvailableError) {
+        addSystemMessage('Connector tools not available. Check your space selection.');
+      } else {
+        addSystemMessage(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     return;
   }
