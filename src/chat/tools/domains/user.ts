@@ -1,14 +1,20 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const userTools: ToolDef[] = [
-  {
+export const userTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'get_me',
     category: 'user',
     displayName: 'auth whoami',
     description: 'Get the current authenticated user profile.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetMe',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async () => {
       const result = await graphqlRequest<{ aiGetMe: { user: unknown } }>(
         'query { aiGetMe { user { _id name email first_name last_name } } }',
@@ -19,8 +25,8 @@ export const userTools: ToolDef[] = [
       const r = result as { _id: string; name: string; email: string };
       return `Logged in as ${r.name} (${r.email})`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'user_update',
     category: 'user',
     displayName: 'user update',
@@ -40,6 +46,10 @@ export const userTools: ToolDef[] = [
       { name: 'handle_linkedin', type: 'string', description: 'LinkedIn handle', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'updateUser',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(args)) {
@@ -59,8 +69,8 @@ export const userTools: ToolDef[] = [
       const r = result as { name?: string; display_name?: string; username?: string };
       return `Profile updated: ${r.display_name || r.name || 'user'}${r.username ? ` (@${r.username})` : ''}.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'user_search',
     category: 'user',
     displayName: 'user search',
@@ -69,6 +79,10 @@ export const userTools: ToolDef[] = [
       { name: 'query', type: 'string', description: 'Search query (name or email)', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'searchUsers',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ searchUsers: Array<{ _id: string; name?: string; email?: string; username?: string; display_name?: string; verified?: boolean }> }>(
         `query($query: String!) {
@@ -80,5 +94,5 @@ export const userTools: ToolDef[] = [
       );
       return { users: result.searchUsers, count: result.searchUsers.length };
     },
-  },
+  }),
 ];

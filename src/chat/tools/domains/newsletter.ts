@@ -1,8 +1,9 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const newsletterTools: ToolDef[] = [
-  {
+export const newsletterTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'newsletter_list',
     category: 'newsletter',
     displayName: 'newsletter list',
@@ -14,6 +15,9 @@ export const newsletterTools: ToolDef[] = [
       { name: 'scheduled', type: 'boolean', description: 'Show only scheduled', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listSpaceNewsletters',
+    requiresEvent: false,
     execute: async (args) => {
       const variables: Record<string, unknown> = { space: args.space_id };
       if (args.draft !== undefined) variables.draft = args.draft;
@@ -41,8 +45,8 @@ export const newsletterTools: ToolDef[] = [
       });
       return `${items.length} newsletter(s):\n${lines.join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'newsletter_get',
     category: 'newsletter',
     displayName: 'newsletter get',
@@ -52,6 +56,9 @@ export const newsletterTools: ToolDef[] = [
       { name: 'newsletter_id', type: 'string', description: 'Newsletter ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceNewsletter',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getSpaceNewsletter: unknown }>(
         `query($space: MongoID!, $_id: MongoID!) {
@@ -81,8 +88,8 @@ export const newsletterTools: ToolDef[] = [
       if (r.failed_at) lines.push(`Failed: ${r.failed_at} — ${r.failed_reason || 'unknown reason'}`);
       return lines.join('\n');
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'newsletter_create',
     category: 'newsletter',
     displayName: 'newsletter create',
@@ -97,6 +104,9 @@ export const newsletterTools: ToolDef[] = [
       { name: 'draft', type: 'boolean', description: 'Save as draft (server default applies if omitted)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createSpaceNewsletter',
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = { space: args.space_id };
       input.custom_subject_html = args.subject;
@@ -127,8 +137,8 @@ export const newsletterTools: ToolDef[] = [
       }
       return JSON.stringify(result);
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'newsletter_update',
     category: 'newsletter',
     displayName: 'newsletter update',
@@ -144,6 +154,10 @@ export const newsletterTools: ToolDef[] = [
       { name: 'disabled', type: 'boolean', description: 'Disable newsletter', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'updateSpaceNewsletter',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = { _id: args.newsletter_id };
       if (args.subject !== undefined) input.custom_subject_html = args.subject;
@@ -174,8 +188,8 @@ export const newsletterTools: ToolDef[] = [
       }
       return JSON.stringify(result);
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'newsletter_delete',
     category: 'newsletter',
     displayName: 'newsletter delete',
@@ -184,6 +198,10 @@ export const newsletterTools: ToolDef[] = [
       { name: 'newsletter_id', type: 'string', description: 'Newsletter ID', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteSpaceNewsletter',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ deleteSpaceNewsletter: unknown }>(
         `mutation($_id: MongoID!) {
@@ -196,8 +214,8 @@ export const newsletterTools: ToolDef[] = [
     formatResult: (result) => {
       return `Newsletter deleted: ${result}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'newsletter_test_send',
     category: 'newsletter',
     displayName: 'newsletter test send',
@@ -210,6 +228,9 @@ export const newsletterTools: ToolDef[] = [
       { name: 'body', type: 'string', description: 'Body (if not using existing newsletter)', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'sendSpaceNewsletterTestEmails',
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         test_recipients: (args.test_recipients as string).split(',').map(s => s.trim()).filter(s => s.length > 0),
@@ -232,8 +253,8 @@ export const newsletterTools: ToolDef[] = [
     formatResult: (result) => {
       return `Test newsletter sent: ${result}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'newsletter_stats',
     category: 'newsletter',
     displayName: 'newsletter stats',
@@ -242,6 +263,9 @@ export const newsletterTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceNewsletterStatistics',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getSpaceNewsletterStatistics: unknown }>(
         `query($space: MongoID!) {
@@ -261,5 +285,5 @@ export const newsletterTools: ToolDef[] = [
       }
       return JSON.stringify(result);
     },
-  },
+  }),
 ];

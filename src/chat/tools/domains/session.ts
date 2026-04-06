@@ -1,8 +1,9 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const sessionTools: ToolDef[] = [
-  {
+export const sessionTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'event_session_reservations',
     category: 'session',
     displayName: 'event session reservations',
@@ -11,6 +12,9 @@ export const sessionTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventSessionReservations',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getEventSessionReservations: unknown }>(
         `query($input: GetEventSessionReservationsInput!) {
@@ -34,8 +38,8 @@ export const sessionTools: ToolDef[] = [
       });
       return `${reservations.length} reservation(s):\n${lines.join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_session_reservation_summary',
     category: 'session',
     displayName: 'event session reservation summary',
@@ -45,6 +49,9 @@ export const sessionTools: ToolDef[] = [
       { name: 'session_id', type: 'string', description: 'Filter by specific session', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getEventSessionReservationSummary',
+    requiresSpace: false,
     execute: async (args) => {
       const input: Record<string, unknown> = { event: args.event_id };
       if (args.session_id !== undefined) input.session = args.session_id;
@@ -68,8 +75,8 @@ export const sessionTools: ToolDef[] = [
       });
       return `${summaries.length} summary record(s):\n${lines.join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_session_reserve',
     category: 'session',
     displayName: 'event session reserve',
@@ -79,6 +86,9 @@ export const sessionTools: ToolDef[] = [
       { name: 'session_id', type: 'string', description: 'Session ID', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createEventSessionReservation',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ createEventSessionReservation: boolean }>(
         `mutation($input: EventSessionReservationInput!) {
@@ -92,8 +102,8 @@ export const sessionTools: ToolDef[] = [
       if (result === null || result === undefined) return 'Error: no response from server.';
       return result ? 'Session reserved successfully.' : 'Failed to reserve session.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'event_session_unreserve',
     category: 'session',
     displayName: 'event session unreserve',
@@ -103,6 +113,9 @@ export const sessionTools: ToolDef[] = [
       { name: 'session_id', type: 'string', description: 'Session ID', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteEventSessionReservation',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ deleteEventSessionReservation: boolean }>(
         `mutation($input: EventSessionReservationInput!) {
@@ -116,5 +129,5 @@ export const sessionTools: ToolDef[] = [
       if (result === null || result === undefined) return 'Error: no response from server.';
       return result ? 'Session reservation cancelled.' : 'Failed to cancel reservation.';
     },
-  },
+  }),
 ];

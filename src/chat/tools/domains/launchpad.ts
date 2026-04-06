@@ -1,22 +1,26 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const launchpadTools: ToolDef[] = [
-  {
+export const launchpadTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'launchpad_list_coins',
     category: 'launchpad',
     displayName: 'launchpad list-coins',
     description: 'List launchpad coins.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiListLaunchpadCoins',
+    requiresEvent: false,
     execute: async () => {
       const result = await graphqlRequest<{ aiListLaunchpadCoins: unknown }>(
         'query { aiListLaunchpadCoins { items { _id name symbol status } } }',
       );
       return result.aiListLaunchpadCoins;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'launchpad_add_coin',
     category: 'launchpad',
     displayName: 'launchpad add-coin',
@@ -27,6 +31,9 @@ export const launchpadTools: ToolDef[] = [
       { name: 'description', type: 'string', description: 'Coin description', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiAddLaunchpadCoin',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ aiAddLaunchpadCoin: unknown }>(
         `mutation($input: AddLaunchpadCoinInput!) {
@@ -36,8 +43,8 @@ export const launchpadTools: ToolDef[] = [
       );
       return result.aiAddLaunchpadCoin;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'launchpad_update_coin',
     category: 'launchpad',
     displayName: 'launchpad update-coin',
@@ -48,6 +55,9 @@ export const launchpadTools: ToolDef[] = [
       { name: 'description', type: 'string', description: 'New description', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiUpdateLaunchpadCoin',
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = { _id: args.coin_id };
       if (args.name) input.name = args.name;
@@ -61,5 +71,5 @@ export const launchpadTools: ToolDef[] = [
       );
       return result.aiUpdateLaunchpadCoin;
     },
-  },
+  }),
 ];

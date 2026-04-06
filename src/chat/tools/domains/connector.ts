@@ -1,22 +1,28 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const connectorTools: ToolDef[] = [
-  {
+export const connectorTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'connectors_list',
     category: 'connector',
     displayName: 'connectors list',
     description: 'List available platform integrations.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'availableConnectors',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand', 'slashCommand'],
     execute: async () => {
       const result = await graphqlRequest<{ availableConnectors: unknown }>(
         'query { availableConnectors { id name category authType capabilities } }',
       );
       return result.availableConnectors;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'connectors_sync',
     category: 'connector',
     displayName: 'connectors sync',
@@ -26,6 +32,10 @@ export const connectorTools: ToolDef[] = [
       { name: 'action', type: 'string', description: 'Action to execute', required: false, default: 'sync-events' },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'executeConnectorAction',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ executeConnectorAction: unknown }>(
         `mutation($input: ExecuteConnectorActionInput!) {
@@ -37,8 +47,8 @@ export const connectorTools: ToolDef[] = [
       );
       return result.executeConnectorAction;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'connector_connect',
     category: 'connector',
     displayName: 'connector connect',
@@ -48,6 +58,9 @@ export const connectorTools: ToolDef[] = [
       { name: 'connector_type', type: 'string', description: 'Connector type (e.g., google-sheets, luma, eventbrite, airtable, meetup, dice)', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'connectPlatform',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ connectPlatform: { connectionId: string; authUrl?: string; requiresApiKey: boolean } }>(
         `mutation($input: ConnectPlatformInput!) {
@@ -57,8 +70,8 @@ export const connectorTools: ToolDef[] = [
       );
       return result.connectPlatform;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'connector_submit_api_key',
     category: 'connector',
     displayName: 'connector submit API key',
@@ -68,6 +81,10 @@ export const connectorTools: ToolDef[] = [
       { name: 'api_key', type: 'string', description: 'API key', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'submitApiKey',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ submitApiKey: unknown }>(
         `mutation($input: SubmitApiKeyInput!) {
@@ -81,8 +98,8 @@ export const connectorTools: ToolDef[] = [
       const r = result as { connectorType: string; status: string };
       return `API key submitted. ${r.connectorType} is now ${r.status}.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'connector_configure',
     category: 'connector',
     displayName: 'connector configure',
@@ -93,6 +110,10 @@ export const connectorTools: ToolDef[] = [
       { name: 'sync_schedule', type: 'string', description: 'Cron schedule (e.g., "0 * * * *" for hourly)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'configureConnection',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       let config: Record<string, unknown>;
       try {
@@ -114,8 +135,8 @@ export const connectorTools: ToolDef[] = [
       const r = result as { connectorType: string; status: string };
       return `${r.connectorType} configured. Status: ${r.status}.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'connector_config_options',
     category: 'connector',
     displayName: 'connector config options',
@@ -125,6 +146,10 @@ export const connectorTools: ToolDef[] = [
       { name: 'option_key', type: 'string', description: 'Config option key to fetch (e.g., baseId, tableId)', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'fetchConnectionConfigOptions',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ fetchConnectionConfigOptions: Array<{ value: string; label: string }> }>(
         `query($connectionId: String!, $optionKey: String!) {
@@ -134,8 +159,8 @@ export const connectorTools: ToolDef[] = [
       );
       return { options: result.fetchConnectionConfigOptions };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'connector_logs',
     category: 'connector',
     displayName: 'connector logs',
@@ -145,6 +170,10 @@ export const connectorTools: ToolDef[] = [
       { name: 'limit', type: 'number', description: 'Max results', required: false, default: '10' },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'connectionLogs',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ connectionLogs: Array<Record<string, unknown>> }>(
         `query($connectionId: String!, $limit: Int) {
@@ -156,8 +185,8 @@ export const connectorTools: ToolDef[] = [
       );
       return { logs: result.connectionLogs, count: result.connectionLogs.length };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'connector_disconnect',
     category: 'connector',
     displayName: 'connector disconnect',
@@ -166,6 +195,10 @@ export const connectorTools: ToolDef[] = [
       { name: 'connection_id', type: 'string', description: 'Connection ID', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'disconnectPlatform',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ disconnectPlatform: boolean }>(
         `mutation($connectionId: String!) {
@@ -179,8 +212,8 @@ export const connectorTools: ToolDef[] = [
       const r = result as { disconnected: boolean };
       return r.disconnected ? 'Connector disconnected.' : 'Failed to disconnect.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'connector_slot_info',
     category: 'connector',
     displayName: 'connector slot info',
@@ -189,6 +222,9 @@ export const connectorTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'connectorSlotInfo',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ connectorSlotInfo: { used: number; max: number; canAddMore: boolean; currentTier: string } }>(
         `query($spaceId: String!) {
@@ -202,5 +238,5 @@ export const connectorTools: ToolDef[] = [
       const r = result as { used: number; max: number; canAddMore: boolean; currentTier: string };
       return `Connectors: ${r.used}/${r.max} used (${r.currentTier} tier). ${r.canAddMore ? 'Can add more.' : 'At limit.'}`;
     },
-  },
+  }),
 ];

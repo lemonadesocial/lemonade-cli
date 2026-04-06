@@ -1,7 +1,8 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 
-export const themeTools: ToolDef[] = [
-  {
+export const themeTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'theme_build',
     category: 'theme',
     displayName: 'theme build',
@@ -16,6 +17,10 @@ export const themeTools: ToolDef[] = [
       { name: 'font_body', type: 'string', description: 'Body font', required: false, default: 'default' },
     ],
     destructive: false,
+    backendType: 'none',
+    backendService: 'local',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const themeData: Record<string, unknown> = {
         theme: (args.preset as string) || 'default',
@@ -51,5 +56,5 @@ export const themeTools: ToolDef[] = [
       const json = JSON.stringify(result, null, 2);
       return `Theme data built:\n${json}\n\nUse this JSON as the theme_data parameter when creating or updating an event or space.`;
     },
-  },
+  }),
 ];

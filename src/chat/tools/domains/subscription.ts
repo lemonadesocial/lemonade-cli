@@ -1,8 +1,9 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const subscriptionTools: ToolDef[] = [
-  {
+export const subscriptionTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'subscription_status',
     category: 'subscription',
     displayName: 'subscription status',
@@ -11,6 +12,9 @@ export const subscriptionTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ObjectId', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceSubscription',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getSpaceSubscription: unknown }>(
         `query($space: MongoID!) {
@@ -24,14 +28,18 @@ export const subscriptionTools: ToolDef[] = [
       );
       return result.getSpaceSubscription;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'subscription_features',
     category: 'subscription',
     displayName: 'subscription features',
     description: 'List all subscription features and their tier-level configuration.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listSubscriptionFeatureConfigs',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async () => {
       const result = await graphqlRequest<{ listSubscriptionFeatureConfigs: unknown }>(
         `query {
@@ -42,14 +50,18 @@ export const subscriptionTools: ToolDef[] = [
       );
       return result.listSubscriptionFeatureConfigs;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'subscription_plans',
     category: 'subscription',
     displayName: 'subscription plans',
     description: 'List available subscription plans with pricing and AI credit allocations.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listSubscriptionItems',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async () => {
       const result = await graphqlRequest<{ listSubscriptionItems: unknown }>(
         `query {
@@ -60,8 +72,8 @@ export const subscriptionTools: ToolDef[] = [
       );
       return result.listSubscriptionItems;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'subscription_upgrade',
     category: 'subscription',
     displayName: 'subscription upgrade',
@@ -73,6 +85,9 @@ export const subscriptionTools: ToolDef[] = [
       { name: 'annual', type: 'boolean', description: 'Annual billing if true', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'purchaseSubscription',
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         stand_id: args.stand_id,
@@ -90,8 +105,8 @@ export const subscriptionTools: ToolDef[] = [
       );
       return result.purchaseSubscription;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'subscription_cancel',
     category: 'subscription',
     displayName: 'subscription cancel',
@@ -100,6 +115,9 @@ export const subscriptionTools: ToolDef[] = [
       { name: 'stand_id', type: 'string', description: 'Community/stand ObjectId', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'cancelSubscription',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ cancelSubscription: unknown }>(
         `mutation($input: CancelSubscriptionInput!) {
@@ -111,5 +129,5 @@ export const subscriptionTools: ToolDef[] = [
       );
       return result.cancelSubscription;
     },
-  },
+  }),
 ];

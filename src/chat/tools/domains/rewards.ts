@@ -1,8 +1,9 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const rewardsTools: ToolDef[] = [
-  {
+export const rewardsTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'rewards_balance',
     category: 'rewards',
     displayName: 'rewards balance',
@@ -11,6 +12,10 @@ export const rewardsTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'atlasRewardSummary',
+    backendService: 'atlas',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ atlasRewardSummary: unknown }>(
         `query($space: String!) {
@@ -25,8 +30,8 @@ export const rewardsTools: ToolDef[] = [
       );
       return result.atlasRewardSummary;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'rewards_history',
     category: 'rewards',
     displayName: 'rewards history',
@@ -37,6 +42,10 @@ export const rewardsTools: ToolDef[] = [
       { name: 'offset', type: 'number', description: 'Skip results', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'atlasRewardHistory',
+    backendService: 'atlas',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ atlasRewardHistory: unknown }>(
         `query($space: String!, $limit: Int, $offset: Int) {
@@ -55,8 +64,8 @@ export const rewardsTools: ToolDef[] = [
       );
       return result.atlasRewardHistory;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'rewards_payouts',
     category: 'rewards',
     displayName: 'rewards payouts',
@@ -66,6 +75,11 @@ export const rewardsTools: ToolDef[] = [
       { name: 'offset', type: 'number', description: 'Skip results', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'atlasPayoutHistory',
+    backendService: 'atlas',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ atlasPayoutHistory: unknown }>(
         `query($limit: Int, $offset: Int) {
@@ -77,8 +91,8 @@ export const rewardsTools: ToolDef[] = [
       );
       return result.atlasPayoutHistory;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'rewards_referral',
     category: 'rewards',
     displayName: 'rewards referral',
@@ -89,6 +103,11 @@ export const rewardsTools: ToolDef[] = [
       { name: 'code', type: 'string', description: 'Referral code (for apply action)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'atlasGenerateReferralCode',
+    backendService: 'atlas',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const action = args.action as string;
 
@@ -113,8 +132,8 @@ export const rewardsTools: ToolDef[] = [
       );
       return result.atlasReferralSummary;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'rewards_settings',
     category: 'rewards',
     displayName: 'rewards settings',
@@ -126,6 +145,11 @@ export const rewardsTools: ToolDef[] = [
         enum: ['stripe', 'crypto'] },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'atlasGetPayoutSettings',
+    backendService: 'atlas',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const hasWrite = args.wallet_address || args.wallet_chain || args.preferred_method;
 
@@ -155,5 +179,5 @@ export const rewardsTools: ToolDef[] = [
       );
       return result.atlasGetPayoutSettings;
     },
-  },
+  }),
 ];

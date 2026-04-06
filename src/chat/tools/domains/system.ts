@@ -1,14 +1,20 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const systemTools: ToolDef[] = [
-  {
+export const systemTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'get_backend_version',
     category: 'system',
     displayName: 'backend version',
     description: 'Get the backend API version.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetBackendVersion',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async () => {
       const result = await graphqlRequest<{ aiGetBackendVersion: string }>(
         'query { aiGetBackendVersion }',
@@ -19,14 +25,18 @@ export const systemTools: ToolDef[] = [
       const r = result as { version: string };
       return `Backend version: ${r.version}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'cli_version',
     category: 'system',
     displayName: 'CLI version',
     description: 'Check the current CLI version and whether an update is available from npm.',
     params: [],
     destructive: false,
+    backendType: 'none',
+    backendService: 'local',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async () => {
       const { VERSION } = await import('../../version.js');
       try {
@@ -52,22 +62,27 @@ export const systemTools: ToolDef[] = [
       if (r.up_to_date) return `You're on the latest CLI version (v${r.current}).`;
       return `Update available: v${r.current} \u2192 v${r.latest}. Run /version to install.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'list_chains',
     category: 'system',
     displayName: 'list chains',
     description: 'List supported blockchain networks.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiListChains',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async () => {
       const result = await graphqlRequest<{ aiListChains: unknown }>(
         'query { aiListChains { id name symbol } }',
       );
       return result.aiListChains;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'credits_balance',
     category: 'system',
     displayName: 'credits balance',
@@ -76,6 +91,10 @@ export const systemTools: ToolDef[] = [
       { name: 'stand_id', type: 'string', description: 'Community/stand ObjectId', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getStandCredits',
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand', 'slashCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ getStandCredits: unknown }>(
         `query($stand_id: String!) {
@@ -87,8 +106,8 @@ export const systemTools: ToolDef[] = [
       );
       return result.getStandCredits;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'credits_usage',
     category: 'system',
     displayName: 'credits usage',
@@ -99,6 +118,9 @@ export const systemTools: ToolDef[] = [
       { name: 'end_date', type: 'string', description: 'End date ISO 8601', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getUsageAnalytics',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getUsageAnalytics: unknown }>(
         `query($stand_id: String!, $start_date: DateTime!, $end_date: DateTime!) {
@@ -113,8 +135,8 @@ export const systemTools: ToolDef[] = [
       );
       return result.getUsageAnalytics;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'credits_buy',
     category: 'system',
     displayName: 'credits buy',
@@ -125,6 +147,9 @@ export const systemTools: ToolDef[] = [
         enum: ['5', '10', '25', '50', '100'] },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'purchaseCredits',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ purchaseCredits: unknown }>(
         `mutation($input: PurchaseCreditInput!) {
@@ -136,8 +161,8 @@ export const systemTools: ToolDef[] = [
       );
       return result.purchaseCredits;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'available_models',
     category: 'system',
     displayName: 'available models',
@@ -146,6 +171,10 @@ export const systemTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ObjectId (optional for tier filtering)', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getAvailableModels',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const vars: Record<string, unknown> = {};
       if (args.space_id) vars.spaceId = args.space_id;
@@ -160,8 +189,8 @@ export const systemTools: ToolDef[] = [
       );
       return result.getAvailableModels;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'set_preferred_model',
     category: 'system',
     displayName: 'set preferred model',
@@ -170,6 +199,10 @@ export const systemTools: ToolDef[] = [
       { name: 'model_id', type: 'string', description: 'Model ID string (from available_models)', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'setPreferredModel',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ setPreferredModel: unknown }>(
         `mutation($input: SetPreferredModelInput!) {
@@ -181,8 +214,8 @@ export const systemTools: ToolDef[] = [
       );
       return result.setPreferredModel;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'set_space_default_model',
     category: 'system',
     displayName: 'set space default model',
@@ -192,6 +225,9 @@ export const systemTools: ToolDef[] = [
       { name: 'model_id', type: 'string', description: 'Model ID string', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'setSpaceDefaultModel',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ setSpaceDefaultModel: unknown }>(
         `mutation($input: SetSpaceDefaultModelInput!) {
@@ -203,8 +239,8 @@ export const systemTools: ToolDef[] = [
       );
       return result.setSpaceDefaultModel;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'cubejs_token',
     category: 'system',
     displayName: 'cubejs token',
@@ -215,6 +251,10 @@ export const systemTools: ToolDef[] = [
       { name: 'user_id', type: 'string', description: 'User ID to scope the token', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'generateCubejsToken',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       if (args.events === undefined && args.site_id === undefined && args.user_id === undefined) {
         throw new Error('At least one scope parameter is required (events, site_id, or user_id)');
@@ -240,5 +280,5 @@ export const systemTools: ToolDef[] = [
       }
       return `CubeJS token generated (${token.length} chars). Use the raw result to access the full token.`;
     },
-  },
+  }),
 ];

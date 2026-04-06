@@ -1,15 +1,21 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 import { getDefaultSpace } from '../../../auth/store.js';
 
-export const tempoTools: ToolDef[] = [
-  {
+export const tempoTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'tempo_status',
     category: 'tempo',
     displayName: 'tempo status',
     description: 'Check Tempo wallet status — installation, address, balances, key readiness.',
     params: [],
     destructive: false,
+    backendType: 'none',
+    backendService: 'local',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool', 'slashCommand'],
     execute: async () => {
       const { getWalletInfo } = await import('../../tempo/index.js');
       return getWalletInfo();
@@ -21,8 +27,8 @@ export const tempoTools: ToolDef[] = [
       const bal = r.balances ? Object.entries(r.balances).map(([k, v]) => `${v} ${k}`).join(', ') : 'checking...';
       return `Tempo wallet: ${r.address} — ${bal} — ${r.ready ? 'ready' : 'not ready'}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tempo_transfer',
     category: 'tempo',
     displayName: 'tempo transfer',
@@ -33,6 +39,10 @@ export const tempoTools: ToolDef[] = [
       { name: 'to', type: 'string', description: 'Recipient 0x address', required: true },
     ],
     destructive: true,
+    backendType: 'none',
+    backendService: 'local',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const { tempoExec, isTempoInstalled } = await import('../../tempo/index.js');
       if (!isTempoInstalled()) throw new Error('Tempo CLI not installed. Use /tempo install.');
@@ -43,8 +53,8 @@ export const tempoTools: ToolDef[] = [
       const r = result as { success: boolean; output: string };
       return r.success ? `Transfer sent. ${r.output}` : 'Transfer failed.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tempo_setup_payouts',
     category: 'tempo',
     displayName: 'tempo setup payouts',
@@ -53,6 +63,9 @@ export const tempoTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'atlasUpdatePayoutSettings',
+    requiresEvent: false,
     execute: async (args) => {
       const { getWalletInfo } = await import('../../tempo/index.js');
       const info = getWalletInfo();
@@ -74,8 +87,8 @@ export const tempoTools: ToolDef[] = [
       const r = result as { wallet_address: string; preferred_method: string };
       return `Payouts configured: ${r.wallet_address} via Tempo USDC.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tempo_services',
     category: 'tempo',
     displayName: 'tempo services',
@@ -84,6 +97,10 @@ export const tempoTools: ToolDef[] = [
       { name: 'search', type: 'string', description: 'Search query', required: false },
     ],
     destructive: false,
+    backendType: 'none',
+    backendService: 'local',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const { tempoExec, isTempoInstalled } = await import('../../tempo/index.js');
       if (!isTempoInstalled()) throw new Error('Tempo CLI not installed. Use /tempo install.');
@@ -92,5 +109,5 @@ export const tempoTools: ToolDef[] = [
       const output = tempoExec(serviceArgs);
       return { output };
     },
-  },
+  }),
 ];

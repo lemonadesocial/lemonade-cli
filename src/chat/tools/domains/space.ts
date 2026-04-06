@@ -1,4 +1,5 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 import { parseJsonObject, setSpaceImage } from '../utils/index.js';
 
@@ -13,8 +14,8 @@ const VALID_FEATURE_CODES = [
   ];
 const VALID_FEATURE_CODES_SET = new Set(VALID_FEATURE_CODES);
 
-export const spaceTools: ToolDef[] = [
-  {
+export const spaceTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'space_create',
     category: 'space',
     displayName: 'space create',
@@ -38,6 +39,10 @@ export const spaceTools: ToolDef[] = [
       { name: 'light_theme_image', type: 'string', description: 'File ID for light mode background image (from file_upload)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createSpace',
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const input: Record<string, unknown> = { title: args.title };
       if (args.description !== undefined) input.description = args.description;
@@ -83,8 +88,8 @@ export const spaceTools: ToolDef[] = [
       if (socials.length) parts.push(`socials: ${socials.join(', ')}`);
       return parts.join(' | ');
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_list',
     category: 'space',
     displayName: 'space list',
@@ -94,6 +99,11 @@ export const spaceTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiListMySpaces',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand', 'slashCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiListMySpaces: unknown }>(
         `query($limit: Int, $skip: Int) {
@@ -106,8 +116,8 @@ export const spaceTools: ToolDef[] = [
       );
       return result.aiListMySpaces;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_switch',
     category: 'space',
     displayName: 'space switch',
@@ -117,6 +127,10 @@ export const spaceTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'The space ID to switch to', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiListMySpaces',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{
         aiListMySpaces: { items: Array<{ _id: string; title: string; slug: string }> };
@@ -138,8 +152,8 @@ export const spaceTools: ToolDef[] = [
       const r = result as { _id: string; title: string };
       return `Switched to ${r.title}.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_update',
     category: 'space',
     displayName: 'space update',
@@ -165,6 +179,10 @@ export const spaceTools: ToolDef[] = [
       { name: 'light_theme_image', type: 'string', description: 'File ID for light mode background image (from file_upload)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'updateSpace',
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.title !== undefined) input.title = args.title;
@@ -215,8 +233,8 @@ export const spaceTools: ToolDef[] = [
       if (socials.length) parts.push(`socials: ${socials.join(', ')}`);
       return parts.join(' | ');
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_stats',
     category: 'space',
     displayName: 'space analytics',
@@ -225,6 +243,10 @@ export const spaceTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetSpaceStats',
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetSpaceStats: unknown }>(
         `query($space: MongoID!) {
@@ -242,8 +264,8 @@ export const spaceTools: ToolDef[] = [
       const rating = r.average_event_rating ? `${r.average_event_rating}/5 rating` : 'no ratings yet';
       return `Space: ${r.total_members} members (${r.admins} admins, ${r.ambassadors} ambassadors, ${r.subscribers} subscribers), ${r.total_events} events, ${r.total_attendees} attendees, ${rating}.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_members',
     category: 'space',
     displayName: 'space members',
@@ -252,6 +274,10 @@ export const spaceTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetSpaceMembers',
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiGetSpaceMembers: unknown }>(
         `query($space: MongoID!) {
@@ -263,8 +289,8 @@ export const spaceTools: ToolDef[] = [
       );
       return result.aiGetSpaceMembers;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_add_member',
     category: 'space',
     displayName: 'space add-member',
@@ -275,6 +301,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'role', type: 'string', description: 'Role: admin|host|member', required: false, default: 'member' },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiAddSpaceMember',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ aiAddSpaceMember: unknown }>(
         `mutation($space: MongoID!, $user: MongoID!, $role: String) {
@@ -284,8 +313,8 @@ export const spaceTools: ToolDef[] = [
       );
       return result.aiAddSpaceMember;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_remove_member',
     category: 'space',
     displayName: 'space remove-member',
@@ -295,6 +324,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'user_id', type: 'string', description: 'User ID to remove', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'aiRemoveSpaceMember',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ aiRemoveSpaceMember: unknown }>(
         `mutation($space: MongoID!, $user: MongoID!) {
@@ -304,8 +336,8 @@ export const spaceTools: ToolDef[] = [
       );
       return result.aiRemoveSpaceMember;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_connectors',
     category: 'space',
     displayName: 'space connectors',
@@ -314,6 +346,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'spaceConnections',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ spaceConnections: unknown }>(
         `query($space: MongoID!) {
@@ -325,8 +360,8 @@ export const spaceTools: ToolDef[] = [
       );
       return result.spaceConnections;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_stripe_connect',
     category: 'space',
     displayName: 'space stripe-connect',
@@ -337,6 +372,10 @@ export const spaceTools: ToolDef[] = [
       { name: 'space_slug', type: 'string', description: 'Space slug for fallback URL (from session)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'generateStripeAccountLink',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const returnUrl = (args.return_url as string) || 'https://lemonade.social';
       try {
@@ -361,14 +400,18 @@ export const spaceTools: ToolDef[] = [
         };
       }
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_stripe_status',
     category: 'space',
     displayName: 'space stripe-status',
     description: 'Check Stripe account connection status.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getMe',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async () => {
       const result = await graphqlRequest<{ getMe: { stripe_connected_account?: { account_id: string; connected: boolean } } }>(
         'query { getMe { stripe_connected_account { account_id connected } } }',
@@ -384,8 +427,8 @@ export const spaceTools: ToolDef[] = [
       if (r.connected) return `Stripe is connected (${r.account_id}).`;
       return 'Stripe is not connected. Use /plan space_stripe_connect to set up.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_delete',
     category: 'space',
     displayName: 'space delete',
@@ -394,6 +437,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID to delete', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteSpace',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ deleteSpace: boolean }>(
         `mutation($_id: String!) {
@@ -407,8 +453,8 @@ export const spaceTools: ToolDef[] = [
       const r = result as { deleted: boolean };
       return r.deleted ? 'Space deleted permanently.' : 'Failed to delete space.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_deep_stats',
     category: 'space',
     displayName: 'space deep analytics',
@@ -417,6 +463,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceStatistics',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getSpaceStatistics: unknown }>(
         `query($space: String!) {
@@ -435,8 +484,8 @@ export const spaceTools: ToolDef[] = [
       const rating = r.avg_event_rating ? `${r.avg_event_rating.toFixed(1)}/5 avg rating` : 'no ratings yet';
       return `Community: ${r.admins} admins, ${r.ambassadors} ambassadors, ${r.subscribers} subscribers. ${r.created_events} events created, ${r.submitted_events} submitted, ${r.event_attendees} total attendees. ${rating}.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_top_hosts',
     category: 'space',
     displayName: 'space top hosts',
@@ -446,6 +495,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'limit', type: 'number', description: 'Max results', required: false, default: '10' },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getTopSpaceHosts',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getTopSpaceHosts: unknown }>(
         `query($space: String!, $limit: Float!) {
@@ -459,8 +511,8 @@ export const spaceTools: ToolDef[] = [
       );
       return result.getTopSpaceHosts;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_member_leaderboard',
     category: 'space',
     displayName: 'space member leaderboard',
@@ -472,6 +524,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'search', type: 'string', description: 'Search by name', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceMembersLeaderboard',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getSpaceMembersLeaderboard: unknown }>(
         `query($space: String!, $limit: Float!, $skip: Float!, $search: String) {
@@ -489,8 +544,8 @@ export const spaceTools: ToolDef[] = [
       );
       return result.getSpaceMembersLeaderboard;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_events_insight',
     category: 'space',
     displayName: 'space events insight',
@@ -503,6 +558,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'event_tense', type: 'string', description: 'Filter by timing', required: false, enum: ['past', 'upcoming', 'live'] },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceEventsInsight',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getSpaceEventsInsight: unknown }>(
         `query($space: String!, $limit: Float!, $skip: Float!, $search: String, $eventTense: String) {
@@ -521,8 +579,8 @@ export const spaceTools: ToolDef[] = [
       );
       return result.getSpaceEventsInsight;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_member_update',
     category: 'space',
     displayName: 'space member update',
@@ -533,6 +591,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'visible', type: 'boolean', description: 'Member visibility', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'updateSpaceMember',
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = { _id: args.member_id };
       if (args.role) input.role = args.role;
@@ -552,8 +613,8 @@ export const spaceTools: ToolDef[] = [
       if (!r) return 'Member not found.';
       return `Member updated: role=${r.role}.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_pin_event',
     category: 'space',
     displayName: 'space pin event',
@@ -563,6 +624,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'event_ids', type: 'string[]', description: 'Event IDs to pin', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'pinEventsToSpace',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ pinEventsToSpace: { requests?: Array<{ _id: string; event: string; state: string }> } }>(
         `mutation($space: String!, $events: [String!]!) {
@@ -579,8 +643,8 @@ export const spaceTools: ToolDef[] = [
       const count = r.requests?.length || 0;
       return `${count} event(s) pinned to space.`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_unpin_event',
     category: 'space',
     displayName: 'space unpin event',
@@ -590,6 +654,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'event_ids', type: 'string[]', description: 'Event IDs to unpin', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'unpinEventsFromSpace',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ unpinEventsFromSpace: boolean }>(
         `mutation($space: String!, $events: [String!]!) {
@@ -603,8 +670,8 @@ export const spaceTools: ToolDef[] = [
       const r = result as { unpinned: boolean };
       return r.unpinned ? 'Events unpinned from space.' : 'Failed to unpin events.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_tags_list',
     category: 'space',
     displayName: 'space tags list',
@@ -615,6 +682,9 @@ export const spaceTools: ToolDef[] = [
         enum: ['event', 'member'] },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listSpaceTags',
+    requiresEvent: false,
     execute: async (args) => {
       const vars: Record<string, unknown> = { space: args.space_id };
       if (args.type) vars.type = args.type;
@@ -629,8 +699,8 @@ export const spaceTools: ToolDef[] = [
       );
       return result.listSpaceTags;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_tag_upsert',
     category: 'space',
     displayName: 'space tag upsert',
@@ -644,6 +714,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'tag_id', type: 'string', description: 'Existing tag ObjectId (for update)', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'insertSpaceTag',
+    requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = {
         space: args.space_id,
@@ -663,8 +736,8 @@ export const spaceTools: ToolDef[] = [
       );
       return result.insertSpaceTag;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_tag_delete',
     category: 'space',
     displayName: 'space tag delete',
@@ -674,6 +747,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'tag_id', type: 'string', description: 'Tag ObjectId', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'deleteSpaceTag',
+    requiresEvent: false,
     execute: async (args) => {
       await graphqlRequest(
         `mutation($space: MongoID!, $_id: MongoID!) {
@@ -683,8 +759,8 @@ export const spaceTools: ToolDef[] = [
       );
       return { deleted: true, tag_id: args.tag_id };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_tag_manage',
     category: 'space',
     displayName: 'space tag manage',
@@ -696,6 +772,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'tagged', type: 'boolean', description: 'true to add, false to remove', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'manageSpaceTag',
+    requiresEvent: false,
     execute: async (args) => {
       await graphqlRequest(
         `mutation($space: MongoID!, $_id: MongoID!, $target: String!, $tagged: Boolean!) {
@@ -705,8 +784,8 @@ export const spaceTools: ToolDef[] = [
       );
       return { managed: true, tag_id: args.tag_id, target: args.target, tagged: args.tagged };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_event_requests',
     category: 'space',
     displayName: 'space event requests',
@@ -719,6 +798,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceEventRequests',
+    requiresEvent: false,
     execute: async (args) => {
       let limit = 25;
       if (args.limit !== undefined) {
@@ -767,8 +849,8 @@ export const spaceTools: ToolDef[] = [
       }
       return lines.join('\n');
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_event_requests_decide',
     category: 'space',
     displayName: 'space event requests decide',
@@ -780,6 +862,9 @@ export const spaceTools: ToolDef[] = [
         enum: ['approved', 'declined'] },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'decideSpaceEventRequests',
+    requiresEvent: false,
     execute: async (args) => {
       const requests = (args.request_ids as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (requests.length === 0) throw new Error('At least one request ID is required');
@@ -801,8 +886,8 @@ export const spaceTools: ToolDef[] = [
       if (result === null || result === undefined) return 'Error: no response from server.';
       return result ? 'Event request decision applied.' : 'No changes applied — requests may have already been decided.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_event_summary',
     category: 'space',
     displayName: 'space event summary',
@@ -811,6 +896,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceEventSummary',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getSpaceEventSummary: unknown }>(
         `query($space: MongoID!) {
@@ -827,8 +915,8 @@ export const spaceTools: ToolDef[] = [
       if (!r || r.all_events === undefined) return JSON.stringify(result);
       return `All: ${r.all_events}, Virtual: ${r.virtual_events}, IRL: ${r.irl_events}, Live: ${r.live_events}, Upcoming: ${r.upcoming_events}, Past: ${r.past_events}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_sending_quota',
     category: 'space',
     displayName: 'space sending quota',
@@ -837,6 +925,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceSendingQuota',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getSpaceSendingQuota: unknown }>(
         `query($space: MongoID!) {
@@ -853,8 +944,8 @@ export const spaceTools: ToolDef[] = [
       if (!r || r.total === undefined) return JSON.stringify(result);
       return `Quota type: ${r.type}, Used: ${r.used}/${r.total}, Remaining: ${r.remain}, Reset: ${r.reset_frequency}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_my_event_requests',
     category: 'space',
     displayName: 'space my event requests',
@@ -867,6 +958,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getMySpaceEventRequests',
+    requiresEvent: false,
     execute: async (args) => {
       let limit = 25;
       if (args.limit !== undefined) {
@@ -908,8 +1002,8 @@ export const spaceTools: ToolDef[] = [
       }
       return lines.join('\n');
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_role_features',
     category: 'space',
     displayName: 'space role features',
@@ -920,6 +1014,9 @@ export const spaceTools: ToolDef[] = [
         enum: ['unsubscriber', 'subscriber', 'ambassador', 'admin', 'creator'] },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'listSpaceRoleFeatures',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ listSpaceRoleFeatures: unknown }>(
         `query($space: MongoID!, $role: SpaceRole!) {
@@ -941,8 +1038,8 @@ export const spaceTools: ToolDef[] = [
       }
       return lines.join('\n');
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_role_features_update',
     category: 'space',
     displayName: 'space role features update',
@@ -954,6 +1051,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'codes', type: 'string', description: 'Comma-separated feature codes to enable for this role', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'updateSpaceRoleFeatures',
+    requiresEvent: false,
     execute: async (args) => {
       const codes = (args.codes as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
       if (codes.length === 0) throw new Error('At least one feature code is required');
@@ -974,8 +1074,8 @@ export const spaceTools: ToolDef[] = [
       if (result === null || result === undefined) return 'Error: no response from server.';
       return result ? 'Role features updated. Use space_role_features to verify the current state.' : 'No changes applied — features may already match the requested configuration.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_member_growth',
     category: 'space',
     displayName: 'space member growth',
@@ -988,6 +1088,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'end', type: 'string', description: 'End date (ISO 8601)', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceMemberAmountByDate',
+    requiresEvent: false,
     execute: async (args) => {
       const startDate = new Date(args.start as string);
       if (isNaN(startDate.getTime())) throw new Error('Invalid start date');
@@ -1011,8 +1114,8 @@ export const spaceTools: ToolDef[] = [
       const lines = items.map((p) => `- ${p._id}: ${p.total}`);
       return `${items.length} data point(s):\n${lines.join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_top_attendees',
     category: 'space',
     displayName: 'space top attendees',
@@ -1022,6 +1125,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'limit', type: 'number', description: 'Max results', required: false, default: '10' },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getTopSpaceEventAttendees',
+    requiresEvent: false,
     execute: async (args) => {
       let limit = 10;
       if (args.limit !== undefined) {
@@ -1053,8 +1159,8 @@ export const spaceTools: ToolDef[] = [
       });
       return `${items.length} attendee(s):\n${lines.join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_location_leaderboard',
     category: 'space',
     displayName: 'space location leaderboard',
@@ -1065,6 +1171,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'limit', type: 'number', description: 'Max results', required: false, default: '10' },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceEventLocationsLeaderboard',
+    requiresEvent: false,
     execute: async (args) => {
       let limit = 10;
       if (args.limit !== undefined) {
@@ -1093,8 +1202,8 @@ export const spaceTools: ToolDef[] = [
       });
       return `${items.length} location(s):\n${lines.join('\n')}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_reward_stats',
     category: 'space',
     displayName: 'space reward stats',
@@ -1103,6 +1212,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'getSpaceRewardStatistics',
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getSpaceRewardStatistics: unknown }>(
         `query($space: MongoID!) {
@@ -1119,8 +1231,8 @@ export const spaceTools: ToolDef[] = [
       if (!r || typeof r !== 'object') return JSON.stringify(result);
       return `Reward stats: ${r.events_count} event(s), ${r.checkin_settings_count} checkin setting(s), ${r.ticket_settings_count} ticket setting(s), ${r.unique_recipients_count} unique recipient(s)`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_set_avatar',
     category: 'space',
     displayName: 'space set avatar',
@@ -1132,6 +1244,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'file_path', type: 'string', description: 'Local file path to upload (provide this OR file_id, not both)', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'updateSpace',
+    requiresEvent: false,
     execute: async (args) => {
       return setSpaceImage(
         args.space_id as string,
@@ -1145,8 +1260,8 @@ export const spaceTools: ToolDef[] = [
       const r = result as { _id: string; title: string; image_avatar: string };
       return `Avatar set for space "${r.title}" (${r._id}).`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'space_set_cover',
     category: 'space',
     displayName: 'space set cover',
@@ -1158,6 +1273,9 @@ export const spaceTools: ToolDef[] = [
       { name: 'file_path', type: 'string', description: 'Local file path to upload (provide this OR file_id, not both)', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'updateSpace',
+    requiresEvent: false,
     execute: async (args) => {
       return setSpaceImage(
         args.space_id as string,
@@ -1171,5 +1289,5 @@ export const spaceTools: ToolDef[] = [
       const r = result as { _id: string; title: string; image_cover: string };
       return `Cover image set for space "${r.title}" (${r._id}).`;
     },
-  },
+  }),
 ];

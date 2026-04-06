@@ -1,9 +1,10 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 import { atlasRequest } from '../../../api/atlas.js';
 
-export const ticketsTools: ToolDef[] = [
-  {
+export const ticketsTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'tickets_list_types',
     category: 'tickets',
     displayName: 'tickets types',
@@ -12,6 +13,10 @@ export const ticketsTools: ToolDef[] = [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiListEventTicketTypes',
+    requiresSpace: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiListEventTicketTypes: unknown }>(
         `query($event: MongoID!) {
@@ -23,8 +28,8 @@ export const ticketsTools: ToolDef[] = [
       );
       return result.aiListEventTicketTypes;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_create_type',
     category: 'tickets',
     displayName: 'tickets create-type',
@@ -38,6 +43,10 @@ export const ticketsTools: ToolDef[] = [
       { name: 'description', type: 'string', description: 'Ticket description', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiCreateEventTicketType',
+    requiresSpace: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const input: Record<string, unknown> = {
         event: args.event_id,
@@ -63,8 +72,8 @@ export const ticketsTools: ToolDef[] = [
       );
       return result.aiCreateEventTicketType;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_update_type',
     category: 'tickets',
     displayName: 'tickets update-type',
@@ -78,6 +87,11 @@ export const ticketsTools: ToolDef[] = [
       { name: 'active', type: 'boolean', description: 'Active status', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiUpdateEventTicketType',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const input: Record<string, unknown> = {};
       if (args.name) input.title = args.name;
@@ -98,8 +112,8 @@ export const ticketsTools: ToolDef[] = [
       );
       return result.aiUpdateEventTicketType;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_buy',
     category: 'tickets',
     displayName: 'tickets buy',
@@ -113,6 +127,10 @@ export const ticketsTools: ToolDef[] = [
       { name: 'discount_code', type: 'string', description: 'Discount code', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendService: 'atlas',
+    requiresSpace: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const quantity = args.quantity as number;
       const names = args.attendee_names as string[];
@@ -225,8 +243,8 @@ export const ticketsTools: ToolDef[] = [
 
       return purchaseResult.data;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_price',
     category: 'tickets',
     displayName: 'tickets price',
@@ -238,6 +256,10 @@ export const ticketsTools: ToolDef[] = [
       { name: 'discount_code', type: 'string', description: 'Discount code', required: false },
     ],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiCalculateTicketPrice',
+    requiresSpace: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       // Backend schema accepts Float for count, but ticket quantities are whole numbers
       const count = Math.floor(args.quantity != null ? (args.quantity as number) : 1);
@@ -266,8 +288,8 @@ export const ticketsTools: ToolDef[] = [
       if (r.discount_cents > 0) return `Price: ${r.currency} ${total} (${r.currency} ${subtotal} - ${r.currency} ${discount} discount).`;
       return `Price: ${r.currency} ${total}`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_receipt',
     category: 'tickets',
     displayName: 'tickets receipt',
@@ -276,6 +298,10 @@ export const ticketsTools: ToolDef[] = [
       { name: 'hold_id', type: 'string', description: 'Hold ID from purchase', required: true },
     ],
     destructive: false,
+    backendType: 'query',
+    backendService: 'atlas',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await atlasRequest<Record<string, unknown>>({
         path: `/atlas/v1/receipts/by-hold/${args.hold_id}`,
@@ -283,8 +309,8 @@ export const ticketsTools: ToolDef[] = [
       });
       return result.data;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_create_discount',
     category: 'tickets',
     displayName: 'tickets create-discount',
@@ -297,6 +323,10 @@ export const ticketsTools: ToolDef[] = [
       { name: 'limit', type: 'number', description: 'Usage limit', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiCreateEventTicketDiscount',
+    requiresSpace: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ aiCreateEventTicketDiscount: unknown }>(
         `mutation($event: MongoID!, $code: String!, $ratio: Float!, $limit: Int) {
@@ -313,22 +343,26 @@ export const ticketsTools: ToolDef[] = [
       );
       return result.aiCreateEventTicketDiscount;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'my_tickets',
     category: 'tickets',
     displayName: 'my tickets',
     description: 'Get tickets the current user has purchased.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetMyTickets',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async () => {
       const result = await graphqlRequest<{ aiGetMyTickets: unknown }>(
         'query { aiGetMyTickets { items { event_id event_title ticket_type_title status event_start event_end } } }',
       );
       return result.aiGetMyTickets;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_create',
     category: 'tickets',
     displayName: 'tickets create',
@@ -338,6 +372,10 @@ export const ticketsTools: ToolDef[] = [
       { name: 'assignments', type: 'string', description: 'JSON array of assignments: [{email, count}]', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'createTickets',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       let ticketAssignments: unknown[];
       try {
@@ -366,8 +404,8 @@ export const ticketsTools: ToolDef[] = [
       }
       return JSON.stringify(result);
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_cancel',
     category: 'tickets',
     displayName: 'tickets cancel',
@@ -377,6 +415,9 @@ export const ticketsTools: ToolDef[] = [
       { name: 'ticket_ids', type: 'string', description: 'Comma-separated ticket IDs to cancel', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'cancelTickets',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ cancelTickets: unknown }>(
         `mutation($input: CancelTicketsInput!) {
@@ -389,8 +430,8 @@ export const ticketsTools: ToolDef[] = [
     formatResult: (result) => {
       return result ? 'Tickets cancelled successfully.' : 'Cancellation failed.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_assign',
     category: 'tickets',
     displayName: 'tickets assign',
@@ -400,6 +441,9 @@ export const ticketsTools: ToolDef[] = [
       { name: 'assignments', type: 'string', description: 'JSON array of assignments: [{ticket, email}] or [{ticket, user}]', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'assignTickets',
+    requiresSpace: false,
     execute: async (args) => {
       let assignees: unknown[];
       try {
@@ -422,8 +466,8 @@ export const ticketsTools: ToolDef[] = [
     formatResult: (result) => {
       return result ? 'Tickets assigned successfully.' : 'Assignment failed.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_upgrade',
     category: 'tickets',
     displayName: 'tickets upgrade',
@@ -434,6 +478,9 @@ export const ticketsTools: ToolDef[] = [
       { name: 'to_type', type: 'string', description: 'Target ticket type ID', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'upgradeTicket',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ upgradeTicket: unknown }>(
         `mutation($input: UpgradeTicketInput!) {
@@ -446,8 +493,8 @@ export const ticketsTools: ToolDef[] = [
     formatResult: (result) => {
       return result ? 'Ticket upgraded successfully.' : 'Upgrade failed.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_email',
     category: 'tickets',
     displayName: 'tickets email',
@@ -458,6 +505,9 @@ export const ticketsTools: ToolDef[] = [
       { name: 'payment_id', type: 'string', description: 'Payment ID (optional, to email specific payment tickets)', required: false },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'mailEventTicket',
+    requiresSpace: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ mailEventTicket: unknown }>(
         `mutation($event: MongoID!, $emails: [String!]!, $payment: MongoID) {
@@ -474,8 +524,8 @@ export const ticketsTools: ToolDef[] = [
     formatResult: (result) => {
       return result ? 'Ticket emails sent successfully.' : 'Failed to send ticket emails.';
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'tickets_email_receipt',
     category: 'tickets',
     displayName: 'tickets email receipt',
@@ -484,6 +534,10 @@ export const ticketsTools: ToolDef[] = [
       { name: 'ticket_id', type: 'string', description: 'Ticket ID', required: true },
     ],
     destructive: true,
+    backendType: 'mutation',
+    backendResolver: 'mailTicketPaymentReceipt',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ mailTicketPaymentReceipt: unknown }>(
         `mutation($ticket: MongoID!) {
@@ -496,5 +550,5 @@ export const ticketsTools: ToolDef[] = [
     formatResult: (result) => {
       return result ? 'Payment receipt sent.' : 'Failed to send receipt.';
     },
-  },
+  }),
 ];

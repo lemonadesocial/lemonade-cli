@@ -1,4 +1,6 @@
 import { ToolDef } from '../providers/interface.js';
+import { CanonicalCapability } from '../../capabilities/types.js';
+import { capabilitiesToRegistry } from '../../capabilities/adapter.js';
 import {
   connectorTools,
   eventTools,
@@ -22,7 +24,11 @@ import {
 } from './domains/index.js';
 
 export function buildToolRegistry(): Record<string, ToolDef> {
-  const allTools: ToolDef[] = [
+  return capabilitiesToRegistry(getAllCapabilities());
+}
+
+export function getAllCapabilities(): CanonicalCapability[] {
+  return [
     ...connectorTools,
     ...eventTools,
     ...fileTools,
@@ -43,10 +49,4 @@ export function buildToolRegistry(): Record<string, ToolDef> {
     ...userTools,
     ...votingTools,
   ];
-
-  const registry: Record<string, ToolDef> = {};
-  for (const tool of allTools) {
-    registry[tool.name] = tool;
-  }
-  return registry;
 }

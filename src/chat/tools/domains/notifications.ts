@@ -1,22 +1,28 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-export const notificationsTools: ToolDef[] = [
-  {
+export const notificationsTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'notifications_list',
     category: 'notifications',
     displayName: 'notifications list',
     description: 'Get recent notifications.',
     params: [],
     destructive: false,
+    backendType: 'query',
+    backendResolver: 'aiGetNotifications',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async () => {
       const result = await graphqlRequest<{ aiGetNotifications: Array<{ id: string; type: string; message: string; from_user_name?: string; ref_event_title?: string; read: boolean; created_at: string }> }>(
         'query { aiGetNotifications { id type message from_user_name ref_event_title read created_at } }',
       );
       return { items: result.aiGetNotifications };
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'notifications_read',
     category: 'notifications',
     displayName: 'notifications read',
@@ -25,6 +31,11 @@ export const notificationsTools: ToolDef[] = [
       { name: 'notification_ids', type: 'string[]', description: 'Notification IDs to mark as read', required: true },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'aiReadNotifications',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const ids = args.notification_ids as string[];
       for (const id of ids) {
@@ -35,5 +46,5 @@ export const notificationsTools: ToolDef[] = [
       }
       return { read: true, count: ids.length };
     },
-  },
+  }),
 ];

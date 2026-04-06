@@ -1,9 +1,10 @@
-import { ToolDef } from '../../providers/interface.js';
+import { buildCapability } from '../../../capabilities/factory.js';
+import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 import { uploadLocalFile } from '../utils/index.js';
 
-export const fileTools: ToolDef[] = [
-  {
+export const fileTools: CanonicalCapability[] = [
+  buildCapability({
     name: 'file_upload',
     category: 'file',
     displayName: 'file upload',
@@ -26,6 +27,10 @@ export const fileTools: ToolDef[] = [
       { name: 'description', type: 'string', description: 'File description', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createFile',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const filePath = args.file_path as string;
       const directory = (args.directory as string) || 'event';
@@ -37,8 +42,8 @@ export const fileTools: ToolDef[] = [
       const r = result as { _id: string; url: string };
       return `File uploaded — ID: ${r._id}\nURL: ${r.url}\nUse this file ID with space_set_avatar, space_set_cover (image_avatar/image_cover) or event_set_photos (new_new_photos).`;
     },
-  },
-  {
+  }),
+  buildCapability({
     name: 'file_upload_url',
     category: 'file',
     displayName: 'file upload url',
@@ -49,6 +54,10 @@ export const fileTools: ToolDef[] = [
       { name: 'description', type: 'string', description: 'File description', required: false },
     ],
     destructive: false,
+    backendType: 'mutation',
+    backendResolver: 'createFile',
+    requiresSpace: false,
+    requiresEvent: false,
     execute: async (args) => {
       const url = args.url as string;
       // M2: URL validation
@@ -77,5 +86,5 @@ export const fileTools: ToolDef[] = [
       const r = result as { _id: string; url: string };
       return `File uploaded from URL — ID: ${r._id}\nURL: ${r.url}\nUse this file ID with space_set_avatar, space_set_cover (image_avatar/image_cover) or event_set_photos (new_new_photos).`;
     },
-  },
+  }),
 ];
