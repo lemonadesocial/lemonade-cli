@@ -165,15 +165,15 @@ export const systemTools: CanonicalCapability[] = [
     searchHint: 'chains networks blockchain supported crypto',
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiListChains',
+    backendResolver: 'listChains',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async () => {
-      const result = await graphqlRequest<{ aiListChains: unknown }>(
-        'query { aiListChains { id name symbol } }',
+      const result = await graphqlRequest<{ listChains: unknown }>(
+        'query { listChains { id name symbol } }',
       );
-      return result.aiListChains;
+      return result.listChains;
     },
   }),
   buildCapability({

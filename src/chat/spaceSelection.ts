@@ -11,11 +11,11 @@ interface SpaceItem {
 
 export async function fetchMySpaces(): Promise<SpaceItem[]> {
   const result = await graphqlRequest<{
-    aiListMySpaces: { items: SpaceItem[] };
+    listMySpaces: { items: SpaceItem[] };
   }>(
-    'query { aiListMySpaces(limit: 100, skip: 0) { items { _id title slug } } }',
+    'query { listMySpaces(limit: 100, skip: 0) { items { _id title slug } } }',
   );
-  return result.aiListMySpaces.items;
+  return result.listMySpaces.items;
 }
 
 function ask(rl: readline.Interface, question: string): Promise<string> {

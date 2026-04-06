@@ -70,25 +70,25 @@ const mcpResolverNames = new Set(Object.values(TOOL_TO_RESOLVER));
 // Manual command resolvers (from existing src/commands/ that won't be generated)
 const MANUAL_RESOLVERS = new Set([
   // Auth commands
-  'aiGetMe',
+  'getMe', 'aiGetMe',
   // Space commands
-  'createSpace', 'aiListMySpaces', 'updateSpace', 'aiGetSpaceStats',
+  'createSpace', 'listMySpaces', 'updateSpace', 'getSpaceStatistics',
   'connectPlatform', 'submitApiKey', 'spaceConnections',
   // Event commands
-  'createEvent', 'aiGetHostingEvents', 'aiSearchEvents', 'aiGetEvent',
-  'updateEvent', 'aiPublishEvent', 'aiCancelEvent',
-  'aiGetEventGuests', 'aiInviteEvent', 'aiDecideEventJoinRequests',
-  'aiGetEventFeedbackSummary', 'aiListEventFeedbacks', 'aiGetEventCheckins',
+  'createEvent', 'getHostingEvents', 'aiSearchEvents', 'getEvent',
+  'updateEvent', 'aiPublishEvent', 'cancelEvent',
+  'listEventGuests', 'inviteEvent', 'aiDecideEventJoinRequests',
+  'getEventFeedbackSummary', 'listEventFeedBacks', 'getEventCheckins',
   // Ticket commands
-  'aiListEventTicketTypes', 'aiCreateEventTicketType', 'aiUpdateEventTicketType',
-  'aiCalculateTicketPrice', 'aiBuyTickets',
+  'listEventTicketTypes', 'createEventTicketType', 'updateEventTicketType',
+  'calculateTicketsPricing', 'aiBuyTickets',
   // Reward commands
   'atlasRewardSummary', 'atlasRewardHistory',
   // Site commands
-  'aiGeneratePageFromDescription', 'aiCreatePageConfig',
-  'aiUpdatePageConfigSection', 'aiSuggestSections',
-  'getPageConfig', 'updatePageConfig', 'getPublishedConfig',
-  'generatePreviewLink', 'createPageConfig',
+  'aiGeneratePageFromDescription', 'createPageConfig',
+  'updatePageConfig', 'aiSuggestSections',
+  'getPageConfig', 'getPublishedConfig',
+  'generatePreviewLink',
   // Payment accounts
   'listNewPaymentAccounts',
   'createNewPaymentAccount',

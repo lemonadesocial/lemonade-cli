@@ -23,7 +23,7 @@ interface BackendResolvers {
 
 /**
  * Strip "ai" prefix to get the canonical resolver name.
- * e.g. "aiCreateEvent" -> "createEvent", "aiGetMe" -> "getMe"
+ * e.g. "aiCreateEvent" -> "createEvent", "getMe" -> "getMe"
  */
 function stripAiPrefix(name: string): string {
   if (name.startsWith('ai') && name.length > 2 && name[2] === name[2].toUpperCase()) {
