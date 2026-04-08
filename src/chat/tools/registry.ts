@@ -2,6 +2,7 @@ import { ToolDef } from '../providers/interface.js';
 import { CanonicalCapability } from '../../capabilities/types.js';
 import { capabilitiesToRegistry } from '../../capabilities/adapter.js';
 import { filterCapabilities } from '../../capabilities/filter.js';
+import { workflowsToCapabilities } from '../../capabilities/workflows.js';
 import {
   connectorTools,
   eventTools,
@@ -30,7 +31,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 }
 
 export function getAllCapabilities(): CanonicalCapability[] {
-  return [
+  // Collect non-workflow capabilities first so workflows can reference their types
+  const nonWorkflow: CanonicalCapability[] = [
     ...connectorTools,
     ...eventTools,
     ...fileTools,
@@ -50,5 +52,9 @@ export function getAllCapabilities(): CanonicalCapability[] {
     ...ticketsTools,
     ...userTools,
     ...votingTools,
+  ];
+  return [
+    ...nonWorkflow,
+    ...workflowsToCapabilities(nonWorkflow),
   ];
 }

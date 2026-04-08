@@ -672,6 +672,7 @@ describe('Tool Registry', () => {
       'tickets',
       'user',
       'voting',
+      'workflow',
     ]);
 
     for (const [name, tool] of Object.entries(registry)) {
