@@ -1,6 +1,6 @@
 {
   "name": "@lemonade-social/cli",
-  "version": "1.0.0",
+  "version": "1.2.2",
   "type": "module",
   "description": "Lemonade CLI - manage events, communities, and tickets from the terminal",
   "homepage": "https://github.com/lemonadesocial/lemonade-cli",
