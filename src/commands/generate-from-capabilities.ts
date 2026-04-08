@@ -147,7 +147,27 @@ function buildAction(cap: CanonicalCapability) {
         }
       }
 
-      const context: ExecutionContext = { defaultSpace: getDefaultSpace() };
+      const context: ExecutionContext = {
+        defaultSpace: getDefaultSpace(),
+        dryRun: !!opts.dryRun,
+      };
+
+      if (context.dryRun && cap.backendType === 'mutation') {
+        const preview = {
+          dryRun: true,
+          tool: cap.displayName,
+          operation: cap.backendType,
+          args,
+          message: 'Dry run: this mutation would be executed with the above arguments.',
+        };
+        if (opts.json) {
+          console.log(JSON.stringify({ ok: true, data: preview }, null, 2));
+        } else {
+          console.log(JSON.stringify(preview, null, 2));
+        }
+        return;
+      }
+
       const result = await cap.execute(args, context);
 
       if (opts.json) {
@@ -217,6 +237,7 @@ export function registerCapabilityCommands(
     }
 
     cmd.option('--json', 'Output as JSON');
+    cmd.option('--dry-run', 'Preview the operation without executing');
     cmd.option('--api-key <key>', 'API key override');
 
     cmd.action(buildAction(cap));
