@@ -82,6 +82,7 @@ export function buildContext(session: SessionState): ExecutionContext {
     lastCreatedEvent: session.lastCreatedEvent,
     lastCreatedTicketType: session.lastCreatedTicketType,
     timezone: session.timezone,
+    dryRun: session.dryRun,
   };
 }
 
@@ -97,9 +98,38 @@ async function executeParallelBatch(
   turnId?: string,
 ): Promise<{ results: ToolResultMessage[]; fatal: boolean }> {
   const results: ToolResultMessage[] = [];
+  const context = buildContext(session);
+
+  // Dry-run interception: skip execution for mutations when dryRun is active
+  let execBatch = batch;
+  if (context.dryRun) {
+    for (const item of batch) {
+      if (item.tool.backendType === 'mutation') {
+        const preview = {
+          dryRun: true,
+          tool: item.tool.displayName,
+          operation: item.tool.backendType,
+          args: item.call.arguments,
+          message: 'Dry run: this mutation would be executed with the above arguments.',
+        };
+        if (engine) {
+          engine.emit('tool_start', { id: item.call.id, name: item.tool.displayName, turnId });
+          engine.emit('tool_done', { id: item.call.id, name: item.tool.displayName, result: preview, turnId });
+        }
+        results.push({
+          type: 'tool_result',
+          tool_use_id: item.call.id,
+          content: JSON.stringify(preview),
+        });
+      }
+    }
+    // Filter out intercepted mutations, continue with remaining tools
+    execBatch = batch.filter(item => item.tool.backendType !== 'mutation');
+    if (execBatch.length === 0) return { results, fatal: false };
+  }
 
   // Emit tool_start for ALL tools in the batch before any execution
-  for (const item of batch) {
+  for (const item of execBatch) {
     if (engine) {
       engine.emit('tool_start', { id: item.call.id, name: item.tool.displayName, turnId });
     }
@@ -107,9 +137,9 @@ async function executeParallelBatch(
 
   // Execute all tools concurrently with individual error handling
   const execResults = await Promise.all(
-    batch.map(async (item) => {
+    execBatch.map(async (item) => {
       try {
-        const result = await item.tool.execute(item.call.arguments, buildContext(session));
+        const result = await item.tool.execute(item.call.arguments, context);
         return { success: true as const, result };
       } catch (err) {
         return { success: false as const, error: err };
@@ -121,8 +151,8 @@ async function executeParallelBatch(
   // Session updates apply in original call order. If two parallel queries update
   // the same session field, the last one in call order wins.
   let fatal = false;
-  for (let idx = 0; idx < batch.length; idx++) {
-    const item = batch[idx];
+  for (let idx = 0; idx < execBatch.length; idx++) {
+    const item = execBatch[idx];
     const execResult = execResults[idx];
 
     if (execResult.success) {
@@ -274,6 +304,30 @@ async function executeSequential(
     return { results, fatal: false };
   }
 
+  // Dry-run interception: skip execution for mutations when dryRun is active
+  const context = buildContext(session);
+  if (context.dryRun && tool.backendType === 'mutation') {
+    const preview = {
+      dryRun: true,
+      tool: tool.displayName,
+      operation: tool.backendType,
+      args: call.arguments,
+      message: 'Dry run: this mutation would be executed with the above arguments.',
+    };
+
+    if (engine) {
+      engine.emit('tool_start', { id: call.id, name: tool.displayName, turnId });
+      engine.emit('tool_done', { id: call.id, name: tool.displayName, result: preview, turnId });
+    }
+
+    results.push({
+      type: 'tool_result',
+      tool_use_id: call.id,
+      content: JSON.stringify(preview),
+    });
+    return { results, fatal: false };
+  }
+
   if (engine) {
     engine.emit('tool_start', { id: call.id, name: tool.displayName, turnId });
   }
@@ -281,7 +335,7 @@ async function executeSequential(
   const spinner = (!engine && isTTY) ? ora(`Running: ${tool.displayName}...`).start() : null;
 
   try {
-    const result = await tool.execute(call.arguments, buildContext(session));
+    const result = await tool.execute(call.arguments, context);
     if (spinner) spinner.succeed(`Done: ${tool.displayName}`);
     if (engine) {
       engine.emit('tool_done', { id: call.id, name: tool.displayName, result, turnId });

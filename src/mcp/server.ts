@@ -45,8 +45,28 @@ export async function startMcpServer(): Promise<void> {
           // MCP is stateless — no session. Only defaultSpace from config is available.
           // currentSpace, currentEvent, timezone are undefined in MCP context.
           // Tools must handle missing context fields gracefully.
-          const context: ExecutionContext = { defaultSpace: getDefaultSpace() };
-          const result = await cap.execute(args, context);
+          const dryRun = !!args.dry_run;
+          const execArgs = { ...args };
+          delete execArgs.dry_run;
+          const context: ExecutionContext = { defaultSpace: getDefaultSpace(), dryRun };
+
+          if (dryRun && cap.backendType === 'mutation') {
+            const preview = {
+              dryRun: true,
+              tool: cap.displayName,
+              operation: cap.backendType,
+              args: execArgs,
+              message: 'Dry run: this mutation would be executed with the above arguments.',
+            };
+            return {
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify(preview, null, 2),
+              }],
+            };
+          }
+
+          const result = await cap.execute(execArgs, context);
           return {
             content: [{
               type: 'text' as const,

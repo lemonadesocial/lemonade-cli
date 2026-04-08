@@ -13,6 +13,7 @@ export interface ExecutionContext {
   lastCreatedEvent?: { _id: string; title: string };
   lastCreatedTicketType?: { _id: string; title: string };
   timezone?: string;
+  dryRun?: boolean;
 }
 
 export type BackendService = 'graphql' | 'atlas' | 'local' | 'external';
