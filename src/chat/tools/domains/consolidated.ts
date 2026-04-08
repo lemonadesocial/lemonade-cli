@@ -9,6 +9,7 @@ async function delegateToTool(
   args: Record<string, unknown>,
   context?: unknown,
 ): Promise<unknown> {
+  // Dynamic import to avoid circular dependency: consolidated.ts → registry.ts → domains/index.ts → consolidated.ts
   const { getAllCapabilities } = await import('../registry.js');
   const caps = getAllCapabilities();
   const tool = caps.find((c) => c.name === toolName);
@@ -48,7 +49,9 @@ export const consolidatedTools: CanonicalCapability[] = [
     alwaysLoad: true,
     shouldDefer: false,
     destructive: false,
-    backendType: 'mutation',
+    // Consolidated wrappers use 'none' — they don't call the backend directly.
+    // Each delegate tool has its own correct backendType for dry-run handling.
+    backendType: 'none',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool'],
@@ -94,7 +97,7 @@ export const consolidatedTools: CanonicalCapability[] = [
     alwaysLoad: true,
     shouldDefer: false,
     destructive: false,
-    backendType: 'mutation',
+    backendType: 'none',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool'],
@@ -142,7 +145,7 @@ export const consolidatedTools: CanonicalCapability[] = [
     alwaysLoad: true,
     shouldDefer: false,
     destructive: false,
-    backendType: 'mutation',
+    backendType: 'none',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool'],
@@ -189,7 +192,7 @@ export const consolidatedTools: CanonicalCapability[] = [
     alwaysLoad: true,
     shouldDefer: false,
     destructive: false,
-    backendType: 'mutation',
+    backendType: 'none',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool'],
@@ -215,16 +218,15 @@ export const consolidatedTools: CanonicalCapability[] = [
     category: 'page',
     displayName: 'manage page versions',
     description:
-      'Manage page version lifecycle: archive, save version, restore version, list versions, or get preview link.',
+      'Manage page version lifecycle: save version, restore version, list versions, or get preview link.',
     params: [
       {
         name: 'action',
         type: 'string',
         description: 'Action to perform',
         required: true,
-        enum: ['archive', 'save', 'restore', 'list', 'preview'],
+        enum: ['save', 'restore', 'list', 'preview'],
       },
-      { name: 'page_id', type: 'string', description: 'Page config ID (for archive)', required: false },
       { name: 'config_id', type: 'string', description: 'Page config ID (for save/restore/list/preview)', required: false },
       { name: 'name', type: 'string', description: 'Version name (for save)', required: false },
       { name: 'version', type: 'number', description: 'Version number to restore (for restore)', required: false },
@@ -234,15 +236,14 @@ export const consolidatedTools: CanonicalCapability[] = [
     alwaysLoad: true,
     shouldDefer: false,
     destructive: false,
-    backendType: 'mutation',
+    backendType: 'none',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool'],
-    whenToUse: 'when user wants to manage page versions (archive, save, restore, list, preview)',
-    searchHint: 'page version archive save restore list preview snapshot',
+    whenToUse: 'when user wants to manage page versions (save, restore, list, preview)',
+    searchHint: 'page version save restore list preview snapshot',
     execute: async (args, context) => {
       const actionMap: Record<string, string> = {
-        archive: 'page_archive',
         save: 'page_save_version',
         restore: 'page_restore_version',
         list: 'page_list_versions',
@@ -261,16 +262,17 @@ export const consolidatedTools: CanonicalCapability[] = [
     category: 'page',
     displayName: 'manage page config',
     description:
-      'Manage page configurations: get, update, view published, create, or browse section catalog.',
+      'Manage page configurations: get, update, view published, create, archive, or browse section catalog.',
     params: [
       {
         name: 'action',
         type: 'string',
         description: 'Action to perform',
         required: true,
-        enum: ['get', 'update', 'published', 'create', 'catalog'],
+        enum: ['get', 'update', 'published', 'create', 'archive', 'catalog'],
       },
       { name: 'config_id', type: 'string', description: 'Page config ID (for get/update)', required: false },
+      { name: 'page_id', type: 'string', description: 'Page config ID (for archive)', required: false },
       { name: 'owner_type', type: 'string', description: 'Owner type: event or space (for published/create)', required: false, enum: ['event', 'space'] },
       { name: 'owner_id', type: 'string', description: 'Event or space ID (for published/create)', required: false },
       { name: 'name', type: 'string', description: 'Page name (for update/create)', required: false },
@@ -282,18 +284,19 @@ export const consolidatedTools: CanonicalCapability[] = [
     alwaysLoad: true,
     shouldDefer: false,
     destructive: false,
-    backendType: 'mutation',
+    backendType: 'none',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool'],
-    whenToUse: 'when user wants to manage page configs (get, update, published, create, catalog)',
-    searchHint: 'page config get update published create catalog sections',
+    whenToUse: 'when user wants to manage page configs (get, update, published, create, archive, catalog)',
+    searchHint: 'page config get update published create archive catalog sections',
     execute: async (args, context) => {
       const actionMap: Record<string, string> = {
         get: 'page_config_get',
         update: 'page_config_update',
         published: 'page_config_published',
         create: 'page_config_create',
+        archive: 'page_archive',
         catalog: 'page_section_catalog',
       };
       const toolName = actionMap[args.action as string];

@@ -36,18 +36,18 @@ const CONSOLIDATED_TOOLS = [
   },
   {
     name: 'manage_page_versions',
-    actions: ['archive', 'save', 'restore', 'list', 'preview'],
+    actions: ['save', 'restore', 'list', 'preview'],
     delegates: [
-      'page_archive', 'page_save_version', 'page_restore_version',
+      'page_save_version', 'page_restore_version',
       'page_list_versions', 'page_preview_link',
     ],
   },
   {
     name: 'manage_page_config',
-    actions: ['get', 'update', 'published', 'create', 'catalog'],
+    actions: ['get', 'update', 'published', 'create', 'archive', 'catalog'],
     delegates: [
       'page_config_get', 'page_config_update', 'page_config_published',
-      'page_config_create', 'page_section_catalog',
+      'page_config_create', 'page_archive', 'page_section_catalog',
     ],
   },
 ];
