@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import { toolParamToZod, capabilityToInputSchema, capabilityToAnnotations } from '../../../src/mcp/schema-adapter.js';
 import type { ToolParam } from '../../../src/chat/providers/interface.js';
@@ -80,6 +80,22 @@ describe('toolParamToZod', () => {
     const schema = toolParamToZod(param);
     expect(schema.parse(undefined)).toBeUndefined();
     expect(schema.parse('hello')).toBe('hello');
+  });
+
+  it('warns on unknown param type and falls back to string', () => {
+    const mockStderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    const param: ToolParam = { name: 'test', type: 'date' as any, description: 'A date', required: true };
+    const schema = toolParamToZod(param);
+
+    expect(mockStderr).toHaveBeenCalledWith(
+      expect.stringContaining('unknown param type "date"'),
+    );
+    // Falls back to string schema
+    expect(schema.parse('2024-01-01')).toBe('2024-01-01');
+    expect(() => schema.parse(123)).toThrow();
+
+    mockStderr.mockRestore();
   });
 });
 

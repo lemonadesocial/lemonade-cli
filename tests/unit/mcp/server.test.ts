@@ -3,14 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock dependencies before importing the module under test
 const mockTool = vi.fn();
 const mockConnect = vi.fn();
-const mockServerInner = { sendToolListChanged: vi.fn() };
 
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => {
   return {
     McpServer: class MockMcpServer {
       tool = mockTool;
       connect = mockConnect;
-      server = mockServerInner;
       constructor() {}
     },
   };
@@ -43,9 +41,11 @@ vi.mock('../../../src/capabilities/search.js', () => ({
 import { startMcpServer } from '../../../src/mcp/server.js';
 import { ensureAuthHeader } from '../../../src/auth/store.js';
 import { partitionTools } from '../../../src/capabilities/partitioner.js';
+import { searchCapabilities } from '../../../src/capabilities/search.js';
 
 const mockEnsureAuthHeader = vi.mocked(ensureAuthHeader);
 const mockPartitionTools = vi.mocked(partitionTools);
+const mockSearchCapabilities = vi.mocked(searchCapabilities);
 
 describe('startMcpServer', () => {
   beforeEach(() => {
@@ -160,5 +160,49 @@ describe('startMcpServer', () => {
     await startMcpServer();
 
     expect(mockConnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('discover_tools handler returns matching tools from searchCapabilities', async () => {
+    const deferredCap = {
+      name: 'deferred_tool',
+      displayName: 'Deferred Tool',
+      description: 'A deferred tool',
+      category: 'test',
+      params: [],
+      destructive: false,
+      execute: vi.fn(),
+      backendType: 'query',
+      backendService: 'graphql',
+      requiresSpace: false,
+      requiresEvent: false,
+      surfaces: ['aiTool'],
+    };
+
+    mockEnsureAuthHeader.mockResolvedValue('Bearer test-token');
+    mockPartitionTools.mockReturnValue({
+      alwaysLoad: [],
+      deferred: [deferredCap as any],
+    });
+    mockSearchCapabilities.mockReturnValue([deferredCap as any]);
+
+    await startMcpServer();
+
+    // Find the discover_tools registration and extract its handler
+    const discoverCall = mockTool.mock.calls.find(
+      (call: any[]) => call[0] === 'discover_tools',
+    );
+    expect(discoverCall).toBeDefined();
+
+    // The handler is the last argument in server.tool(name, desc, schema, handler)
+    const handler = discoverCall![discoverCall!.length - 1];
+    const result = await handler({ query: 'deferred' });
+
+    expect(mockSearchCapabilities).toHaveBeenCalledWith('deferred', [deferredCap]);
+    expect(result.content).toHaveLength(1);
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toEqual([
+      { name: 'deferred_tool', description: 'A deferred tool' },
+    ]);
   });
 });
