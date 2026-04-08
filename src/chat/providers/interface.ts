@@ -86,4 +86,5 @@ export interface ToolDef {
   destructive: boolean;
   execute: (args: Record<string, unknown>) => Promise<unknown>;
   formatResult?: (result: unknown) => string;
+  backendType?: 'query' | 'mutation' | 'none';
 }

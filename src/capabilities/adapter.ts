@@ -11,6 +11,7 @@ export function toToolDef(cap: CanonicalCapability): ToolDef {
     destructive: cap.destructive,
     execute: cap.execute,
     ...(cap.formatResult ? { formatResult: cap.formatResult } : {}),
+    backendType: cap.backendType,
   };
 }
 
