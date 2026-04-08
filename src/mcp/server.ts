@@ -9,7 +9,8 @@ import { getPackageVersion } from '../config/version.js';
 import type { CanonicalCapability } from '../capabilities/types.js';
 
 export async function startMcpServer(): Promise<void> {
-  // Redirect all console output to stderr so stdout stays clean for MCP JSON-RPC
+  // Redirect all console methods to stderr to prevent MCP stdio protocol corruption.
+  // console.warn/error already default to stderr, but we redirect for consistency.
   const stderrWrite = (...args: unknown[]) => { process.stderr.write(args.map(String).join(' ') + '\n'); };
   console.log = stderrWrite;
   console.info = stderrWrite;
@@ -34,8 +35,6 @@ export async function startMcpServer(): Promise<void> {
     if (registeredTools.has(cap.name)) return;
     const inputSchema = capabilityToInputSchema(cap);
     const annotations = capabilityToAnnotations(cap);
-    // Note: server.tool() is the current public API in @modelcontextprotocol/sdk.
-    // No registerTool() alternative exists in the SDK as of v1.29.
     server.tool(
       cap.name,
       cap.description,
@@ -80,18 +79,18 @@ export async function startMcpServer(): Promise<void> {
     { query: z.string().describe('Search query') },
     async (args: Record<string, unknown>) => {
       const matches = searchCapabilities(args.query as string, deferred);
-      const newlyRegistered: CanonicalCapability[] = [];
+      const newlyRegistered = new Set<string>();
       for (const cap of matches) {
         if (!registeredTools.has(cap.name)) {
           registerCap(cap);
-          newlyRegistered.push(cap);
+          newlyRegistered.add(cap.name);
         }
       }
-      // SDK's server.tool() already sends sendToolListChanged internally,
-      // so no explicit notification is needed here.
-      const summary = newlyRegistered.length > 0
-        ? newlyRegistered.map(m => ({ name: m.name, description: m.description }))
-        : matches.map(m => ({ name: m.name, description: m.description, alreadyLoaded: true }));
+      const summary = matches.map(m => ({
+        name: m.name,
+        description: m.description,
+        alreadyLoaded: registeredTools.has(m.name) && !newlyRegistered.has(m.name),
+      }));
       return {
         content: [{
           type: 'text' as const,

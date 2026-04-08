@@ -202,7 +202,7 @@ describe('startMcpServer', () => {
 
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed).toEqual([
-      { name: 'deferred_tool', description: 'A deferred tool' },
+      { name: 'deferred_tool', description: 'A deferred tool', alreadyLoaded: false },
     ]);
   });
 });
