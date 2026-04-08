@@ -145,7 +145,7 @@ describe('toToolDef', () => {
     // Metadata fields absent
     const keys = Object.keys(toolDef);
     expect(keys).not.toContain('backendResolver');
-    expect(keys).not.toContain('backendType');
+    expect(keys).toContain('backendType');
     expect(keys).not.toContain('backendService');
     expect(keys).not.toContain('requiresSpace');
     expect(keys).not.toContain('requiresEvent');
@@ -261,6 +261,7 @@ describe('round-trip', () => {
       destructive: true,
       execute,
       formatResult: formatter,
+      backendType: 'query',
     });
   });
 });
