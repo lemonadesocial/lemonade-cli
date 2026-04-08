@@ -1,7 +1,7 @@
 export interface SlashCommandResult {
   handled: boolean;
   output?: string;
-  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history' | 'export' | 'connectors' | 'tempo' | 'tools';
+  action?: 'help' | 'clear' | 'model' | 'provider' | 'space' | 'exit' | 'mode' | 'name' | 'plan' | 'btw' | 'version' | 'status' | 'events' | 'spaces' | 'credits' | 'history' | 'export' | 'connectors' | 'tempo' | 'tools' | 'agents';
   args?: string;
 }
 
@@ -27,6 +27,7 @@ export const SLASH_COMMANDS = [
   { name: '/connectors', description: 'Manage space integrations' },
   { name: '/tempo', description: 'Manage Tempo wallet and payments' },
   { name: '/tools', description: 'List available AI tools' },
+  { name: '/agents', description: 'List or switch AI agent configs' },
 ] as const;
 
 const HELP_TABLE = `
@@ -66,6 +67,9 @@ Commands:
   /tools             List all available AI tools
   /tools <category>  List tools in a category (e.g. event, space)
   /tools info <name> Show details for a specific tool
+  /agents            List available AI agent configs
+  /agents <n>        Switch to agent config by number
+  /agents <name>     Switch to agent config by name
   /exit, /quit       Exit the app
 
 Keyboard shortcuts:
@@ -163,6 +167,9 @@ export function parseSlashCommand(input: string): SlashCommandResult {
 
     case '/tools':
       return { handled: true, action: 'tools', args: rest || undefined };
+
+    case '/agents':
+      return { handled: true, action: 'agents', args: rest || undefined };
 
     case '/exit':
     case '/quit':

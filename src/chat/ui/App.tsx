@@ -359,6 +359,20 @@ export function App({
 
   // Keyboard handling — only keys NOT handled by MultilineInput
   useInput((input, key) => {
+    // Ctrl+C: exit on empty input, clear input otherwise.
+    if (key.ctrl && input === 'c') {
+      if (turnCoordinator.cancelMainTurn()) {
+        setShowThinking(false);
+        resetStreaming();
+        addSystemMessage('(cancelled)');
+      } else if (!inputValue) {
+        exit();
+      } else {
+        setInputValue('');
+      }
+      return;
+    }
+
     // Ctrl+L: clear screen — identical path to /clear.
     if (key.ctrl && input === 'l') {
       performClear();

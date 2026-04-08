@@ -21,6 +21,7 @@ vi.mock('openai', () => {
 
 vi.mock('../../../src/auth/store', () => ({
   ensureAuthHeader: async () => 'Bearer test',
+  getConfig: () => ({}),
 }));
 
 function assertCapabilities(provider: AIProvider, expected: ProviderCapabilities) {
