@@ -25,7 +25,7 @@ function safeReaddir(dir: string): string[] {
   }
 }
 
-function getOrCreateGroup(program: Command, name: string): Command {
+export function getOrCreateGroup(program: Command, name: string): Command {
   const existing = program.commands.find((c) => c.name() === name);
   if (existing) return existing;
   return program.command(name).description(`Manage ${name}`);
@@ -62,6 +62,10 @@ export async function loadGeneratedCommands(program: Command): Promise<void> {
       debug(`manual: ${key}`);
     }
   }
+
+  // Phase 1.5: Capability-generated commands
+  const { registerCapabilityCommands } = await import('./generate-from-capabilities.js');
+  registerCapabilityCommands(program, registered);
 
   // Phase 2: Load MCP-generated commands (skip if manual override exists)
   const generatedDir = join(import.meta.dirname, 'generated');
