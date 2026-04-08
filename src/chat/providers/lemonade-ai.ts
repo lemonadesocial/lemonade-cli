@@ -27,10 +27,50 @@
 // Until then it is the only valid credits-mode provider.
 
 import { AIProvider, Message, ProviderCapabilities, StreamEvent, StreamParams, ToolDef } from './interface.js';
-import { ensureAuthHeader } from '../../auth/store.js';
+import { ensureAuthHeader, getConfig } from '../../auth/store.js';
+
+const DEFAULT_AI_CONFIG_ID = '64c8d3613824a1751d02b37b';
+
+export function getAiConfigId(): string {
+  return process.env.LEMONADE_AI_CONFIG || getConfig().ai_config || DEFAULT_AI_CONFIG_ID;
+}
 
 function getLemonadeAiUrl(): string {
   return process.env.LEMONADE_AI_URL || 'https://ai.lemonade.social';
+}
+
+export interface AiConfigItem {
+  _id: string;
+  name: string;
+  description: string;
+  modelName?: string;
+  isPublic?: boolean;
+}
+
+export async function fetchAiConfigs(): Promise<AiConfigItem[]> {
+  const auth = await ensureAuthHeader();
+  if (!auth) return [];
+
+  const url = getLemonadeAiUrl();
+  const response = await fetch(`${url}/graphql`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': auth,
+    },
+    body: JSON.stringify({
+      query: 'query { configs(limit: 50) { items { _id name description modelName isPublic } } }',
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!response.ok) return [];
+
+  const body = await response.json() as {
+    data?: { configs?: { items?: AiConfigItem[] } };
+  };
+
+  return body.data?.configs?.items ?? [];
 }
 
 /**
@@ -229,13 +269,13 @@ export class LemonadeAIProvider implements AIProvider {
         'Authorization': auth,
       },
       body: JSON.stringify({
-        query: `mutation Run($config: ObjectId, $message: String!, $data: JSON, $session: String, $standId: String) {
+        query: `mutation Run($config: ObjectId!, $message: String!, $data: JSON, $session: String, $standId: String) {
           run(config: $config, message: $message, data: $data, session: $session, standId: $standId) {
             message metadata sourceDocuments
           }
         }`,
         variables: {
-          config: null,
+          config: getAiConfigId(),
           message: messageText,
           data: null,
           // Intentionally null: local runtime history is authoritative.
@@ -248,7 +288,9 @@ export class LemonadeAIProvider implements AIProvider {
     });
 
     if (!response.ok) {
-      yield { type: 'text_delta', text: `Lemonade AI returned ${response.status}` };
+      const errBody = await response.text().catch(() => '(no body)');
+      process.stderr.write(`[lemonade-ai] ${response.status} ${response.statusText}: ${errBody}\n`);
+      yield { type: 'text_delta', text: `Lemonade AI returned ${response.status}: ${errBody}` };
       yield { type: 'done', stopReason: 'end_turn' };
       return;
     }

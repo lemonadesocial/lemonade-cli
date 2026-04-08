@@ -17,6 +17,7 @@ vi.mock('../../../../src/chat/session/cache', () => ({
 
 vi.mock('../../../../src/auth/store', () => ({
   ensureAuthHeader: vi.fn(async () => 'Bearer test-token'),
+  getConfig: vi.fn(() => ({})),
 }));
 
 const mockHandleTurn = vi.mocked(handleTurn);
