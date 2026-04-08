@@ -69,7 +69,7 @@ export const consolidatedTools: CanonicalCapability[] = [
       };
       const toolName = actionMap[args.action as string];
       if (!toolName) throw new Error(`Unknown action: ${args.action}`);
-      const { action: _action, ...rest } = args;
+      const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== 'action'));
       return delegateToTool(toolName, rest, context);
     },
   }),
@@ -113,7 +113,7 @@ export const consolidatedTools: CanonicalCapability[] = [
       };
       const toolName = actionMap[args.action as string];
       if (!toolName) throw new Error(`Unknown action: ${args.action}`);
-      const { action: _action, ...rest } = args;
+      const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== 'action'));
       return delegateToTool(toolName, rest, context);
     },
   }),
@@ -161,7 +161,7 @@ export const consolidatedTools: CanonicalCapability[] = [
       };
       const toolName = actionMap[args.action as string];
       if (!toolName) throw new Error(`Unknown action: ${args.action}`);
-      const { action: _action, ...rest } = args;
+      const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== 'action'));
       // For referral, map referral_action -> action (the underlying tool uses 'action' param)
       if (toolName === 'rewards_referral' && rest.referral_action) {
         rest.action = rest.referral_action;
@@ -207,7 +207,7 @@ export const consolidatedTools: CanonicalCapability[] = [
       };
       const toolName = actionMap[args.action as string];
       if (!toolName) throw new Error(`Unknown action: ${args.action}`);
-      const { action: _action, ...rest } = args;
+      const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== 'action'));
       return delegateToTool(toolName, rest, context);
     },
   }),
@@ -251,7 +251,7 @@ export const consolidatedTools: CanonicalCapability[] = [
       };
       const toolName = actionMap[args.action as string];
       if (!toolName) throw new Error(`Unknown action: ${args.action}`);
-      const { action: _action, ...rest } = args;
+      const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== 'action'));
       return delegateToTool(toolName, rest, context);
     },
   }),
@@ -301,7 +301,7 @@ export const consolidatedTools: CanonicalCapability[] = [
       };
       const toolName = actionMap[args.action as string];
       if (!toolName) throw new Error(`Unknown action: ${args.action}`);
-      const { action: _action, ...rest } = args;
+      const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== 'action'));
       return delegateToTool(toolName, rest, context);
     },
   }),
