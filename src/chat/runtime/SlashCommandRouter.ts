@@ -12,6 +12,8 @@ import type { UIMessage } from '../ui/hooks/useChatEngine.js';
 import { executeCapability, CapabilityNotAvailableError } from './slash-helpers.js';
 import { getAllCapabilities } from '../tools/registry.js';
 import { filterCapabilities, getCategories, findCapability, getSuggestions } from '../../capabilities/filter.js';
+import { fetchAiConfigs, getAiConfigId, type AiConfigItem } from '../providers/lemonade-ai.js';
+import { setConfigValue } from '../../auth/store.js';
 
 /** Runtime-only dependencies — no React/Ink types leak in. */
 export interface SlashCommandRuntimeDeps {
@@ -337,6 +339,11 @@ export async function executeSlashCommand(
     return;
   }
 
+  if (slashResult.action === 'agents') {
+    await handleAgents(slashResult, addSystemMessage);
+    return;
+  }
+
   // Commands with static output (e.g. /help, unknown commands)
   if (slashResult.output) {
     addSystemMessage(slashResult.output);
@@ -483,6 +490,71 @@ async function handleSpaces(
     } else {
       addSystemMessage(`Failed to fetch spaces: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
+  }
+}
+
+// --- /agents: list or switch AI agent configs from ai.lemonade.social ---
+
+let cachedAgentConfigs: AiConfigItem[] | null = null;
+
+async function handleAgents(
+  slashResult: SlashCommandResult,
+  addSystemMessage: (text: string) => void,
+): Promise<void> {
+  try {
+    let configs: AiConfigItem[];
+    const useCache = slashResult.args && cachedAgentConfigs;
+    if (useCache) {
+      configs = cachedAgentConfigs!;
+    } else {
+      addSystemMessage('Fetching available agent configs...');
+      configs = await fetchAiConfigs();
+      if (!configs.length) {
+        addSystemMessage('No agent configs available.');
+        return;
+      }
+      cachedAgentConfigs = configs;
+    }
+
+    const currentId = getAiConfigId();
+
+    // /agents <number> — select by number
+    if (slashResult.args && /^\d+$/.test(slashResult.args)) {
+      const idx = parseInt(slashResult.args, 10) - 1;
+      if (idx >= 0 && idx < configs.length) {
+        const selected = configs[idx];
+        setConfigValue('ai_config', selected._id);
+        addSystemMessage(`Switched to agent "${selected.name}"${selected.modelName ? ` (${selected.modelName})` : ''}. Restart make-lemonade to apply.`);
+      } else {
+        addSystemMessage(`Invalid number. Use 1-${configs.length}.`);
+      }
+      return;
+    }
+
+    // /agents <name> — fuzzy match
+    if (slashResult.args) {
+      const query = slashResult.args.toLowerCase();
+      const match = configs.find(c => c.name.toLowerCase().includes(query));
+      if (match) {
+        setConfigValue('ai_config', match._id);
+        addSystemMessage(`Switched to agent "${match.name}"${match.modelName ? ` (${match.modelName})` : ''}. Restart make-lemonade to apply.`);
+      } else {
+        addSystemMessage(`No agent matching "${slashResult.args}". Use /agents to see all.`);
+      }
+      return;
+    }
+
+    // /agents (no args) — list
+    const lines = configs.map((c, i) => {
+      const current = c._id === currentId ? ' (current)' : '';
+      const model = c.modelName ? ` — ${c.modelName}` : '';
+      return `${i + 1}. ${c.name}${model}${current}`;
+    });
+    lines.push('');
+    lines.push('Type /agents <number> to switch, e.g. /agents 3');
+    addSystemMessage(lines.join('\n'));
+  } catch (err) {
+    addSystemMessage(`Failed to fetch agent configs: ${err instanceof Error ? err.message : 'Unknown error'}`);
   }
 }
 
