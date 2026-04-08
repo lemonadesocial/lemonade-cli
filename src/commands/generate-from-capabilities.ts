@@ -5,12 +5,21 @@ import { setFlagApiKey } from '../auth/store.js';
 import type { CanonicalCapability } from '../capabilities/types.js';
 import type { ToolParam } from '../chat/providers/interface.js';
 
+const DEBUG = process.env.DEBUG === '1' || process.env.DEBUG === 'true';
+
+function debug(msg: string): void {
+  if (DEBUG) {
+    process.stderr.write(`[capabilities] ${msg}\n`);
+  }
+}
+
 const NAME_MAP: Record<string, { group: string; subcommand: string } | null> = {
   get_me: { group: 'auth', subcommand: 'me' },
   cli_version: { group: 'system', subcommand: 'version' },
   tool_search: null, // skip — system tool, not useful as CLI
 };
 
+// Maps capability name → target group. Subcommand is derived from the first segment of the original name.
 const NAME_OVERRIDES: Record<string, string> = {
   accept_event: 'event',
   decline_event: 'event',
@@ -55,6 +64,7 @@ function addParamOption(cmd: Command, param: ToolParam): void {
   const kebab = toKebab(param.name);
 
   if (param.type === 'boolean') {
+    // Boolean params are inherently optional in CLI flags (toggle on/off). Required is not enforceable for booleans.
     cmd.option(`--${kebab}`, param.description);
   } else if (isObjectType(param.type)) {
     if (param.required) {
@@ -117,8 +127,9 @@ function buildAction(cap: CanonicalCapability) {
               try {
                 objs.push(JSON.parse(el as string));
               } catch {
-                console.error(`Warning: invalid JSON element in --${toKebab(param.name)}: ${el}`);
-                objs.push(el);
+                console.error(`Error: invalid JSON for --${toKebab(param.name)}: ${el}`);
+                process.exitCode = 1;
+                return;
               }
             }
             val = objs;
@@ -161,7 +172,7 @@ function buildAction(cap: CanonicalCapability) {
         console.error(
           error instanceof Error ? error.message : String(error),
         );
-        process.exit(1);
+        process.exitCode = 1;
       }
     } finally {
       // Clear API key override
@@ -177,15 +188,24 @@ export function registerCapabilityCommands(
   const capabilities = getAllCapabilities();
 
   for (const cap of capabilities) {
-    if (!cap.surfaces.includes('cliCommand')) continue;
+    if (!cap.surfaces.includes('cliCommand')) {
+      debug(`skip ${cap.name}: not a cliCommand surface`);
+      continue;
+    }
 
     const derived = deriveGroupAndSubcommand(cap.name);
-    if (!derived) continue;
+    if (!derived) {
+      debug(`skip ${cap.name}: no group/subcommand derivation`);
+      continue;
+    }
 
     const { group, subcommand } = derived;
     const key = `${group}:${subcommand}`;
 
-    if (registered.has(key)) continue;
+    if (registered.has(key)) {
+      debug(`skip capability ${cap.name} (${key} already registered)`);
+      continue;
+    }
 
     const parent = getOrCreateGroup(program, group);
 
@@ -201,5 +221,6 @@ export function registerCapabilityCommands(
     cmd.action(buildAction(cap));
 
     registered.add(key);
+    debug(`capability: ${key} (from ${cap.name})`);
   }
 }

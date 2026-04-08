@@ -343,7 +343,7 @@ describe('action handler', () => {
     expect(executeFn).toHaveBeenCalledWith({ items: [{ a: 1 }, { b: 2 }] });
   });
 
-  it('keeps raw string and warns when object[] element is not valid JSON', async () => {
+  it('fails hard when object[] element is not valid JSON', async () => {
     const executeFn = vi.fn(async (args: Record<string, unknown>) => args);
     const cap = makeCap({
       name: 'test_objarr_bad',
@@ -354,8 +354,9 @@ describe('action handler', () => {
     const cmd = registerAndGetCmd(cap);
     await cmd.parseAsync(['--items', 'not-json', '{"b":2}'], { from: 'user' });
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('invalid JSON element'));
-    expect(executeFn).toHaveBeenCalledWith({ items: ['not-json', { b: 2 }] });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('invalid JSON for --items'));
+    expect(executeFn).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 });
 
