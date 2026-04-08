@@ -1,6 +1,7 @@
 import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
+import { scoreToolMatch } from '../../../capabilities/search.js';
 
 export const systemTools: CanonicalCapability[] = [
   buildCapability({
@@ -32,29 +33,7 @@ export const systemTools: CanonicalCapability[] = [
       const caps = getAllCapabilities();
 
       const scored = caps.map(cap => {
-        let score = 0;
-        const name = cap.name.toLowerCase();
-        const hint = (cap.searchHint?.length ? cap.searchHint : cap.description).toLowerCase();
-        const desc = cap.description.toLowerCase();
-        const whenToUse = (cap.whenToUse || '').toLowerCase();
-
-        // Exact name match
-        if (name === query) score += 100;
-        // Name contains query
-        else if (name.includes(query)) score += 50;
-
-        // Query words match name parts (snake_case splitting)
-        const queryWords = query.split(/[\s_]+/);
-        const nameParts = name.split('_');
-        for (const qw of queryWords) {
-          if (nameParts.some(np => np.startsWith(qw))) score += 20;
-          if (hint.includes(qw)) score += 10;
-          if (desc.includes(qw)) score += 5;
-          if (whenToUse.includes(qw)) score += 5;
-        }
-
-        // Category match
-        if (cap.category === query) score += 30;
+        let score = scoreToolMatch(query, cap);
 
         // Prioritize deferred tools (the primary use case for tool_search)
         // Only apply bonus if there's already a text match

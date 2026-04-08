@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "chalk": "^5.4.1",
     "cli-highlight": "^2",
     "cli-table3": "^0.6.5",
@@ -61,7 +62,8 @@
     "ora": "^8.2.0",
     "react": "^19.2.4",
     "string-width": "^7.2.0",
-    "terminal-link": "^4"
+    "terminal-link": "^4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
