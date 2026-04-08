@@ -11,7 +11,6 @@ const NAME_MAP: Record<string, { group: string; subcommand: string } | null> = {
   tool_search: null, // skip — system tool, not useful as CLI
 };
 
-// F8: Renamed from PREFIX_REMAP; direct lookup replaces O(n) loop
 const NAME_OVERRIDES: Record<string, string> = {
   accept_event: 'event',
   decline_event: 'event',
@@ -40,8 +39,7 @@ function toKebab(snakeName: string): string {
   return snakeName.replace(/_/g, '-');
 }
 
-// F12: Handle digits after underscores (e.g. param_2x → param2x)
-function toCamel(snakeName: string): string {
+export function toCamel(snakeName: string): string {
   return snakeName.replace(/_([a-z0-9])/gi, (_, c: string) => c.toUpperCase());
 }
 
@@ -56,11 +54,9 @@ function isArrayType(type: ToolParam['type']): boolean {
 function addParamOption(cmd: Command, param: ToolParam): void {
   const kebab = toKebab(param.name);
 
-  // F3: Never use requiredOption for booleans — they are toggle flags
   if (param.type === 'boolean') {
     cmd.option(`--${kebab}`, param.description);
   } else if (isObjectType(param.type)) {
-    // F2: Object type params treated as JSON string input
     if (param.required) {
       cmd.requiredOption(`--${kebab} <json>`, param.description);
     } else {
@@ -93,7 +89,7 @@ function buildAction(cap: CanonicalCapability) {
         if (opts[camelKey] !== undefined) {
           let val = opts[camelKey];
 
-          // F1 + F6: Use Number() for numeric coercion with NaN check
+          // Coerce to number, reject NaN
           if (param.type === 'number') {
             const num = Number(val);
             if (isNaN(num)) {
@@ -115,8 +111,18 @@ function buildAction(cap: CanonicalCapability) {
             }
             if (hasInvalid) continue;
             val = nums;
+          } else if (param.type === 'object[]' && Array.isArray(val)) {
+            const objs: unknown[] = [];
+            for (const el of val) {
+              try {
+                objs.push(JSON.parse(el as string));
+              } catch {
+                console.error(`Warning: invalid JSON element in --${toKebab(param.name)}: ${el}`);
+                objs.push(el);
+              }
+            }
+            val = objs;
           } else if (isObjectType(param.type)) {
-            // F2: Parse JSON for object type params
             try {
               val = JSON.parse(val as string);
             } catch (e) {
@@ -141,7 +147,6 @@ function buildAction(cap: CanonicalCapability) {
       }
     } catch (error) {
       if (opts.json) {
-        // F7: Set exit code 1 for JSON error output
         process.exitCode = 1;
         console.log(
           JSON.stringify({
@@ -159,7 +164,7 @@ function buildAction(cap: CanonicalCapability) {
         process.exit(1);
       }
     } finally {
-      // F5: API key cleanup in finally block instead of duplicated try/catch
+      // Clear API key override
       if (hadApiKey) setFlagApiKey(undefined);
     }
   };

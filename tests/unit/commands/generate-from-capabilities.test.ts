@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import {
   registerCapabilityCommands,
   deriveGroupAndSubcommand,
+  toCamel,
 } from '../../../src/commands/generate-from-capabilities.js';
 import type { CanonicalCapability } from '../../../src/capabilities/types.js';
 import type { ToolParam } from '../../../src/chat/providers/interface.js';
@@ -201,7 +202,6 @@ describe('action handler', () => {
     process.exitCode = savedExitCode;
   });
 
-  // F10: number coercion
   it('coerces number params with Number()', async () => {
     const executeFn = vi.fn(async (args: Record<string, unknown>) => args);
     const cap = makeCap({
@@ -217,7 +217,6 @@ describe('action handler', () => {
     expect(typeof executeFn.mock.calls[0][0].count).toBe('number');
   });
 
-  // F10: --json wraps in { ok: true, data: ... }
   it('wraps output in { ok: true, data } with --json', async () => {
     const cap = makeCap({
       name: 'test_json',
@@ -231,7 +230,6 @@ describe('action handler', () => {
     expect(output).toEqual({ ok: true, data: { result: 'hello' } });
   });
 
-  // F10: error with --json returns { ok: false, error } + exit code 1
   it('returns { ok: false, error } with exit code 1 on --json error', async () => {
     const cap = makeCap({
       name: 'test_err',
@@ -246,7 +244,6 @@ describe('action handler', () => {
     expect(process.exitCode).toBe(1);
   });
 
-  // F10: formatResult is called when present
   it('calls formatResult when present and --json is not set', async () => {
     const cap = makeCap({
       name: 'test_fmt',
@@ -260,7 +257,6 @@ describe('action handler', () => {
     expect(consoleSpy).toHaveBeenCalledWith('formatted: {"x":1}');
   });
 
-  // F1: number[] array coercion
   it('coerces number[] array values through Number()', async () => {
     const executeFn = vi.fn(async (args: Record<string, unknown>) => args);
     const cap = makeCap({
@@ -278,7 +274,6 @@ describe('action handler', () => {
     }
   });
 
-  // F6: invalid number warns and skips
   it('warns on invalid number and skips param', async () => {
     const executeFn = vi.fn(async (args: Record<string, unknown>) => args);
     const cap = makeCap({
@@ -294,7 +289,6 @@ describe('action handler', () => {
     expect(executeFn).toHaveBeenCalledWith({});
   });
 
-  // F11: object type param parses JSON
   it('parses object type params from JSON string', async () => {
     const executeFn = vi.fn(async (args: Record<string, unknown>) => args);
     const cap = makeCap({
@@ -314,7 +308,6 @@ describe('action handler', () => {
     expect(executeFn).toHaveBeenCalledWith({ config: { key: 'value' } });
   });
 
-  // F11: invalid JSON for object type param
   it('reports error for invalid JSON in object param', async () => {
     const executeFn = vi.fn(async () => ({}));
     const cap = makeCap({
@@ -334,5 +327,52 @@ describe('action handler', () => {
     expect(executeFn).not.toHaveBeenCalled();
     expect(consoleErrorSpy).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
+  });
+
+  it('coerces object[] array elements via JSON.parse', async () => {
+    const executeFn = vi.fn(async (args: Record<string, unknown>) => args);
+    const cap = makeCap({
+      name: 'test_objarr',
+      params: [{ name: 'items', type: 'object[]' as const, description: 'Items', required: false }],
+      execute: executeFn,
+    });
+
+    const cmd = registerAndGetCmd(cap);
+    await cmd.parseAsync(['--items', '{"a":1}', '{"b":2}'], { from: 'user' });
+
+    expect(executeFn).toHaveBeenCalledWith({ items: [{ a: 1 }, { b: 2 }] });
+  });
+
+  it('keeps raw string and warns when object[] element is not valid JSON', async () => {
+    const executeFn = vi.fn(async (args: Record<string, unknown>) => args);
+    const cap = makeCap({
+      name: 'test_objarr_bad',
+      params: [{ name: 'items', type: 'object[]' as const, description: 'Items', required: false }],
+      execute: executeFn,
+    });
+
+    const cmd = registerAndGetCmd(cap);
+    await cmd.parseAsync(['--items', 'not-json', '{"b":2}'], { from: 'user' });
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('invalid JSON element'));
+    expect(executeFn).toHaveBeenCalledWith({ items: ['not-json', { b: 2 }] });
+  });
+});
+
+describe('toCamel', () => {
+  it('converts snake_case to camelCase', () => {
+    expect(toCamel('hello_world')).toBe('helloWorld');
+  });
+
+  it('handles digits after underscores (param_2x)', () => {
+    expect(toCamel('param_2x')).toBe('param2x');
+  });
+
+  it('handles digits in multi-segment names (some_2nd_field)', () => {
+    expect(toCamel('some_2nd_field')).toBe('some2ndField');
+  });
+
+  it('returns single-word input unchanged', () => {
+    expect(toCamel('hello')).toBe('hello');
   });
 });
