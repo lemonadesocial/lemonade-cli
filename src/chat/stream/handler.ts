@@ -424,7 +424,7 @@ export async function handleTurn(
     messages.push({ role: 'user', content: results as Message['content'] });
 
     // Truncate history if needed
-    truncateHistory(messages);
+    truncateHistory(messages, session);
   }
 
   if (engine) {
