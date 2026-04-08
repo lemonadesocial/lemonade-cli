@@ -1,4 +1,5 @@
 import { ToolParam, ParamType } from '../providers/interface.js';
+import { validateTimezone, validateCurrency, validateISODate, validateDateRange } from './validators/index.js';
 
 interface JsonSchema {
   type: string;
@@ -101,6 +102,34 @@ export function validateArgs(
     if (param.enum && value !== null && value !== undefined && !param.enum.includes(String(value))) {
       errors.push(`Invalid value for ${key}: "${value}". Must be one of: ${param.enum.join(', ')}`);
     }
+  }
+
+  // Semantic validation
+  for (const [key, value] of Object.entries(args)) {
+    if (typeof value !== 'string') continue;
+    const param = params.find((p) => p.name === key);
+    if (!param || (typeof param.type === 'object') || param.type !== 'string') continue;
+
+    // Match 'timezone' exactly — substring matching (e.g. 'timezone_offset') is too broad
+    if (key.toLowerCase() === 'timezone') {
+      const err = validateTimezone(value);
+      if (err) errors.push(err);
+    }
+    if (key === 'currency') {
+      const err = validateCurrency(value);
+      if (err) errors.push(err);
+    }
+    // Match 'start'/'end' only for string-typed params — avoids false positives on numeric fields
+    if ((key === 'start' || key === 'end') && param.type === 'string') {
+      const err = validateISODate(value);
+      if (err) errors.push(err);
+    }
+  }
+
+  // Date range validation
+  if (typeof args['start'] === 'string' && typeof args['end'] === 'string') {
+    const err = validateDateRange(args['start'], args['end']);
+    if (err) errors.push(err);
   }
 
   return { valid: errors.length === 0, errors };
