@@ -1,4 +1,5 @@
 import { getAllCapabilities } from '../chat/tools/registry.js';
+import { filterCapabilities } from './filter.js';
 import { CanonicalCapability } from './types.js';
 
 export interface ToolPartition {
@@ -7,7 +8,8 @@ export interface ToolPartition {
 }
 
 export function partitionTools(): ToolPartition {
-  const caps = getAllCapabilities();
+  const allCaps = getAllCapabilities();
+  const caps = filterCapabilities(allCaps, { surface: 'aiTool' });
   const alwaysLoad: CanonicalCapability[] = [];
   const deferred: CanonicalCapability[] = [];
 
