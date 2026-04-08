@@ -184,6 +184,9 @@ describe('parallel tool execution', () => {
     expect(callOrder).not.toContain('d');
   });
 
+  // Best-effort concurrency check using wall-clock timestamps. Under heavy CI load,
+  // timing windows may shift, but the assertions use >= (not strict inequality) to
+  // tolerate scheduling jitter. The event-log tests above provide deterministic coverage.
   it('mixed batch: [query, query, mutation, query] executes correctly', async () => {
     const startTimes: Record<string, number> = {};
     const endTimes: Record<string, number> = {};

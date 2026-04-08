@@ -59,6 +59,12 @@ function formatDestructiveDescription(tool: ToolDef, args: Record<string, unknow
   return parts.join(' ');
 }
 
+/**
+ * Pre-classification type for tool calls. Fields like `validation` and `needsPlan`
+ * are optional because they are only populated when a tool is found in the registry
+ * (tool !== null). The narrower `ParallelCall` type refines this for the parallel
+ * execution path where tool is guaranteed non-null.
+ */
 interface ClassifiedCall {
   call: { id: string; name: string; arguments: Record<string, unknown> };
   tool: ToolDef | null;
@@ -82,7 +88,7 @@ async function executeParallelBatch(
 
   // Emit tool_start for ALL tools in the batch before any execution
   for (const item of batch) {
-    if (engine && item.tool) {
+    if (engine) {
       engine.emit('tool_start', { id: item.call.id, name: item.tool.displayName, turnId });
     }
   }
