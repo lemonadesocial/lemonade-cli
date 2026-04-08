@@ -4,9 +4,9 @@ import { z } from 'zod';
 import { partitionTools } from '../capabilities/partitioner.js';
 import { capabilityToInputSchema, capabilityToAnnotations } from './schema-adapter.js';
 import { searchCapabilities } from '../capabilities/search.js';
-import { ensureAuthHeader } from '../auth/store.js';
+import { ensureAuthHeader, getDefaultSpace } from '../auth/store.js';
 import { getPackageVersion } from '../config/version.js';
-import type { CanonicalCapability } from '../capabilities/types.js';
+import type { CanonicalCapability, ExecutionContext } from '../capabilities/types.js';
 
 export async function startMcpServer(): Promise<void> {
   // Redirect all console methods to stderr to prevent MCP stdio protocol corruption.
@@ -42,7 +42,11 @@ export async function startMcpServer(): Promise<void> {
       annotations,
       async (args: Record<string, unknown>) => {
         try {
-          const result = await cap.execute(args);
+          // MCP is stateless — no session. Only defaultSpace from config is available.
+          // currentSpace, currentEvent, timezone are undefined in MCP context.
+          // Tools must handle missing context fields gracefully.
+          const context: ExecutionContext = { defaultSpace: getDefaultSpace() };
+          const result = await cap.execute(args, context);
           return {
             content: [{
               type: 'text' as const,

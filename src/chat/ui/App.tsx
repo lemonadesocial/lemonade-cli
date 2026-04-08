@@ -22,6 +22,7 @@ import { handleSwitchProvider, handleSwitchMode } from '../runtime/switchHandler
 import { partitionTools } from '../../capabilities/partitioner.js';
 import { capabilitiesToRegistry } from '../../capabilities/adapter.js';
 import { PlanWizard } from './PlanWizard.js';
+import type { ExecutionContext } from '../../capabilities/types.js';
 import {
   ThinkingSpinner,
   MessageView,
@@ -347,7 +348,8 @@ export function App({
     addSystemMessage('Submitting API key...');
     try {
       const submitTool = registry['connector_submit_api_key'];
-      await submitTool.execute({ connection_id: connectionId, api_key: value.trim() });
+      const submitCtx: ExecutionContext = { defaultSpace: getDefaultSpace() };
+      await submitTool.execute({ connection_id: connectionId, api_key: value.trim() }, submitCtx);
       setApiKeyPrompt(null);
       setApiKeyValue('');
       addSystemMessage(`${connectorType} connected! Use /connectors connected to verify.`);

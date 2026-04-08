@@ -1,7 +1,6 @@
 import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
-import { getDefaultSpace } from '../../../auth/store.js';
 
 export const tempoTools: CanonicalCapability[] = [
   buildCapability({
@@ -74,13 +73,13 @@ export const tempoTools: CanonicalCapability[] = [
     backendService: 'atlas',
     backendResolver: 'atlasUpdatePayoutSettings',
     requiresEvent: false,
-    execute: async (args) => {
+    execute: async (args, context) => {
       const { getWalletInfo } = await import('../../tempo/index.js');
       const info = getWalletInfo();
       if (!info.loggedIn || !info.address) {
         throw new Error('Tempo wallet not connected. Use /tempo login first.');
       }
-      const spaceId = (args.space_id as string) || getDefaultSpace();
+      const spaceId = (args.space_id as string) || context?.defaultSpace;
       if (!spaceId) throw new Error('No space specified. Use /spaces to select one.');
 
       const result = await graphqlRequest<{ atlasUpdatePayoutSettings: unknown }>(

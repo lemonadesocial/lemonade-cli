@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 import { getAllCapabilities } from '../chat/tools/registry.js';
 import { getOrCreateGroup } from './loader.js';
-import { setFlagApiKey } from '../auth/store.js';
-import type { CanonicalCapability } from '../capabilities/types.js';
+import { setFlagApiKey, getDefaultSpace } from '../auth/store.js';
+import type { CanonicalCapability, ExecutionContext } from '../capabilities/types.js';
 import type { ToolParam } from '../chat/providers/interface.js';
 
 const DEBUG = process.env.DEBUG === '1' || process.env.DEBUG === 'true';
@@ -147,7 +147,8 @@ function buildAction(cap: CanonicalCapability) {
         }
       }
 
-      const result = await cap.execute(args);
+      const context: ExecutionContext = { defaultSpace: getDefaultSpace() };
+      const result = await cap.execute(args, context);
 
       if (opts.json) {
         console.log(JSON.stringify({ ok: true, data: result }, null, 2));

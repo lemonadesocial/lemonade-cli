@@ -8,6 +8,7 @@ import { printToolError } from '../stream/display.js';
 import { GraphQLError } from '../../api/graphql.js';
 import { AtlasError } from '../../api/atlas.js';
 import { ChatEngine } from '../engine/ChatEngine.js';
+import type { ExecutionContext } from '../../capabilities/types.js';
 
 interface ClassifiedError {
   fatal: boolean;
@@ -73,6 +74,17 @@ interface ClassifiedCall {
   needsPlan?: boolean;
 }
 
+export function buildContext(session: SessionState): ExecutionContext {
+  return {
+    defaultSpace: session.defaultSpace,
+    currentSpace: session.currentSpace,
+    currentEvent: session.currentEvent,
+    lastCreatedEvent: session.lastCreatedEvent,
+    lastCreatedTicketType: session.lastCreatedTicketType,
+    timezone: session.timezone,
+  };
+}
+
 /** Narrowed type for calls entering parallel execution — tool is guaranteed non-null. */
 type ParallelCall = ClassifiedCall & { tool: ToolDef };
 
@@ -97,7 +109,7 @@ async function executeParallelBatch(
   const execResults = await Promise.all(
     batch.map(async (item) => {
       try {
-        const result = await item.tool.execute(item.call.arguments);
+        const result = await item.tool.execute(item.call.arguments, buildContext(session));
         return { success: true as const, result };
       } catch (err) {
         return { success: false as const, error: err };
@@ -269,7 +281,7 @@ async function executeSequential(
   const spinner = (!engine && isTTY) ? ora(`Running: ${tool.displayName}...`).start() : null;
 
   try {
-    const result = await tool.execute(call.arguments);
+    const result = await tool.execute(call.arguments, buildContext(session));
     if (spinner) spinner.succeed(`Done: ${tool.displayName}`);
     if (engine) {
       engine.emit('tool_done', { id: call.id, name: tool.displayName, result, turnId });

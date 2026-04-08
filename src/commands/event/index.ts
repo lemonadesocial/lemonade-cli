@@ -48,6 +48,7 @@ export function registerEventCommands(program: Command): void {
     .action(async (opts) => {
       try {
         setFlagApiKey(opts.apiKey);
+        // Uses getDefaultSpace() directly (manual command, not capability-routed)
         const spaceId = opts.space || getDefaultSpace();
 
         const input: Record<string, unknown> = {

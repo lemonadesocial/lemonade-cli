@@ -1,13 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { executeCapability, CapabilityNotAvailableError } from '../../../../src/chat/runtime/slash-helpers';
 
-// Mock the registry and filter modules
+// Mock the registry, filter, and auth modules
 vi.mock('../../../../src/chat/tools/registry', () => ({
   getAllCapabilities: vi.fn(() => []),
 }));
 
 vi.mock('../../../../src/capabilities/filter', () => ({
   findCapability: vi.fn(() => undefined),
+}));
+
+vi.mock('../../../../src/auth/store', () => ({
+  getDefaultSpace: vi.fn(() => 'mock-space-id'),
 }));
 
 import { getAllCapabilities } from '../../../../src/chat/tools/registry';
@@ -35,7 +39,7 @@ describe('slash-helpers', () => {
 
       expect(result).toEqual({ items: [1, 2] });
       expect(formatted).toBe('Formatted: 2 items');
-      expect(mockCap.execute).toHaveBeenCalledWith({ foo: 'bar' });
+      expect(mockCap.execute).toHaveBeenCalledWith({ foo: 'bar' }, { defaultSpace: 'mock-space-id' });
       expect(mockCap.formatResult).toHaveBeenCalledWith({ items: [1, 2] });
     });
 

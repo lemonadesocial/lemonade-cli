@@ -13,7 +13,8 @@ import { executeCapability, CapabilityNotAvailableError } from './slash-helpers.
 import { getAllCapabilities } from '../tools/registry.js';
 import { filterCapabilities, getCategories, findCapability, getSuggestions } from '../../capabilities/filter.js';
 import { fetchAiConfigs, getAiConfigId, type AiConfigItem } from '../providers/lemonade-ai.js';
-import { setConfigValue } from '../../auth/store.js';
+import { setConfigValue, getDefaultSpace } from '../../auth/store.js';
+import type { ExecutionContext } from '../../capabilities/types.js';
 
 /** Runtime-only dependencies — no React/Ink types leak in. */
 export interface SlashCommandRuntimeDeps {
@@ -451,7 +452,8 @@ async function handleSpaces(
       if (idx >= 0 && idx < spaces.length) {
         const switchTool = getRegistryTool(registry, 'space_switch', addSystemMessage);
         if (!switchTool) return;
-        const switched = await switchTool.execute({ space_id: spaces[idx]._id }) as { _id: string; title: string };
+        const switchCtx: ExecutionContext = { defaultSpace: getDefaultSpace() };
+        const switched = await switchTool.execute({ space_id: spaces[idx]._id }, switchCtx) as { _id: string; title: string };
         addSystemMessage(`Switched to ${switched.title}.`);
         setSpaceName(switched.title);
       } else {
@@ -467,7 +469,8 @@ async function handleSpaces(
       if (match) {
         const switchTool = getRegistryTool(registry, 'space_switch', addSystemMessage);
         if (!switchTool) return;
-        const switched = await switchTool.execute({ space_id: match._id }) as { _id: string; title: string };
+        const switchCtx: ExecutionContext = { defaultSpace: getDefaultSpace() };
+        const switched = await switchTool.execute({ space_id: match._id }, switchCtx) as { _id: string; title: string };
         addSystemMessage(`Switched to ${switched.title}.`);
         setSpaceName(switched.title);
       } else {
@@ -990,7 +993,8 @@ async function handleTempo(
         try {
           const rewardTool = registry['rewards_balance'];
           if (rewardTool) {
-            const rewards = await rewardTool.execute({ space_id: session.currentSpace._id }) as Record<string, unknown>;
+            const rewardCtx: ExecutionContext = { defaultSpace: getDefaultSpace() };
+            const rewards = await rewardTool.execute({ space_id: session.currentSpace._id }, rewardCtx) as Record<string, unknown>;
             if (rewards) {
               const accrued = rewards.organizer_accrued_usdc || rewards.attendee_accrued_usdc || '0';
               const pending = rewards.organizer_pending_usdc || rewards.attendee_pending_usdc || '0';

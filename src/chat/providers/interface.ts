@@ -1,3 +1,5 @@
+import type { ExecutionContext } from '../../capabilities/types.js';
+
 export interface StreamEvent {
   type: 'text_delta' | 'tool_call' | 'done';
   text?: string;
@@ -84,7 +86,7 @@ export interface ToolDef {
   description: string;
   params: ToolParam[];
   destructive: boolean;
-  execute: (args: Record<string, unknown>) => Promise<unknown>;
+  execute: (args: Record<string, unknown>, context?: ExecutionContext) => Promise<unknown>;
   formatResult?: (result: unknown) => string;
   backendType?: 'query' | 'mutation' | 'none';
 }

@@ -3,6 +3,8 @@ import { ChatEngine } from '../../engine/ChatEngine.js';
 import { ToolDef, ToolParam } from '../../providers/interface.js';
 import { WizardStepDef, generateSteps } from '../../plan/stepGenerator.js';
 import { graphqlRequest } from '../../../api/graphql.js';
+import type { ExecutionContext } from '../../../capabilities/types.js';
+import { getDefaultSpace } from '../../../auth/store.js';
 
 export interface PlanModeState {
   active: boolean;
@@ -75,7 +77,8 @@ export function usePlanMode(engine: ChatEngine) {
         // Manual plan: execute tool directly
         setPlanState((prev) => ({ ...prev, active: false, steps: [], spaces: [] }));
         try {
-          const result = await planState.toolDef!.execute(merged);
+          const context: ExecutionContext = { defaultSpace: getDefaultSpace() };
+          const result = await planState.toolDef!.execute(merged, context);
           engine.emit('tool_done', {
             id: planState.toolCallId,
             name: planState.toolDisplayName,
