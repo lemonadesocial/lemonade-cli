@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { partitionTools, formatDeferredToolList } from '../../../src/capabilities/partitioner.js';
 import { getAllCapabilities } from '../../../src/chat/tools/registry.js';
+import { filterCapabilities } from '../../../src/capabilities/filter.js';
 
 describe('partitionTools', () => {
   it('returns non-empty alwaysLoad and deferred arrays', () => {
@@ -33,10 +34,10 @@ describe('partitionTools', () => {
     }
   });
 
-  it('covers all capabilities (alwaysLoad + deferred = total)', () => {
-    const total = getAllCapabilities().length;
+  it('covers all aiTool capabilities (alwaysLoad + deferred = filtered total)', () => {
+    const aiToolCaps = filterCapabilities(getAllCapabilities(), { surface: 'aiTool' });
     const { alwaysLoad, deferred } = partitionTools();
-    expect(alwaysLoad.length + deferred.length).toBe(total);
+    expect(alwaysLoad.length + deferred.length).toBe(aiToolCaps.length);
   });
 
   it('produces expected approximate counts', () => {

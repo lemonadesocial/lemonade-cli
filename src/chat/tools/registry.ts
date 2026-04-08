@@ -1,6 +1,7 @@
 import { ToolDef } from '../providers/interface.js';
 import { CanonicalCapability } from '../../capabilities/types.js';
 import { capabilitiesToRegistry } from '../../capabilities/adapter.js';
+import { filterCapabilities } from '../../capabilities/filter.js';
 import {
   connectorTools,
   eventTools,
@@ -24,7 +25,8 @@ import {
 } from './domains/index.js';
 
 export function buildToolRegistry(): Record<string, ToolDef> {
-  return capabilitiesToRegistry(getAllCapabilities());
+  const aiTools = filterCapabilities(getAllCapabilities(), { surface: 'aiTool' });
+  return capabilitiesToRegistry(aiTools);
 }
 
 export function getAllCapabilities(): CanonicalCapability[] {
