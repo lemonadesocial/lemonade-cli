@@ -1,61 +1,155 @@
 # Lemonade CLI
 
-Manage events, communities, tickets, and more from the terminal. Built for developers and AI agents.
+[![npm version](https://img.shields.io/npm/v/@lemonade-social/cli)](https://www.npmjs.com/package/@lemonade-social/cli)
+[![build](https://img.shields.io/github/actions/workflow/status/lemonadesocial/lemonade-cli/ci.yml?branch=main)](https://github.com/lemonadesocial/lemonade-cli/actions)
+[![license](https://img.shields.io/github/license/lemonadesocial/lemonade-cli)](./LICENSE)
 
-## Quickstart
+The most powerful events and community management toolkit for AI agents. 223 tools for [Lemonade](https://lemonade.social) -- create events, sell tickets, manage communities, run analytics, and more. Works natively with Claude Code, Claude Desktop, or any MCP-compatible client.
+
+---
+
+## Who is this for?
+
+- **Claude Desktop and Claude Code users** who want to manage events and communities with natural language -- no code required
+- **AI agents** that need structured tools for event lifecycle management
+- **Developers and vibe coders** building on the Lemonade platform who need programmatic access
+- **Event and community managers** automating event operations with AI
+
+---
+
+## Quick start
 
 ```bash
-# 1. Install
 npm install -g @lemonade-social/cli
-
-# 2. Authenticate
-lemonade auth login              # Opens browser for OAuth
-
-# 3. Verify
-lemonade auth whoami             # Should show your name and email
+lemonade auth login
 ```
 
-That's it. You can now run any `lemonade` command.
+### Use with Claude Code or Claude Desktop
 
-### Try the AI terminal (optional)
+Add to your MCP config:
 
-`make-lemonade` is an interactive AI chat that manages your Lemonade account using natural language.
+```json
+{
+  "mcpServers": {
+    "lemonade": {
+      "command": "lemonade",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+That's it. Claude now has access to every Lemonade tool. Try:
+
+```
+> Create a paid event called "Warehouse Party" next Saturday in Berlin
+>   with $25 early bird tickets, a 20% launch discount, and publish it
+```
+
+One message. Four tools chained automatically: `event_create` -> `tickets_create_type` -> `tickets_create_discount` -> `event_publish`.
+
+```
+> Give me a full health check on my Warehouse Party event
+```
+
+Guest stats, ticket sales, page views, and feedback pulled in parallel.
+
+### Use from the terminal
 
 ```bash
-# Set your AI provider key (pick one)
-export ANTHROPIC_API_KEY=sk-ant-...
-# or
-export OPENAI_API_KEY=sk-...
+lemonade event create --title "Warehouse Party" --start "2026-05-01T22:00:00Z"
+lemonade event list --json
+lemonade space stripe-connect
+```
 
-# Launch
+### Use as an AI terminal
+
+```bash
 make-lemonade
 ```
 
-If you skip the export step, `make-lemonade` will walk you through setting up an API key on first launch.
+Interactive AI chat for natural language event management. Supports Anthropic and OpenAI.
 
-### Local development (contributors)
+---
 
-If you're working on the CLI itself instead of using it:
+## What's inside
+
+223 tools across every part of the event lifecycle:
+
+| Category | Tools | What you can do |
+|----------|------:|-----------------|
+| Events | 73 | Create, publish, update, cancel, clone, search. Full lifecycle from draft to post-event. |
+| Spaces | 36 | Community hubs with members, roles, analytics, Stripe payouts, and platform connections. |
+| Pages | 17 | AI-powered page builder. Generate landing pages, manage sections, version history. |
+| Payments | 16 | Stripe connect, wallet setup, payment accounts, escrow, relay, and stake configurations. |
+| Tickets | 14 | Ticket types, pricing, discounts, purchases, assignments, upgrades, and email receipts. |
+| Connectors | 9 | Sync with Eventbrite, Luma, and other platforms. Import and export event data. |
+| Newsletters | 8 | Create, send, and track email campaigns to your community. |
+| Subscriptions | 6 | Plan management, feature access, upgrades, and billing. |
+| Rewards | 6 | Balance, history, payouts, referrals, and reward settings. |
+| Sessions | 5 | Event session scheduling, reservations, and capacity management. |
+| Workflows | 3 | Multi-step recipes: paid event setup, community launch, event health check. |
+| + 30 more | | File uploads, notifications, templates, themes, voting, launchpad, user management. |
+
+---
+
+## MCP server
 
 ```bash
-git clone https://github.com/lemonadesocial/lemonade-cli.git
-cd lemonade-cli
-yarn install
-yarn build
-npm link                         # Makes `lemonade` and `make-lemonade` available globally
-yarn test                        # Run tests
+lemonade mcp
 ```
 
-## Interactive AI Mode
+Starts a stdio [Model Context Protocol](https://modelcontextprotocol.io) server exposing all 223 tools.
+
+**Smart loading.** 62 core tools load immediately. 161 additional tools are available on demand via the `discover_tools` meta-tool. This keeps the active tool count well under provider limits while giving you access to everything.
+
+**Built-in safety.** Destructive operations require confirmation. Mutations support `--dry-run` to preview changes before executing. Client-side validation catches bad timezones, currencies, and dates before they hit the API.
+
+**Works with any MCP client:**
+- Claude Desktop -- manage events and communities without writing a line of code
+- Claude Code (CLI, desktop app, VS Code, JetBrains)
+- Any MCP-compatible AI agent or IDE
+
+---
+
+## Workflows
+
+Multi-step operations that chain tools automatically:
+
+**Create a paid event**
+`event_create` -> `tickets_create_type` -> `event_publish`
+
+**Launch a community**
+`space_create` -> `event_create`
+
+**Event health check**
+`event_guest_stats` + `event_ticket_sold_insight` + `event_view_insight` (runs in parallel)
+
+Workflows are registered as AI tools. Ask Claude to "set up a paid event" and it selects the right workflow.
+
+---
+
+## Dry-run mode
+
+Preview any mutation without executing it:
+
+```bash
+lemonade event create --title "Test" --start "2026-06-01" --dry-run
+```
+
+Returns the full payload that would be sent to the API. Works on all mutation commands and in MCP mode.
+
+---
+
+## Interactive AI mode
 
 ```bash
 make-lemonade
 ```
 
-Chat with an AI assistant that can create events, manage tickets, switch spaces, and more -- all in natural language.
+Standalone AI terminal for managing your Lemonade account with natural language.
 
-```bash
-# Examples of what you can say:
+```
 > create a techno event in Berlin next Saturday at 10pm
 > add a 25 dollar early bird ticket
 > publish it
@@ -66,151 +160,95 @@ Chat with an AI assistant that can create events, manage tickets, switch spaces,
 **Options:**
 
 ```bash
-make-lemonade --provider openai          # Use OpenAI instead of Anthropic (default)
-make-lemonade --model gpt-4o            # Override the model
+make-lemonade --provider openai          # Use OpenAI (default: Anthropic)
+make-lemonade --model gpt-4o            # Override model
 echo "list my events" | make-lemonade    # Batch mode via stdin
 make-lemonade --json                     # JSON output (batch mode)
-make-lemonade --help                     # Full options
 ```
 
-## CLI Commands
+---
 
-### Spaces
+## CLI reference
 
-```bash
-lemonade space create --title "Berlin Techno"
-lemonade space list
-lemonade space update <id> --description "Underground events"
-lemonade space connect <platform>        # Connect a platform (e.g. eventbrite)
-lemonade space connectors <id>           # List connected platforms
-lemonade space analytics <id>
-lemonade space plan <id>                 # Show current plan and usage
-lemonade space upgrade <id>              # Open subscription page
-lemonade space stripe-connect            # Connect Stripe for payouts
-lemonade space stripe-status             # Check Stripe connection status
-```
+Every command supports `--json` for structured output and `--dry-run` for mutation preview.
 
-### Events
+| Command | Description |
+|---------|-------------|
+| `lemonade mcp` | Start MCP server for Claude Desktop, Claude Code, and AI agents |
+| `lemonade auth login` | Authenticate via browser |
+| `lemonade auth whoami` | Check current identity |
+| `lemonade event create` | Create a new event |
+| `lemonade event list` | List your events |
+| `lemonade event publish <id>` | Publish a draft event |
+| `lemonade event guests <id>` | View guest list |
+| `lemonade event analytics <id>` | Event performance dashboard |
+| `lemonade space create` | Create a community space |
+| `lemonade space list` | List your spaces |
+| `lemonade space stripe-connect` | Connect Stripe for payouts |
+| `lemonade tickets create-type` | Add a ticket type to an event |
+| `lemonade tickets types <event-id>` | List ticket types |
+| `lemonade site generate` | AI-generate a landing page |
+| `lemonade connectors list` | List connected platforms |
+| `lemonade config set` | Configure defaults |
 
-```bash
-lemonade event create --title "Warehouse Party" --space <id>
-lemonade event list
-lemonade event search "techno berlin"    # Atlas federated search
-lemonade event get <id>
-lemonade event update <id> --description "Updated info"
-lemonade event publish <id>
-lemonade event cancel <id>
-lemonade event analytics <id>
-lemonade event guests <id>
-lemonade event invite <id> --email user@example.com
-lemonade event approvals <id>            # Manage join requests
-lemonade event feedback <id>
-lemonade event checkins <id>
-```
+Run `lemonade --help` for the full command list.
 
-### Tickets
-
-```bash
-lemonade tickets types <event-id>
-lemonade tickets create-type <event-id> --title "Early Bird" --price 25
-lemonade tickets update-type <id> --price 30
-lemonade tickets price <event-id>
-lemonade tickets buy <event-id> --type <type-id> --quantity 2
-```
-
-### Rewards
-
-```bash
-lemonade rewards balance
-lemonade rewards history
-lemonade rewards payouts
-lemonade rewards referral
-lemonade rewards settings
-```
-
-### Site Builder
-
-```bash
-lemonade site generate "A landing page for our techno community"
-lemonade site preview
-lemonade site deploy <space-id>
-lemonade site templates
-```
-
-### Connectors
-
-```bash
-lemonade connectors list
-lemonade connectors sync <id>
-```
-
-### Configuration
-
-```bash
-lemonade config init                     # Create ~/.lemonade/config.json
-lemonade config set default_space <id>   # Set default space for all commands
-lemonade config get default_space
-```
+---
 
 ## Authentication
 
-Three ways to authenticate:
-
 ```bash
-# Option 1: Browser login (recommended)
+# Browser login (recommended)
 lemonade auth login
 
-# Option 2: API key (for scripts and CI)
+# API key (scripts and CI)
 lemonade auth token <your-api-key>
 
-# Option 3: Environment variable (for CI/CD)
+# Environment variable (CI/CD)
 export LEMONADE_API_KEY=your-api-key
 ```
 
-Check your auth status:
+---
+
+## Configuration
 
 ```bash
-lemonade auth whoami
+lemonade config init                     # Create config file
+lemonade config set default_space <id>   # Set default space
+lemonade config get default_space
 ```
 
-## JSON Output
-
-Every command supports `--json` for structured output, useful for scripting:
-
-```bash
-lemonade event list --json
-```
-
-```json
-{
-  "ok": true,
-  "data": [
-    { "_id": "abc123", "title": "Warehouse Party", "start": "2026-04-15T22:00:00Z" }
-  ]
-}
-```
-
-## Environment Variables
+## Environment variables
 
 | Variable | Purpose |
 |---|---|
-| `LEMONADE_API_KEY` | API key for Lemonade (skips browser login) |
+| `LEMONADE_API_KEY` | API key (skips browser login) |
 | `LEMONADE_API_URL` | Backend URL (default: production) |
-| `LEMONADE_REGISTRY_URL` | Atlas Registry URL |
-| `ANTHROPIC_API_KEY` | Anthropic API key (for make-lemonade) |
-| `OPENAI_API_KEY` | OpenAI API key (for make-lemonade) |
-| `MAKE_LEMONADE_PROVIDER` | AI provider: `anthropic` (default) or `openai` |
+| `ANTHROPIC_API_KEY` | For `make-lemonade` AI mode |
+| `OPENAI_API_KEY` | For `make-lemonade` AI mode |
+| `MAKE_LEMONADE_PROVIDER` | AI provider: `anthropic` or `openai` |
 | `MAKE_LEMONADE_MODEL` | Model override (e.g. `claude-sonnet-4-6`, `gpt-4o`) |
 
-## Exit Codes
+---
 
-| Code | Meaning |
-|---|---|
-| 0 | Success |
-| 1 | User error (bad input, not found) |
-| 2 | Authentication error |
-| 3 | Network error |
+## Contributing
 
-## License
+```bash
+git clone https://github.com/lemonadesocial/lemonade-cli.git
+cd lemonade-cli
+yarn install
+yarn build
+npm link
+yarn test
+```
 
-MIT
+See [CHANGELOG.md](./CHANGELOG.md) for recent changes.
+
+---
+
+## Links
+
+- [Lemonade Platform](https://lemonade.social)
+- [npm package](https://www.npmjs.com/package/@lemonade-social/cli)
+- [Changelog](./CHANGELOG.md)
+- [License](./LICENSE) (MIT)
