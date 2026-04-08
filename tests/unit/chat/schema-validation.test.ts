@@ -30,14 +30,14 @@ const registrySource = [
  */
 const BACKEND_SCHEMA: Record<string, string[]> = {
   // === AI Tool endpoints (lemonade-backend/src/graphql/types/ai-tool.ts) ===
-  aiGetMe: ['user', '_id', 'name', 'email', 'first_name', 'last_name', 'addresses'],
+  getMe: ['_id', 'name', 'email', 'first_name', 'last_name', 'stripe_connected_account', 'account_id', 'connected'],
   aiGetBackendVersion: [], // scalar String
   aiGetHostingEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count'],
-  aiGetEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'city', 'country', 'latitude', 'longitude', 'cover', 'attending_count', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'ticket_limit_per', 'timezone', 'approval_required', 'application_required', 'registration_disabled', 'currency', 'tags', 'guest_directory_enabled', 'subevent_enabled', 'terms_text', 'welcome_text', 'theme_data', 'dark_theme_image', 'light_theme_image'],
+  getEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'city', 'country', 'latitude', 'longitude', 'cover', 'attending_count', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'ticket_limit_per', 'timezone', 'approval_required', 'application_required', 'registration_disabled', 'currency', 'tags', 'guest_directory_enabled', 'subevent_enabled', 'terms_text', 'welcome_text', 'theme_data', 'dark_theme_image', 'light_theme_image'],
   createEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required', 'address', 'city', 'country', 'latitude', 'longitude', 'theme_data', 'dark_theme_image', 'light_theme_image'],
   updateEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required', 'cover', 'theme_data', 'dark_theme_image', 'light_theme_image'],
   aiPublishEvent: ['_id', 'title', 'published', 'shortid'],
-  aiCancelEvent: [], // Returns Boolean
+  cancelEvent: ['_id'], // Returns Event!
   aiSearchEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count', 'city', 'country', 'latitude', 'longitude'],
   aiGetEventGuestStats: ['going', 'pending_approval', 'pending_invite', 'declined', 'checked_in', 'total'],
   aiGetEventTicketSoldInsight: ['total_sold', 'total_revenue_cents', 'currency', 'by_type', 'ticket_type_id', 'title', 'sold', 'revenue_cents'],
@@ -48,15 +48,15 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetEventFeedbackSummary: ['average_rating', 'total_reviews', 'rating_distribution', 'rating', 'count'],
   aiListEventFeedbacks: ['items', 'rating', 'comment', 'user_name', 'created_at'],
   aiGetEventApplicationAnswers: ['user_name', 'email', 'answers', 'submitted_at', 'question', 'answer'],
-  aiListEventTicketTypes: ['title', 'active', 'private', 'limited', 'description'],
-  aiCreateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
-  aiUpdateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
+  listEventTicketTypes: ['title', 'active', 'private', 'limited', 'description'],
+  createEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
+  updateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
   aiCreateEventTicketDiscount: ['_id', 'code', 'discount_type', 'value', 'limit', 'created_at'],
   aiCalculateTicketPrice: ['subtotal_cents', 'discount_cents', 'total_cents', 'currency'],
-  aiInviteEvent: [], // no fields selected
+  inviteEvent: ['_id'], // Returns Event!
   aiDecideEventJoinRequests: ['processed_count', 'decision'],
-  aiAcceptEvent: [], // scalar
-  aiDeclineEvent: [], // scalar
+  acceptEvent: ['state'], // Returns EventRsvp!
+  declineEvent: ['state'], // Returns EventRsvp!
   aiGetMyTickets: ['items', 'event_title', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],
   aiListMySpaces: ['items', '_id', 'title', 'slug', 'description', 'private', 'personal', 'image_avatar_url', 'member_count', 'event_count'],
   createSpace: ['_id', 'title', 'slug', 'description', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'theme_data', 'theme_name', 'dark_theme_image', 'light_theme_image', 'address', 'title', 'city', 'country'],
@@ -88,7 +88,6 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGeneratePageFromDescription: [], // opaque JSON
 
   // === Standard backend endpoints ===
-  getMe: ['stripe_connected_account', 'account_id', 'connected'],
   getEventJoinRequests: ['total', 'records', '_id', 'user', 'email', 'state', 'ticket_issued', 'created_at', 'user_expanded', 'name'],
   getEventTicketCategories: ['_id', 'event', 'title', 'description', 'position'],
   getEventPaymentSummary: ['currency', 'decimals', 'amount', 'transfer_amount', 'pending_transfer_amount'],
