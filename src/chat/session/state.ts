@@ -22,7 +22,7 @@ export function createSessionState(user: {
 }
 
 export interface SessionUpdate {
-  field: string;
+  field: keyof SessionState;
   extract: (result: unknown) => unknown;
 }
 
@@ -42,8 +42,8 @@ export function updateSession(
         if (value !== undefined) {
           (session as unknown as Record<string, unknown>)[update.field] = value;
         }
-      } catch {
-        // Extraction failed, skip this update
+      } catch (err) {
+        process.stderr.write(`[session] extract failed for field "${update.field}": ${err}\n`);
       }
     }
     return;

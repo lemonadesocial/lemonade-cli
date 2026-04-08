@@ -4,6 +4,21 @@ import { graphqlRequest } from '../../../api/graphql.js';
 import { registrySearch } from '../../../api/registry.js';
 import { parseJsonObject } from '../utils/index.js';
 
+/** Shared extractor: pulls { _id, title } from a result object */
+const extractIdTitle = (r: unknown): { _id: string; title: string } | undefined => {
+  const d = r as Record<string, unknown>;
+  if (!d._id || !d.title) return undefined;
+  return { _id: String(d._id), title: String(d.title) };
+};
+
+/** Shared extractor: pulls currentSpace from hosted_by/space sub-object */
+const extractSpace = (r: unknown): { _id: string; title: string } | undefined => {
+  const d = r as Record<string, unknown>;
+  const space = (d.hosted_by || d.space) as Record<string, unknown> | undefined;
+  if (!space || !space._id || !space.title) return undefined;
+  return { _id: String(space._id), title: String(space.title) };
+};
+
 export const eventTools: CanonicalCapability[] = [
   buildCapability({
     name: 'event_create',
@@ -46,19 +61,9 @@ export const eventTools: CanonicalCapability[] = [
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     sessionUpdates: [
-      { field: 'lastCreatedEvent', extract: (r: unknown) => {
-        const d = r as Record<string, unknown>;
-        return { _id: d._id, title: d.title };
-      }},
-      { field: 'currentEvent', extract: (r: unknown) => {
-        const d = r as Record<string, unknown>;
-        return { _id: d._id, title: d.title };
-      }},
-      { field: 'currentSpace', extract: (r: unknown) => {
-        const d = r as Record<string, unknown>;
-        const space = (d.hosted_by || d.space) as Record<string, unknown> | undefined;
-        return space ? { _id: space._id, title: space.title } : undefined;
-      }},
+      { field: 'lastCreatedEvent', extract: extractIdTitle },
+      { field: 'currentEvent', extract: extractIdTitle },
+      { field: 'currentSpace', extract: extractSpace },
     ],
     execute: async (args, context) => {
       const spaceId = (args.space as string) || context?.defaultSpace;
