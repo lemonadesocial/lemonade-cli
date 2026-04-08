@@ -72,10 +72,10 @@ const MANUAL_RESOLVERS = new Set([
   // Auth commands
   'getMe',
   // Space commands
-  'createSpace', 'aiListMySpaces', 'updateSpace', 'aiGetSpaceStats',
+  'createSpace', 'listMySpaces', 'updateSpace', 'aiGetSpaceStats',
   'connectPlatform', 'submitApiKey', 'spaceConnections',
   // Event commands
-  'createEvent', 'aiGetHostingEvents', 'aiSearchEvents', 'getEvent',
+  'createEvent', 'getHostingEvents', 'aiSearchEvents', 'getEvent',
   'updateEvent', 'aiPublishEvent', 'cancelEvent',
   'aiGetEventGuests', 'inviteEvent', 'aiDecideEventJoinRequests',
   'aiGetEventFeedbackSummary', 'aiListEventFeedbacks', 'aiGetEventCheckins',

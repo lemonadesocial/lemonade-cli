@@ -116,7 +116,6 @@ export const eventTools: CanonicalCapability[] = [
     description: 'List your hosted events.',
     params: [
       { name: 'draft', type: 'boolean', description: 'Show only drafts', required: false },
-      { name: 'search', type: 'string', description: 'Search text', required: false },
       { name: 'limit', type: 'number', description: 'Max results', required: false, default: '20' },
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
@@ -125,25 +124,24 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetHostingEvents',
+    backendResolver: 'getHostingEvents',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'slashCommand', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetHostingEvents: { items: Array<Record<string, unknown>> } }>(
-        `query($draft: Boolean, $search: String, $limit: Int, $skip: Int) {
-          aiGetHostingEvents(draft: $draft, search: $search, limit: $limit, skip: $skip) {
-            items { _id title shortid start end published }
+      const result = await graphqlRequest<{ getHostingEvents: Array<Record<string, unknown>> }>(
+        `query($draft: Boolean, $limit: Int!, $skip: Int!) {
+          getHostingEvents(draft: $draft, limit: $limit, skip: $skip) {
+            _id title shortid start end published
           }
         }`,
         {
           draft: args.draft || undefined,
-          search: args.search as string | undefined,
           limit: (args.limit as number) || 20,
           skip: (args.skip as number) || 0,
         },
       );
-      return result.aiGetHostingEvents;
+      return { items: result.getHostingEvents };
     },
   }),
   buildCapability({

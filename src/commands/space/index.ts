@@ -67,9 +67,9 @@ export function registerSpaceCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const skip = opts.cursor ? parseInt(opts.cursor, 10) : 0;
 
-        const result = await graphqlRequest<{ aiListMySpaces: { items: Record<string, unknown>[] } }>(
+        const result = await graphqlRequest<{ listMySpaces: { items: Record<string, unknown>[] } }>(
           `query($limit: Int, $skip: Int) {
-            aiListMySpaces(limit: $limit, skip: $skip) {
+            listMySpaces(limit: $limit, skip: $skip) {
               items { _id title slug description }
             }
           }`,
@@ -77,7 +77,7 @@ export function registerSpaceCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const items = result.aiListMySpaces.items;
+        const items = result.listMySpaces.items;
         if (opts.json) {
           const nextCursor = items.length === limit ? String(skip + limit) : null;
           console.log(jsonSuccess(items, { cursor: nextCursor }));

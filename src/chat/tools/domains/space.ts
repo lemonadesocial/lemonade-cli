@@ -107,21 +107,21 @@ export const spaceTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiListMySpaces',
+    backendResolver: 'listMySpaces',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'slashCommand', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiListMySpaces: unknown }>(
+      const result = await graphqlRequest<{ listMySpaces: { items: Array<Record<string, unknown>>; total: number } }>(
         `query($limit: Int, $skip: Int) {
-          aiListMySpaces(limit: $limit, skip: $skip) {
+          listMySpaces(limit: $limit, skip: $skip) {
             items { _id title slug description }
+            total
           }
         }`,
-        // Backend aiListMySpaces includes creator, admin, and ambassador roles
       { limit: (args.limit as number) || 100, skip: (args.skip as number) || 0 },
       );
-      return result.aiListMySpaces;
+      return result.listMySpaces;
     },
   }),
   buildCapability({
@@ -138,20 +138,20 @@ export const spaceTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiListMySpaces',
+    backendResolver: 'listMySpaces',
     requiresSpace: false,
     requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{
-        aiListMySpaces: { items: Array<{ _id: string; title: string; slug: string }> };
+        listMySpaces: { items: Array<{ _id: string; title: string; slug: string }> };
       }>(
         `query {
-          aiListMySpaces(limit: 100, skip: 0) {
+          listMySpaces(limit: 100, skip: 0) {
             items { _id title slug }
           }
         }`,
       );
-      const spaces = result.aiListMySpaces.items;
+      const spaces = result.listMySpaces.items;
       const match = spaces.find((s) => s._id === args.space_id);
       if (!match) {
         throw new Error('Space not found. Run space_list to see your spaces.');

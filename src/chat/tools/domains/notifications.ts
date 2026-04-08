@@ -37,18 +37,16 @@ export const notificationsTools: CanonicalCapability[] = [
     searchHint: 'mark read notifications dismiss clear',
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiReadNotifications',
+    backendResolver: 'readNotifications',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const ids = args.notification_ids as string[];
-      for (const id of ids) {
-        await graphqlRequest<{ aiReadNotifications: boolean }>(
-          'mutation($id: MongoID) { aiReadNotifications(id: $id) }',
-          { id },
-        );
-      }
+      await graphqlRequest<{ readNotifications: boolean }>(
+        'mutation($ids: [MongoID!]) { readNotifications(_id: $ids) }',
+        { ids },
+      );
       return { read: true, count: ids.length };
     },
   }),
