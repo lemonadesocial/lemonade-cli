@@ -6,7 +6,6 @@ export interface SessionState {
   lastCreatedEvent?: { _id: string; title: string };
   lastCreatedTicketType?: { _id: string; title: string };
   defaultSpace?: string;
-  dryRun?: boolean;
 }
 
 export function createSessionState(user: {

@@ -60,6 +60,35 @@ function formatDestructiveDescription(tool: ToolDef, args: Record<string, unknow
   return parts.join(' ');
 }
 
+function buildDryRunPreview(tool: ToolDef, args: Record<string, unknown>): object {
+  return {
+    dryRun: true,
+    tool: tool.displayName,
+    operation: tool.backendType,
+    args,
+    message: 'Dry run: this mutation would be executed with the above arguments.',
+  };
+}
+
+function handleDryRunResult(
+  engine: ChatEngine | undefined,
+  call: { id: string },
+  preview: object,
+  turnId: string | undefined,
+  results: ToolResultMessage[],
+  tool: ToolDef,
+): void {
+  if (engine) {
+    engine.emit('tool_start', { id: call.id, name: tool.displayName, turnId });
+    engine.emit('tool_done', { id: call.id, name: tool.displayName, result: preview, turnId });
+  }
+  results.push({
+    type: 'tool_result',
+    tool_use_id: call.id,
+    content: JSON.stringify(preview),
+  });
+}
+
 /**
  * Pre-classification type for tool calls. Fields like `validation` and `needsPlan`
  * are optional because they are only populated when a tool is found in the registry
@@ -82,7 +111,7 @@ export function buildContext(session: SessionState): ExecutionContext {
     lastCreatedEvent: session.lastCreatedEvent,
     lastCreatedTicketType: session.lastCreatedTicketType,
     timezone: session.timezone,
-    dryRun: session.dryRun,
+    // dryRun is set per-command by the CLI handler, not from session state
   };
 }
 
@@ -105,22 +134,8 @@ async function executeParallelBatch(
   if (context.dryRun) {
     for (const item of batch) {
       if (item.tool.backendType === 'mutation') {
-        const preview = {
-          dryRun: true,
-          tool: item.tool.displayName,
-          operation: item.tool.backendType,
-          args: item.call.arguments,
-          message: 'Dry run: this mutation would be executed with the above arguments.',
-        };
-        if (engine) {
-          engine.emit('tool_start', { id: item.call.id, name: item.tool.displayName, turnId });
-          engine.emit('tool_done', { id: item.call.id, name: item.tool.displayName, result: preview, turnId });
-        }
-        results.push({
-          type: 'tool_result',
-          tool_use_id: item.call.id,
-          content: JSON.stringify(preview),
-        });
+        const preview = buildDryRunPreview(item.tool, item.call.arguments);
+        handleDryRunResult(engine, item.call, preview, turnId, results, item.tool);
       }
     }
     // Filter out intercepted mutations, continue with remaining tools
@@ -307,24 +322,8 @@ async function executeSequential(
   // Dry-run interception: skip execution for mutations when dryRun is active
   const context = buildContext(session);
   if (context.dryRun && tool.backendType === 'mutation') {
-    const preview = {
-      dryRun: true,
-      tool: tool.displayName,
-      operation: tool.backendType,
-      args: call.arguments,
-      message: 'Dry run: this mutation would be executed with the above arguments.',
-    };
-
-    if (engine) {
-      engine.emit('tool_start', { id: call.id, name: tool.displayName, turnId });
-      engine.emit('tool_done', { id: call.id, name: tool.displayName, result: preview, turnId });
-    }
-
-    results.push({
-      type: 'tool_result',
-      tool_use_id: call.id,
-      content: JSON.stringify(preview),
-    });
+    const preview = buildDryRunPreview(tool, call.arguments);
+    handleDryRunResult(engine, call, preview, turnId, results, tool);
     return { results, fatal: false };
   }
 
