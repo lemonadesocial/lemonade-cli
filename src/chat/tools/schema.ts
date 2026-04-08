@@ -110,7 +110,8 @@ export function validateArgs(
     const param = params.find((p) => p.name === key);
     if (!param || (typeof param.type === 'object') || param.type !== 'string') continue;
 
-    if (key.toLowerCase().includes('timezone')) {
+    // Match 'timezone' exactly — substring matching (e.g. 'timezone_offset') is too broad
+    if (key.toLowerCase() === 'timezone') {
       const err = validateTimezone(value);
       if (err) errors.push(err);
     }
@@ -118,7 +119,8 @@ export function validateArgs(
       const err = validateCurrency(value);
       if (err) errors.push(err);
     }
-    if (key === 'start' || key === 'end') {
+    // Match 'start'/'end' only for string-typed params — avoids false positives on numeric fields
+    if ((key === 'start' || key === 'end') && param.type === 'string') {
       const err = validateISODate(value);
       if (err) errors.push(err);
     }

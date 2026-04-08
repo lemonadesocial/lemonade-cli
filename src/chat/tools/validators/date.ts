@@ -8,6 +8,10 @@ export function validateISODate(dateStr: string): string | null {
   if (isNaN(parsed.getTime())) {
     return `Invalid date: "${dateStr}" does not resolve to a valid date.`;
   }
+  // Guard against Date rollover (e.g. "2025-02-30" silently becomes March)
+  if (!parsed.toISOString().startsWith(dateStr.slice(0, 10))) {
+    return `Invalid date: "${dateStr}" does not resolve to a valid date.`;
+  }
   return null;
 }
 

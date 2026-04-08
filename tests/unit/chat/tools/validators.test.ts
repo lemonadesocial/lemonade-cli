@@ -33,9 +33,9 @@ describe('validateCurrency', () => {
   });
 
   it('returns error for invalid currency code', () => {
-    const result = validateCurrency('XYZ');
+    const result = validateCurrency('FAKE');
     expect(result).toContain('Invalid currency code');
-    expect(result).toContain('XYZ');
+    expect(result).toContain('FAKE');
   });
 });
 
@@ -54,6 +54,12 @@ describe('validateISODate', () => {
   it('returns error for invalid date values', () => {
     const result = validateISODate('2025-13-45');
     expect(result).not.toBeNull();
+  });
+
+  it('returns error for date rollover (e.g. Feb 30)', () => {
+    const result = validateISODate('2025-02-30');
+    expect(result).not.toBeNull();
+    expect(result).toContain('Invalid date');
   });
 });
 
