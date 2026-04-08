@@ -43,26 +43,32 @@ describe('Tool Discoverability Metadata', () => {
 
   it('alwaysLoad count stays within expected range', () => {
     const alwaysLoadCount = capabilities.filter(c => c.alwaysLoad === true).length;
+    // After consolidation: original alwaysLoad + 6 consolidated wrappers
     expect(alwaysLoadCount).toBeGreaterThanOrEqual(25);
-    expect(alwaysLoadCount).toBeLessThanOrEqual(30);
+    expect(alwaysLoadCount).toBeLessThanOrEqual(40);
   });
 
   it('shouldDefer count stays within expected range', () => {
     const shouldDeferCount = capabilities.filter(c => c.shouldDefer === true).length;
-    expect(shouldDeferCount).toBeGreaterThanOrEqual(100);
-    expect(shouldDeferCount).toBeLessThanOrEqual(120);
+    // After consolidation: many more tools deferred
+    expect(shouldDeferCount).toBeGreaterThanOrEqual(140);
+    expect(shouldDeferCount).toBeLessThanOrEqual(180);
   });
 
-  it('shouldDefer defaults to false for small categories', () => {
-    const smallCategoryTools = capabilities.filter(c =>
-      !['event', 'space', 'payment'].includes(c.category) &&
-      c.shouldDefer === true
-    );
-    // Small categories should not have shouldDefer: true
-    expect(smallCategoryTools.length).toBe(0);
+  it('consolidated tools have shouldDefer: false', () => {
+    const consolidatedNames = [
+      'manage_newsletters', 'manage_subscription', 'manage_rewards',
+      'manage_event_sessions', 'manage_page_versions', 'manage_page_config',
+    ];
+    for (const name of consolidatedNames) {
+      const tool = capabilities.find(c => c.name === name);
+      expect(tool, `${name} should exist`).toBeDefined();
+      expect(tool!.shouldDefer).toBe(false);
+      expect(tool!.alwaysLoad).toBe(true);
+    }
   });
 
   it('all tools have been counted', () => {
-    expect(capabilities.length).toBeGreaterThanOrEqual(213);
+    expect(capabilities.length).toBeGreaterThanOrEqual(219);
   });
 });

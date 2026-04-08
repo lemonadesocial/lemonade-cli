@@ -1,4 +1,5 @@
 export { connectorTools } from './connector.js';
+export { consolidatedTools } from './consolidated.js';
 export { eventTools } from './event.js';
 export { fileTools } from './file.js';
 export { launchpadTools } from './launchpad.js';

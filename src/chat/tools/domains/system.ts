@@ -338,6 +338,7 @@ export const systemTools: CanonicalCapability[] = [
     ],
     whenToUse: 'when user needs a CubeJS analytics token',
     searchHint: 'cubejs token analytics bi dashboard access',
+    shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
     backendResolver: 'generateCubejsToken',
