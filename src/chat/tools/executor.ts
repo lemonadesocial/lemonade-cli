@@ -74,11 +74,13 @@ interface ClassifiedCall {
   needsPlan?: boolean;
 }
 
-function buildContext(session: SessionState): ExecutionContext {
+export function buildContext(session: SessionState): ExecutionContext {
   return {
     defaultSpace: session.defaultSpace,
     currentSpace: session.currentSpace,
     currentEvent: session.currentEvent,
+    lastCreatedEvent: session.lastCreatedEvent,
+    lastCreatedTicketType: session.lastCreatedTicketType,
     timezone: session.timezone,
   };
 }

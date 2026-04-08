@@ -42,6 +42,9 @@ export async function startMcpServer(): Promise<void> {
       annotations,
       async (args: Record<string, unknown>) => {
         try {
+          // MCP is stateless — no session. Only defaultSpace from config is available.
+          // currentSpace, currentEvent, timezone are undefined in MCP context.
+          // Tools must handle missing context fields gracefully.
           const context: ExecutionContext = { defaultSpace: getDefaultSpace() };
           const result = await cap.execute(args, context);
           return {

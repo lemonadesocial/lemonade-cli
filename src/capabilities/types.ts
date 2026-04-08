@@ -3,10 +3,14 @@ import { ToolParam, type ToolCategory } from '../chat/providers/interface.js';
 // Re-export ToolCategory from interface.ts (don't duplicate)
 export type { ToolCategory } from '../chat/providers/interface.js';
 
+// Context is optional at the call boundary. All fields are optional because
+// different callsites have varying levels of session info available.
 export interface ExecutionContext {
   defaultSpace?: string;
   currentSpace?: { _id: string; title: string };
   currentEvent?: { _id: string; title: string };
+  lastCreatedEvent?: { _id: string; title: string };
+  lastCreatedTicketType?: { _id: string; title: string };
   timezone?: string;
 }
 

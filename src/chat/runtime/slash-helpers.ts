@@ -1,6 +1,8 @@
 import { getAllCapabilities } from '../tools/registry.js';
 import { findCapability } from '../../capabilities/filter.js';
 import type { ToolDef } from '../providers/interface.js';
+import type { ExecutionContext } from '../../capabilities/types.js';
+import { getDefaultSpace } from '../../auth/store.js';
 
 /**
  * Execute a capability by name and return the formatted result string.
@@ -23,7 +25,8 @@ export async function executeCapability(
   if (!cap) {
     throw new CapabilityNotAvailableError(name);
   }
-  const result = await cap.execute(args);
+  const context: ExecutionContext = { defaultSpace: getDefaultSpace() };
+  const result = await cap.execute(args, context);
   const formatted = cap.formatResult ? cap.formatResult(result) : JSON.stringify(result);
   return { result, formatted };
 }
