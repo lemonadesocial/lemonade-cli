@@ -233,9 +233,9 @@ export function registerEventCommands(program: Command): void {
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
-        const result = await graphqlRequest<{ aiGetEvent: Record<string, unknown> }>(
-          `query($id: MongoID!) {
-            aiGetEvent(id: $id) {
+        const result = await graphqlRequest<{ getEvent: Record<string, unknown> }>(
+          `query($_id: MongoID!) {
+            getEvent(_id: $_id) {
               _id title shortid start end published description
               virtual virtual_url private guest_limit guest_limit_per ticket_limit_per
               timezone approval_required application_required registration_disabled
@@ -243,11 +243,11 @@ export function registerEventCommands(program: Command): void {
               address { title city country latitude longitude }
             }
           }`,
-          { id: eventId },
+          { _id: eventId },
         );
         setFlagApiKey(undefined);
 
-        const ev = result.aiGetEvent;
+        const ev = result.getEvent;
         const addr = ev.address as Record<string, unknown> | null;
         if (opts.json) {
           console.log(jsonSuccess(ev));
@@ -423,10 +423,10 @@ export function registerEventCommands(program: Command): void {
       try {
         setFlagApiKey(opts.apiKey);
         await graphqlRequest(
-          `mutation($id: MongoID!) {
-            aiCancelEvent(id: $id)
+          `mutation($_id: MongoID!) {
+            cancelEvent(_id: $_id) { _id }
           }`,
-          { id: eventId },
+          { _id: eventId },
         );
         setFlagApiKey(undefined);
 
@@ -566,7 +566,7 @@ export function registerEventCommands(program: Command): void {
         setFlagApiKey(opts.apiKey);
         await graphqlRequest(
           `mutation($input: InviteEventInput!) {
-            aiInviteEvent(input: $input)
+            inviteEvent(input: $input) { _id }
           }`,
           { input: { event: eventId, emails: opts.email } },
         );

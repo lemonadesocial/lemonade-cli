@@ -204,14 +204,14 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEvent',
+    backendResolver: 'getEvent',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEvent: unknown }>(
-        `query($id: MongoID!) {
-          aiGetEvent(id: $id) {
+      const result = await graphqlRequest<{ getEvent: unknown }>(
+        `query($_id: MongoID!) {
+          getEvent(_id: $_id) {
             _id title shortid start end published description
             virtual virtual_url private guest_limit guest_limit_per ticket_limit_per
             timezone approval_required application_required registration_disabled
@@ -220,9 +220,9 @@ export const eventTools: CanonicalCapability[] = [
             address { title city country latitude longitude }
           }
         }`,
-        { id: args.event_id },
+        { _id: args.event_id },
       );
-      return result.aiGetEvent;
+      return result.getEvent;
     },
   }),
   buildCapability({
@@ -361,13 +361,13 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: true,
     backendType: 'mutation',
-    backendResolver: 'aiCancelEvent',
+    backendResolver: 'cancelEvent',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       await graphqlRequest(
-        'mutation($id: MongoID!) { aiCancelEvent(id: $id) }',
-        { id: args.event_id },
+        'mutation($_id: MongoID!) { cancelEvent(_id: $_id) { _id } }',
+        { _id: args.event_id },
       );
       return { cancelled: true, event_id: args.event_id };
     },
@@ -513,12 +513,12 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiInviteEvent',
+    backendResolver: 'inviteEvent',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       await graphqlRequest(
-        'mutation($input: InviteEventInput!) { aiInviteEvent(input: $input) }',
+        'mutation($input: InviteEventInput!) { inviteEvent(input: $input) { _id } }',
         { input: { event: args.event_id, emails: args.emails } },
       );
       return { sent: true, count: (args.emails as string[]).length };
@@ -704,15 +704,15 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiAcceptEvent',
+    backendResolver: 'acceptEvent',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiAcceptEvent: unknown }>(
-        'mutation($id: MongoID!) { aiAcceptEvent(id: $id) }',
-        { id: args.event_id },
+      const result = await graphqlRequest<{ acceptEvent: unknown }>(
+        'mutation($_id: MongoID!) { acceptEvent(_id: $_id) { state } }',
+        { _id: args.event_id },
       );
-      return result.aiAcceptEvent;
+      return result.acceptEvent;
     },
   }),
   buildCapability({
@@ -728,15 +728,15 @@ export const eventTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiDeclineEvent',
+    backendResolver: 'declineEvent',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiDeclineEvent: unknown }>(
-        'mutation($id: MongoID!) { aiDeclineEvent(id: $id) }',
-        { id: args.event_id },
+      const result = await graphqlRequest<{ declineEvent: unknown }>(
+        'mutation($_id: MongoID!) { declineEvent(_id: $_id) { state } }',
+        { _id: args.event_id },
       );
-      return result.aiDeclineEvent;
+      return result.declineEvent;
     },
   }),
   buildCapability({

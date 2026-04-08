@@ -9,7 +9,7 @@
           "name": "Query",
           "fields": [
             {
-              "name": "aiGetMe",
+              "name": "getMe",
               "description": "Get current user",
               "args": [],
               "type": { "kind": "OBJECT", "name": "User", "ofType": null }

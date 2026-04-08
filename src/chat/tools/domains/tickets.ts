@@ -17,19 +17,19 @@ export const ticketsTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiListEventTicketTypes',
+    backendResolver: 'listEventTicketTypes',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiListEventTicketTypes: unknown }>(
+      const result = await graphqlRequest<{ listEventTicketTypes: unknown }>(
         `query($event: MongoID!) {
-          aiListEventTicketTypes(event: $event) {
+          listEventTicketTypes(event: $event) {
             title active private limited description
           }
         }`,
         { event: args.event_id },
       );
-      return result.aiListEventTicketTypes;
+      return result.listEventTicketTypes;
     },
   }),
   buildCapability({
@@ -50,7 +50,7 @@ export const ticketsTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiCreateEventTicketType',
+    backendResolver: 'createEventTicketType',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
@@ -68,15 +68,15 @@ export const ticketsTools: CanonicalCapability[] = [
       if (args.limit !== undefined) input.ticket_limit = args.limit;
       if (args.description) input.description = args.description;
 
-      const result = await graphqlRequest<{ aiCreateEventTicketType: unknown }>(
+      const result = await graphqlRequest<{ createEventTicketType: unknown }>(
         `mutation($input: EventTicketTypeInput!) {
-          aiCreateEventTicketType(input: $input) {
+          createEventTicketType(input: $input) {
             title active private limited description
           }
         }`,
         { input },
       );
-      return result.aiCreateEventTicketType;
+      return result.createEventTicketType;
     },
   }),
   buildCapability({
@@ -96,7 +96,7 @@ export const ticketsTools: CanonicalCapability[] = [
     searchHint: 'update edit ticket type price limit',
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiUpdateEventTicketType',
+    backendResolver: 'updateEventTicketType',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
@@ -110,15 +110,15 @@ export const ticketsTools: CanonicalCapability[] = [
       if (args.limit !== undefined) input.ticket_limit = args.limit;
       if (args.active !== undefined) input.active = args.active;
 
-      const result = await graphqlRequest<{ aiUpdateEventTicketType: unknown }>(
+      const result = await graphqlRequest<{ updateEventTicketType: unknown }>(
         `mutation($_id: MongoID!, $input: EventTicketTypeInput!) {
-          aiUpdateEventTicketType(_id: $_id, input: $input) {
+          updateEventTicketType(_id: $_id, input: $input) {
             title active private limited description
           }
         }`,
         { _id: args.ticket_type_id, input },
       );
-      return result.aiUpdateEventTicketType;
+      return result.updateEventTicketType;
     },
   }),
   buildCapability({

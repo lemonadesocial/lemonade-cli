@@ -70,17 +70,17 @@ const mcpResolverNames = new Set(Object.values(TOOL_TO_RESOLVER));
 // Manual command resolvers (from existing src/commands/ that won't be generated)
 const MANUAL_RESOLVERS = new Set([
   // Auth commands
-  'aiGetMe',
+  'getMe',
   // Space commands
   'createSpace', 'aiListMySpaces', 'updateSpace', 'aiGetSpaceStats',
   'connectPlatform', 'submitApiKey', 'spaceConnections',
   // Event commands
-  'createEvent', 'aiGetHostingEvents', 'aiSearchEvents', 'aiGetEvent',
-  'updateEvent', 'aiPublishEvent', 'aiCancelEvent',
-  'aiGetEventGuests', 'aiInviteEvent', 'aiDecideEventJoinRequests',
+  'createEvent', 'aiGetHostingEvents', 'aiSearchEvents', 'getEvent',
+  'updateEvent', 'aiPublishEvent', 'cancelEvent',
+  'aiGetEventGuests', 'inviteEvent', 'aiDecideEventJoinRequests',
   'aiGetEventFeedbackSummary', 'aiListEventFeedbacks', 'aiGetEventCheckins',
   // Ticket commands
-  'aiListEventTicketTypes', 'aiCreateEventTicketType', 'aiUpdateEventTicketType',
+  'listEventTicketTypes', 'createEventTicketType', 'updateEventTicketType',
   'aiCalculateTicketPrice', 'aiBuyTickets',
   // Reward commands
   'atlasRewardSummary', 'atlasRewardHistory',
