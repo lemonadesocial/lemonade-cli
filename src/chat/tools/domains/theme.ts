@@ -18,6 +18,7 @@ export const themeTools: CanonicalCapability[] = [
     ],
     whenToUse: 'when user wants to build a theme configuration',
     searchHint: 'theme build design colors style preset',
+    shouldDefer: true,
     destructive: false,
     backendType: 'none',
     backendService: 'local',

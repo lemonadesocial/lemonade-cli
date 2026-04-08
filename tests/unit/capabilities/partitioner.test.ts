@@ -42,12 +42,11 @@ describe('partitionTools', () => {
 
   it('produces expected approximate counts', () => {
     const { alwaysLoad, deferred } = partitionTools();
-    // alwaysLoad: ~103 (26 alwaysLoad + ~77 default non-deferred)
-    expect(alwaysLoad.length).toBeGreaterThanOrEqual(90);
-    expect(alwaysLoad.length).toBeLessThanOrEqual(130);
-    // deferred: ~110
-    expect(deferred.length).toBeGreaterThanOrEqual(90);
-    expect(deferred.length).toBeLessThanOrEqual(130);
+    // After tool consolidation: ~62 alwaysLoad, ~160 deferred
+    expect(alwaysLoad.length).toBeGreaterThanOrEqual(50);
+    expect(alwaysLoad.length).toBeLessThanOrEqual(80);
+    expect(deferred.length).toBeGreaterThanOrEqual(140);
+    expect(deferred.length).toBeLessThanOrEqual(180);
   });
 });
 

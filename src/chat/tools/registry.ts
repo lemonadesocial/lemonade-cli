@@ -5,6 +5,7 @@ import { filterCapabilities } from '../../capabilities/filter.js';
 import { workflowsToCapabilities } from '../../capabilities/workflows.js';
 import {
   connectorTools,
+  consolidatedTools,
   eventTools,
   fileTools,
   launchpadTools,
@@ -34,6 +35,7 @@ export function getAllCapabilities(): CanonicalCapability[] {
   // Collect non-workflow capabilities first so workflows can reference their types
   const nonWorkflow: CanonicalCapability[] = [
     ...connectorTools,
+    ...consolidatedTools,
     ...eventTools,
     ...fileTools,
     ...launchpadTools,
