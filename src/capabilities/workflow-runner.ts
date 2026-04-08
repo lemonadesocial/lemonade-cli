@@ -16,6 +16,7 @@ export interface WorkflowResult {
   workflow: string;
   success: boolean;
   steps: WorkflowStepResult[];
+  warnings?: string[];
   summary: string;
 }
 
@@ -82,7 +83,31 @@ export async function executeWorkflow(
   input: Record<string, unknown>,
   capabilities: CanonicalCapability[],
   context?: ExecutionContext,
+  maxDepth = 3,
+  _executingWorkflows?: Set<string>,
 ): Promise<WorkflowResult> {
+  // Recursion depth guard
+  if (maxDepth <= 0) {
+    return {
+      workflow: workflow.name,
+      success: false,
+      steps: [],
+      summary: `Workflow "${workflow.displayName}" aborted: maximum nesting depth exceeded.`,
+    };
+  }
+
+  // Cycle detection
+  const executing = _executingWorkflows ?? new Set<string>();
+  if (executing.has(workflow.name)) {
+    return {
+      workflow: workflow.name,
+      success: false,
+      steps: [],
+      summary: `Workflow "${workflow.displayName}" aborted: circular dependency detected (${workflow.name} is already executing).`,
+    };
+  }
+  executing.add(workflow.name);
+
   const stepResults: WorkflowStepResult[] = [];
   let allSuccess = true;
 
@@ -129,20 +154,39 @@ export async function executeWorkflow(
     }
   }
 
+  // Determine if only optional steps failed
   const completedSteps = stepResults.filter((s) => s.success);
   const failedSteps = stepResults.filter((s) => !s.success);
+  const onlyOptionalFailed = !allSuccess && failedSteps.every((f) => {
+    const step = workflow.steps[f.stepIndex];
+    return step?.optional;
+  });
+
+  const warnings: string[] = [];
+  if (onlyOptionalFailed) {
+    for (const f of failedSteps) {
+      warnings.push(`Optional step ${f.stepIndex} (${f.toolName}) failed: ${f.error}`);
+    }
+  }
+
+  const success = allSuccess || onlyOptionalFailed;
 
   let summary: string;
   if (allSuccess) {
     summary = `Workflow "${workflow.displayName}" completed successfully (${completedSteps.length}/${workflow.steps.length} steps).`;
+  } else if (onlyOptionalFailed) {
+    summary = `Workflow "${workflow.displayName}" completed with warnings (${completedSteps.length}/${workflow.steps.length} steps succeeded, ${failedSteps.length} optional steps failed).`;
   } else {
     summary = `Workflow "${workflow.displayName}" failed at step ${failedSteps[failedSteps.length - 1].stepIndex}: ${failedSteps[failedSteps.length - 1].error}. Completed ${completedSteps.length}/${workflow.steps.length} steps.`;
   }
 
+  executing.delete(workflow.name);
+
   return {
     workflow: workflow.name,
-    success: allSuccess,
+    success,
     steps: stepResults,
+    ...(warnings.length > 0 ? { warnings } : {}),
     summary,
   };
 }

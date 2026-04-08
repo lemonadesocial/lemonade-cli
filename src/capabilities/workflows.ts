@@ -67,34 +67,66 @@ export const WORKFLOWS: Workflow[] = [
  * Extracts all $input.x references from a workflow's steps to derive
  * the parameter list for the resulting capability.
  */
-function deriveParams(workflow: Workflow): ToolParam[] {
+/**
+ * Derives workflow params from $input references. Looks up the referenced tool's
+ * parameter type for accurate typing; falls back to 'string' if not found.
+ */
+function deriveParams(workflow: Workflow, availableCaps?: CanonicalCapability[]): ToolParam[] {
   const seen = new Set<string>();
   const params: ToolParam[] = [];
 
   for (const step of workflow.steps) {
     if (!step.argMapping) continue;
-    for (const value of Object.values(step.argMapping)) {
+    for (const [argKey, value] of Object.entries(step.argMapping)) {
       if (typeof value !== 'string' || !value.startsWith('$input.')) continue;
       const paramName = value.slice('$input.'.length);
       if (seen.has(paramName)) continue;
       seen.add(paramName);
-      params.push({ name: paramName, type: 'string', description: `Workflow input: ${paramName}`, required: true });
+
+      // Look up the target tool's param type for this argument
+      let paramType: ToolParam['type'] = 'string';
+      if (availableCaps) {
+        const targetCap = availableCaps.find((c) => c.name === step.toolName);
+        if (targetCap) {
+          const targetParam = targetCap.params.find((p) => p.name === argKey);
+          if (targetParam) paramType = targetParam.type;
+        }
+      }
+
+      params.push({ name: paramName, type: paramType, description: `Workflow input: ${paramName}`, required: true });
     }
   }
 
   return params;
 }
 
-export function workflowsToCapabilities(): CanonicalCapability[] {
+/**
+ * Determines if a workflow contains any mutation steps by checking referenced tool types.
+ * If any step's tool is a mutation, the workflow is treated as a mutation for dry-run purposes.
+ */
+function workflowHasMutation(workflow: Workflow, availableCaps: CanonicalCapability[]): boolean {
+  return workflow.steps.some((step) => {
+    const cap = availableCaps.find((c) => c.name === step.toolName);
+    return cap?.backendType === 'mutation';
+  });
+}
+
+/**
+ * Convert workflows to capabilities. Accepts optional non-workflow capabilities
+ * for param type inference and mutation detection. When called from the registry,
+ * pass all non-workflow capabilities to enable accurate typing.
+ */
+export function workflowsToCapabilities(availableCaps?: CanonicalCapability[]): CanonicalCapability[] {
+  const caps = availableCaps ?? [];
   return WORKFLOWS.map((wf) =>
     buildCapability({
       name: wf.name,
       displayName: wf.displayName,
       description: wf.description,
       category: 'workflow',
-      params: deriveParams(wf),
+      params: deriveParams(wf, caps),
       destructive: false,
-      backendType: 'none',
+      backendType: workflowHasMutation(wf, caps) ? 'mutation' : 'query',
       backendService: 'local',
       requiresSpace: false,
       requiresEvent: false,

@@ -37,7 +37,8 @@ describe('workflowsToCapabilities', () => {
     const caps = workflowsToCapabilities();
     for (const cap of caps) {
       expect(cap.category).toBe('workflow');
-      expect(cap.backendType).toBe('none');
+      // Workflows with mutation steps are marked 'mutation', others 'query'
+      expect(['mutation', 'query']).toContain(cap.backendType);
       expect(cap.surfaces).toContain('aiTool');
     }
   });

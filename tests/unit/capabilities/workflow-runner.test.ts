@@ -160,8 +160,11 @@ describe('executeWorkflow', () => {
     expect(result.steps.length).toBe(2);
     expect(result.steps[0].success).toBe(false);
     expect(result.steps[1].success).toBe(true);
-    // Overall fails because not all steps succeeded
-    expect(result.success).toBe(false);
+    // Overall succeeds because only optional steps failed
+    expect(result.success).toBe(true);
+    expect(result.warnings).toBeDefined();
+    expect(result.warnings!.length).toBe(1);
+    expect(result.warnings![0]).toContain('optional fail');
   });
 
   it('returns partial result on failure', async () => {

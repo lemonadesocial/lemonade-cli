@@ -31,7 +31,8 @@ export function buildToolRegistry(): Record<string, ToolDef> {
 }
 
 export function getAllCapabilities(): CanonicalCapability[] {
-  return [
+  // Collect non-workflow capabilities first so workflows can reference their types
+  const nonWorkflow: CanonicalCapability[] = [
     ...connectorTools,
     ...eventTools,
     ...fileTools,
@@ -51,6 +52,9 @@ export function getAllCapabilities(): CanonicalCapability[] {
     ...ticketsTools,
     ...userTools,
     ...votingTools,
-    ...workflowsToCapabilities(),
+  ];
+  return [
+    ...nonWorkflow,
+    ...workflowsToCapabilities(nonWorkflow),
   ];
 }
