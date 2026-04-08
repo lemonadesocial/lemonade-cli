@@ -37,7 +37,12 @@ describe('executeToolCalls', () => {
     expect(results[0].tool_use_id).toBe('tc1');
     expect(results[0].is_error).toBeUndefined();
     expect(JSON.parse(results[0].content)).toEqual({ _id: '123', title: 'Result' });
-    expect(tool.execute).toHaveBeenCalledWith({ id: 'abc' });
+    expect(tool.execute).toHaveBeenCalledWith({ id: 'abc' }, expect.objectContaining({
+      defaultSpace: undefined,
+      currentSpace: undefined,
+      currentEvent: undefined,
+      timezone: undefined,
+    }));
   });
 
   it('returns error for unknown tool', async () => {

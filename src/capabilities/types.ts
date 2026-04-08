@@ -3,6 +3,13 @@ import { ToolParam, type ToolCategory } from '../chat/providers/interface.js';
 // Re-export ToolCategory from interface.ts (don't duplicate)
 export type { ToolCategory } from '../chat/providers/interface.js';
 
+export interface ExecutionContext {
+  defaultSpace?: string;
+  currentSpace?: { _id: string; title: string };
+  currentEvent?: { _id: string; title: string };
+  timezone?: string;
+}
+
 export type BackendService = 'graphql' | 'atlas' | 'local' | 'external';
 export type BackendType = 'query' | 'mutation' | 'none';
 export type Surface = 'aiTool' | 'cliCommand' | 'slashCommand';
@@ -20,7 +27,7 @@ export interface CanonicalCapability {
 
   // Behavior (same as ToolDef)
   destructive: boolean;
-  execute: (args: Record<string, unknown>) => Promise<unknown>;
+  execute: (args: Record<string, unknown>, context?: ExecutionContext) => Promise<unknown>;
   formatResult?: (result: unknown) => string;
 
   // Backend Contract (NEW)

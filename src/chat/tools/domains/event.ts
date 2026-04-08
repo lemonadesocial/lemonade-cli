@@ -2,7 +2,6 @@ import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 import { registrySearch } from '../../../api/registry.js';
-import { getDefaultSpace } from '../../../auth/store.js';
 import { parseJsonObject } from '../utils/index.js';
 
 export const eventTools: CanonicalCapability[] = [
@@ -46,8 +45,8 @@ export const eventTools: CanonicalCapability[] = [
     backendResolver: 'createEvent',
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
-    execute: async (args) => {
-      const spaceId = (args.space as string) || getDefaultSpace();
+    execute: async (args, context) => {
+      const spaceId = (args.space as string) || context?.defaultSpace;
       const input: Record<string, unknown> = {
         title: args.title,
         start: new Date(args.start as string).toISOString(),

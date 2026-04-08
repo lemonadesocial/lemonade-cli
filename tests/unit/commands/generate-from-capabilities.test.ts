@@ -16,6 +16,7 @@ vi.mock('../../../src/chat/tools/registry.js', () => ({
 // Mock auth store
 vi.mock('../../../src/auth/store.js', () => ({
   setFlagApiKey: vi.fn(),
+  getDefaultSpace: vi.fn(() => undefined),
 }));
 
 import { getAllCapabilities } from '../../../src/chat/tools/registry.js';
@@ -213,7 +214,7 @@ describe('action handler', () => {
     const cmd = registerAndGetCmd(cap);
     await cmd.parseAsync(['--count', '42'], { from: 'user' });
 
-    expect(executeFn).toHaveBeenCalledWith({ count: 42 });
+    expect(executeFn).toHaveBeenCalledWith({ count: 42 }, expect.any(Object));
     expect(typeof executeFn.mock.calls[0][0].count).toBe('number');
   });
 
@@ -268,7 +269,7 @@ describe('action handler', () => {
     const cmd = registerAndGetCmd(cap);
     await cmd.parseAsync(['--ids', '1', '2', '3'], { from: 'user' });
 
-    expect(executeFn).toHaveBeenCalledWith({ ids: [1, 2, 3] });
+    expect(executeFn).toHaveBeenCalledWith({ ids: [1, 2, 3] }, expect.any(Object));
     for (const n of executeFn.mock.calls[0][0].ids as number[]) {
       expect(typeof n).toBe('number');
     }
@@ -286,7 +287,7 @@ describe('action handler', () => {
     await cmd.parseAsync(['--count', 'abc'], { from: 'user' });
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('invalid number'));
-    expect(executeFn).toHaveBeenCalledWith({});
+    expect(executeFn).toHaveBeenCalledWith({}, expect.any(Object));
   });
 
   it('parses object type params from JSON string', async () => {
@@ -305,7 +306,7 @@ describe('action handler', () => {
     const cmd = registerAndGetCmd(cap);
     await cmd.parseAsync(['--config', '{"key":"value"}'], { from: 'user' });
 
-    expect(executeFn).toHaveBeenCalledWith({ config: { key: 'value' } });
+    expect(executeFn).toHaveBeenCalledWith({ config: { key: 'value' } }, expect.any(Object));
   });
 
   it('reports error for invalid JSON in object param', async () => {
@@ -340,7 +341,7 @@ describe('action handler', () => {
     const cmd = registerAndGetCmd(cap);
     await cmd.parseAsync(['--items', '{"a":1}', '{"b":2}'], { from: 'user' });
 
-    expect(executeFn).toHaveBeenCalledWith({ items: [{ a: 1 }, { b: 2 }] });
+    expect(executeFn).toHaveBeenCalledWith({ items: [{ a: 1 }, { b: 2 }] }, expect.any(Object));
   });
 
   it('fails hard when object[] element is not valid JSON', async () => {
