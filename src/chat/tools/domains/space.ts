@@ -47,6 +47,12 @@ export const spaceTools: CanonicalCapability[] = [
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
+    sessionUpdates: [
+      { field: 'currentSpace', extract: (r: unknown) => {
+        const d = r as Record<string, unknown>;
+        return { _id: d._id, title: d.title };
+      }},
+    ],
     execute: async (args) => {
       const input: Record<string, unknown> = { title: args.title };
       if (args.description !== undefined) input.description = args.description;
@@ -141,6 +147,12 @@ export const spaceTools: CanonicalCapability[] = [
     backendResolver: 'listMySpaces',
     requiresSpace: false,
     requiresEvent: false,
+    sessionUpdates: [
+      { field: 'currentSpace', extract: (r: unknown) => {
+        const d = r as Record<string, unknown>;
+        return { _id: d._id, title: d.title };
+      }},
+    ],
     execute: async (args) => {
       const result = await graphqlRequest<{
         listMySpaces: { items: Array<{ _id: string; title: string; slug: string }> };

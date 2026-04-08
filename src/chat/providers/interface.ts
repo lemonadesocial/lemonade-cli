@@ -1,4 +1,5 @@
 import type { ExecutionContext } from '../../capabilities/types.js';
+import type { SessionState } from '../session/state.js';
 
 export interface StreamEvent {
   type: 'text_delta' | 'tool_call' | 'done';
@@ -89,4 +90,8 @@ export interface ToolDef {
   execute: (args: Record<string, unknown>, context?: ExecutionContext) => Promise<unknown>;
   formatResult?: (result: unknown) => string;
   backendType?: 'query' | 'mutation' | 'none';
+  sessionUpdates?: {
+    field: keyof SessionState;
+    extract: (result: unknown) => unknown;
+  }[];
 }

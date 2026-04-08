@@ -1,4 +1,5 @@
 import { ToolParam, type ToolCategory } from '../chat/providers/interface.js';
+import type { SessionState } from '../chat/session/state.js';
 
 // Re-export ToolCategory from interface.ts (don't duplicate)
 export type { ToolCategory } from '../chat/providers/interface.js';
@@ -56,6 +57,12 @@ export interface CanonicalCapability {
   shouldDefer?: boolean;     // true = don't send full schema to LLM upfront
   alwaysLoad?: boolean;      // true = never defer, always send full schema
   searchHint?: string;       // 3-10 words for keyword matching when deferred
+
+  // Session Updates (Phase 9)
+  sessionUpdates?: {
+    field: keyof SessionState;
+    extract: (result: unknown) => unknown;
+  }[];
 
   // Surface Exposure (NEW)
   surfaces: Surface[];

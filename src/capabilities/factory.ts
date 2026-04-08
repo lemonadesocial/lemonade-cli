@@ -40,5 +40,6 @@ export function buildCapability(input: CapabilityInput): CanonicalCapability {
     searchHint: input.searchHint,
     surfaces: input.surfaces ? [...input.surfaces] : [...DEFAULTS.surfaces],
     ...(input.formatResult ? { formatResult: input.formatResult } : {}),
+    ...(input.sessionUpdates ? { sessionUpdates: input.sessionUpdates } : {}),
   };
 }
