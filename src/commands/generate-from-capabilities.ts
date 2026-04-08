@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { getAllCapabilities } from '../chat/tools/registry.js';
+import { getOrCreateGroup } from './loader.js';
 import { setFlagApiKey } from '../auth/store.js';
 import type { CanonicalCapability } from '../capabilities/types.js';
 import type { ToolParam } from '../chat/providers/interface.js';
@@ -10,7 +11,8 @@ const NAME_MAP: Record<string, { group: string; subcommand: string } | null> = {
   tool_search: null, // skip — system tool, not useful as CLI
 };
 
-const PREFIX_REMAP: Record<string, string> = {
+// F8: Renamed from PREFIX_REMAP; direct lookup replaces O(n) loop
+const NAME_OVERRIDES: Record<string, string> = {
   accept_event: 'event',
   decline_event: 'event',
 };
@@ -20,12 +22,10 @@ export function deriveGroupAndSubcommand(
 ): { group: string; subcommand: string } | null {
   if (name in NAME_MAP) return NAME_MAP[name];
 
-  // Check prefix remaps (e.g. accept_event → event:accept)
-  for (const [prefix, group] of Object.entries(PREFIX_REMAP)) {
-    if (name === prefix) {
-      const sub = name.split('_')[0];
-      return { group, subcommand: sub };
-    }
+  // Check exact name overrides (e.g. accept_event → event:accept)
+  if (name in NAME_OVERRIDES) {
+    const sub = name.split('_')[0];
+    return { group: NAME_OVERRIDES[name], subcommand: sub };
   }
 
   const parts = name.split('_');
@@ -40,8 +40,13 @@ function toKebab(snakeName: string): string {
   return snakeName.replace(/_/g, '-');
 }
 
+// F12: Handle digits after underscores (e.g. param_2x → param2x)
 function toCamel(snakeName: string): string {
-  return snakeName.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+  return snakeName.replace(/_([a-z0-9])/gi, (_, c: string) => c.toUpperCase());
+}
+
+function isObjectType(type: ToolParam['type']): type is { type: 'object'; properties: Record<string, ToolParam> } {
+  return typeof type === 'object' && type !== null && 'type' in type && type.type === 'object';
 }
 
 function isArrayType(type: ToolParam['type']): boolean {
@@ -51,11 +56,15 @@ function isArrayType(type: ToolParam['type']): boolean {
 function addParamOption(cmd: Command, param: ToolParam): void {
   const kebab = toKebab(param.name);
 
+  // F3: Never use requiredOption for booleans — they are toggle flags
   if (param.type === 'boolean') {
+    cmd.option(`--${kebab}`, param.description);
+  } else if (isObjectType(param.type)) {
+    // F2: Object type params treated as JSON string input
     if (param.required) {
-      cmd.requiredOption(`--${kebab}`, param.description);
+      cmd.requiredOption(`--${kebab} <json>`, param.description);
     } else {
-      cmd.option(`--${kebab}`, param.description);
+      cmd.option(`--${kebab} <json>`, param.description);
     }
   } else if (isArrayType(param.type)) {
     if (param.required) {
@@ -72,14 +81,9 @@ function addParamOption(cmd: Command, param: ToolParam): void {
   }
 }
 
-function getOrCreateGroup(program: Command, name: string): Command {
-  const existing = program.commands.find((c) => c.name() === name);
-  if (existing) return existing;
-  return program.command(name).description(`Manage ${name}`);
-}
-
 function buildAction(cap: CanonicalCapability) {
   return async (opts: Record<string, unknown>) => {
+    const hadApiKey = !!opts.apiKey;
     try {
       if (opts.apiKey) setFlagApiKey(opts.apiKey as string);
 
@@ -88,14 +92,45 @@ function buildAction(cap: CanonicalCapability) {
         const camelKey = toCamel(param.name);
         if (opts[camelKey] !== undefined) {
           let val = opts[camelKey];
-          if (param.type === 'number') val = parseFloat(val as string);
+
+          // F1 + F6: Use Number() for numeric coercion with NaN check
+          if (param.type === 'number') {
+            const num = Number(val);
+            if (isNaN(num)) {
+              console.error(`Warning: invalid number for --${toKebab(param.name)}: ${val}`);
+              continue;
+            }
+            val = num;
+          } else if (param.type === 'number[]' && Array.isArray(val)) {
+            const nums: number[] = [];
+            let hasInvalid = false;
+            for (const el of val) {
+              const num = Number(el);
+              if (isNaN(num)) {
+                console.error(`Warning: invalid number in --${toKebab(param.name)}: ${el}`);
+                hasInvalid = true;
+                break;
+              }
+              nums.push(num);
+            }
+            if (hasInvalid) continue;
+            val = nums;
+          } else if (isObjectType(param.type)) {
+            // F2: Parse JSON for object type params
+            try {
+              val = JSON.parse(val as string);
+            } catch (e) {
+              console.error(`Error: invalid JSON for --${toKebab(param.name)}: ${(e as Error).message}`);
+              process.exitCode = 1;
+              return;
+            }
+          }
+
           args[param.name] = val;
         }
       }
 
       const result = await cap.execute(args);
-
-      if (opts.apiKey) setFlagApiKey(undefined);
 
       if (opts.json) {
         console.log(JSON.stringify({ ok: true, data: result }, null, 2));
@@ -105,8 +140,9 @@ function buildAction(cap: CanonicalCapability) {
         console.log(JSON.stringify(result, null, 2));
       }
     } catch (error) {
-      if (opts.apiKey) setFlagApiKey(undefined);
       if (opts.json) {
+        // F7: Set exit code 1 for JSON error output
+        process.exitCode = 1;
         console.log(
           JSON.stringify({
             ok: false,
@@ -122,6 +158,9 @@ function buildAction(cap: CanonicalCapability) {
         );
         process.exit(1);
       }
+    } finally {
+      // F5: API key cleanup in finally block instead of duplicated try/catch
+      if (hadApiKey) setFlagApiKey(undefined);
     }
   };
 }
