@@ -9,8 +9,12 @@ import { getPackageVersion } from '../config/version.js';
 import type { CanonicalCapability } from '../capabilities/types.js';
 
 export async function startMcpServer(): Promise<void> {
-  // Redirect console.log to stderr so stdout stays clean for MCP JSON-RPC
-  console.log = (...args: unknown[]) => process.stderr.write(args.map(String).join(' ') + '\n');
+  // Redirect all console output to stderr so stdout stays clean for MCP JSON-RPC
+  const stderrWrite = (...args: unknown[]) => { process.stderr.write(args.map(String).join(' ') + '\n'); };
+  console.log = stderrWrite;
+  console.info = stderrWrite;
+  console.warn = stderrWrite;
+  console.debug = stderrWrite;
 
   // Verify authentication
   const auth = await ensureAuthHeader();
@@ -30,6 +34,8 @@ export async function startMcpServer(): Promise<void> {
     if (registeredTools.has(cap.name)) return;
     const inputSchema = capabilityToInputSchema(cap);
     const annotations = capabilityToAnnotations(cap);
+    // Note: server.tool() is the current public API in @modelcontextprotocol/sdk.
+    // No registerTool() alternative exists in the SDK as of v1.29.
     server.tool(
       cap.name,
       cap.description,
@@ -45,10 +51,14 @@ export async function startMcpServer(): Promise<void> {
             }],
           };
         } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          const isAuthError = message.includes('UNAUTHENTICATED') || message.includes('401') || message.includes('Unauthorized');
           return {
             content: [{
               type: 'text' as const,
-              text: err instanceof Error ? err.message : String(err),
+              text: isAuthError
+                ? 'Authentication expired. Run `lemonade auth login` to re-authenticate.'
+                : message,
             }],
             isError: true,
           };
@@ -70,25 +80,22 @@ export async function startMcpServer(): Promise<void> {
     { query: z.string().describe('Search query') },
     async (args: Record<string, unknown>) => {
       const matches = searchCapabilities(args.query as string, deferred);
+      const newlyRegistered: CanonicalCapability[] = [];
       for (const cap of matches) {
-        registerCap(cap);
-      }
-      // Notify client that tool list changed if we registered new tools
-      if (matches.length > 0) {
-        try {
-          await server.server.sendToolListChanged();
-        } catch {
-          // Notification failure is non-fatal
+        if (!registeredTools.has(cap.name)) {
+          registerCap(cap);
+          newlyRegistered.push(cap);
         }
       }
+      // SDK's server.tool() already sends sendToolListChanged internally,
+      // so no explicit notification is needed here.
+      const summary = newlyRegistered.length > 0
+        ? newlyRegistered.map(m => ({ name: m.name, description: m.description }))
+        : matches.map(m => ({ name: m.name, description: m.description, alreadyLoaded: true }));
       return {
         content: [{
           type: 'text' as const,
-          text: JSON.stringify(
-            matches.map(m => ({ name: m.name, description: m.description })),
-            null,
-            2,
-          ),
+          text: JSON.stringify(summary, null, 2),
         }],
       };
     },

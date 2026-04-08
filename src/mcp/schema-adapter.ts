@@ -36,7 +36,9 @@ function paramTypeToZod(type: ParamType): z.ZodTypeAny {
       case 'string[]': return z.array(z.string());
       case 'number[]': return z.array(z.number());
       case 'object[]': return z.array(z.record(z.string(), z.unknown()));
-      default: return z.string(); // fallback
+      default:
+        process.stderr.write(`[mcp] Warning: unknown param type "${type}", falling back to string\n`);
+        return z.string();
     }
   }
 

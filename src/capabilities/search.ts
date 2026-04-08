@@ -4,14 +4,9 @@
  * can share the same algorithm.
  */
 
-interface Searchable {
-  name: string;
-  description: string;
-  searchHint?: string;
-  whenToUse?: string;
-  category: string;
-  displayName: string;
-}
+import type { CanonicalCapability } from './types.js';
+
+type Searchable = Pick<CanonicalCapability, 'name' | 'description' | 'searchHint' | 'whenToUse' | 'category' | 'displayName'>;
 
 /**
  * Score how well a capability matches a search query.
