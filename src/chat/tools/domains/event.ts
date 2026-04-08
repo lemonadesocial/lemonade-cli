@@ -210,7 +210,7 @@ export const eventTools: CanonicalCapability[] = [
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const result = await graphqlRequest<{ getEvent: unknown }>(
-        `query($_id: MongoID!) {
+        `query($_id: MongoID) {
           getEvent(_id: $_id) {
             _id title shortid start end published description
             virtual virtual_url private guest_limit guest_limit_per ticket_limit_per
@@ -222,6 +222,9 @@ export const eventTools: CanonicalCapability[] = [
         }`,
         { _id: args.event_id },
       );
+      if (!result.getEvent) {
+        throw new Error('Event not found');
+      }
       return result.getEvent;
     },
   }),

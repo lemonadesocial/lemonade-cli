@@ -234,7 +234,7 @@ export function registerEventCommands(program: Command): void {
       try {
         setFlagApiKey(opts.apiKey);
         const result = await graphqlRequest<{ getEvent: Record<string, unknown> }>(
-          `query($_id: MongoID!) {
+          `query($_id: MongoID) {
             getEvent(_id: $_id) {
               _id title shortid start end published description
               virtual virtual_url private guest_limit guest_limit_per ticket_limit_per
@@ -247,6 +247,9 @@ export function registerEventCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
+        if (!result.getEvent) {
+          throw new Error('Event not found');
+        }
         const ev = result.getEvent;
         const addr = ev.address as Record<string, unknown> | null;
         if (opts.json) {
