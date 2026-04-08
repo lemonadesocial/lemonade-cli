@@ -118,7 +118,6 @@ export function registerEventCommands(program: Command): void {
     .description('List your events')
     .option('--space <id>', 'Space ID')
     .option('--draft', 'Show only drafts')
-    .option('--search <text>', 'Search text')
     .option('--limit <n>', 'Max results', '20')
     .option('--cursor <str>', 'Pagination cursor (skip)')
     .option('--json', 'Output as JSON')
@@ -129,22 +128,21 @@ export function registerEventCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const skip = opts.cursor ? parseInt(opts.cursor, 10) : 0;
 
-        const result = await graphqlRequest<{ aiGetHostingEvents: { items: Array<Record<string, unknown>> } }>(
-          `query($draft: Boolean, $search: String, $limit: Int, $skip: Int) {
-            aiGetHostingEvents(draft: $draft, search: $search, limit: $limit, skip: $skip) {
-              items { _id title shortid start end published }
+        const result = await graphqlRequest<{ getHostingEvents: Array<Record<string, unknown>> }>(
+          `query($draft: Boolean, $limit: Int!, $skip: Int!) {
+            getHostingEvents(draft: $draft, limit: $limit, skip: $skip) {
+              _id title shortid start end published
             }
           }`,
           {
             draft: opts.draft || undefined,
-            search: opts.search,
             limit,
             skip,
           },
         );
         setFlagApiKey(undefined);
 
-        const items = result.aiGetHostingEvents.items;
+        const items = result.getHostingEvents;
         if (opts.json) {
           const nextCursor = items.length === limit ? String(skip + limit) : null;
           console.log(jsonSuccess(items, { cursor: nextCursor }));

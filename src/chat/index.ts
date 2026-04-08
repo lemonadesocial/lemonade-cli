@@ -129,10 +129,10 @@ async function main(): Promise<void> {
     if (!apiKey && isTTY) {
       let hasCredits = false;
       try {
-        const spacesResult = await graphqlRequest<{ aiListMySpaces: { items: Array<{ _id: string }> } }>(
-          'query { aiListMySpaces { items { _id } } }',
+        const spacesResult = await graphqlRequest<{ listMySpaces: { items: Array<{ _id: string }> } }>(
+          'query { listMySpaces { items { _id } } }',
         );
-        const spaces = spacesResult.aiListMySpaces.items;
+        const spaces = spacesResult.listMySpaces.items;
         if (spaces.length > 0) {
           const spaceId = getDefaultSpace() || spaces[0]._id;
           const creditsResult = await graphqlRequest<{ getStandCredits: { credits: number; subscription_tier: string } | null }>(

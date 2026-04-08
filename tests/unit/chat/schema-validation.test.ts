@@ -32,7 +32,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   // === AI Tool endpoints (lemonade-backend/src/graphql/types/ai-tool.ts) ===
   getMe: ['_id', 'name', 'email', 'first_name', 'last_name', 'stripe_connected_account', 'account_id', 'connected'],
   aiGetBackendVersion: [], // scalar String
-  aiGetHostingEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count'],
+  getHostingEvents: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count'],
   getEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'city', 'country', 'latitude', 'longitude', 'cover', 'attending_count', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'ticket_limit_per', 'timezone', 'approval_required', 'application_required', 'registration_disabled', 'currency', 'tags', 'guest_directory_enabled', 'subevent_enabled', 'terms_text', 'welcome_text', 'theme_data', 'dark_theme_image', 'light_theme_image'],
   createEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required', 'address', 'city', 'country', 'latitude', 'longitude', 'theme_data', 'dark_theme_image', 'light_theme_image'],
   updateEvent: ['_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'virtual', 'virtual_url', 'private', 'guest_limit', 'guest_limit_per', 'timezone', 'approval_required', 'cover', 'theme_data', 'dark_theme_image', 'light_theme_image'],
@@ -58,7 +58,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   acceptEvent: ['state'], // Returns EventRsvp!
   declineEvent: ['state'], // Returns EventRsvp!
   aiGetMyTickets: ['items', 'event_title', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],
-  aiListMySpaces: ['items', '_id', 'title', 'slug', 'description', 'private', 'personal', 'image_avatar_url', 'member_count', 'event_count'],
+  listMySpaces: ['items', '_id', 'title', 'slug', 'description', 'total'],
   createSpace: ['_id', 'title', 'slug', 'description', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'theme_data', 'theme_name', 'dark_theme_image', 'light_theme_image', 'address', 'title', 'city', 'country'],
   updateSpace: ['_id', 'title', 'slug', 'description', 'state', 'handle_twitter', 'handle_instagram', 'handle_linkedin', 'handle_youtube', 'handle_tiktok', 'website', 'tint_color', 'private', 'theme_data', 'theme_name', 'dark_theme_image', 'light_theme_image', 'address', 'title', 'city', 'country', 'image_avatar', 'image_cover'],
   listNewPaymentAccounts: ['_id', 'active', 'type', 'title', 'provider', 'created_at', 'account_info', 'currencies', 'address', 'network', 'StripeAccount', 'SolanaAccount', 'EthereumAccount', 'DigitalAccount', 'SafeAccount', 'EthereumEscrowAccount', 'EthereumRelayAccount', 'EthereumStakeAccount'],
@@ -72,8 +72,8 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiAddSpaceMember: [], // scalar
   aiRemoveSpaceMember: [], // scalar
   aiGetNotifications: ['id', 'type', 'message', 'from_user_name', 'ref_event_title', 'read', 'created_at'],
-  aiReadNotifications: [], // Boolean
-  aiListChains: ['id', 'name', 'symbol', 'chain_id', 'rpc_url', 'platform', 'tokens', 'contract', 'decimals', 'is_native'],
+  readNotifications: [], // Boolean
+  listChains: ['chain_id', 'name', 'platform', 'rpc_url'],
   aiListLaunchpadCoins: ['items', '_id', 'name', 'symbol', 'status'],
   aiAddLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
   aiUpdateLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
