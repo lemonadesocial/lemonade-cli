@@ -78,7 +78,7 @@ export type ParamType =
   | 'object[]'
   | { type: 'object'; properties: Record<string, ToolParam> };
 
-export type ToolCategory = 'connector' | 'event' | 'file' | 'launchpad' | 'newsletter' | 'notifications' | 'page' | 'payment' | 'rewards' | 'session' | 'space' | 'subscription' | 'system' | 'template' | 'tempo' | 'theme' | 'tickets' | 'user' | 'voting';
+export type ToolCategory = 'connector' | 'event' | 'file' | 'launchpad' | 'newsletter' | 'notifications' | 'page' | 'payment' | 'rewards' | 'session' | 'space' | 'subscription' | 'system' | 'template' | 'tempo' | 'theme' | 'tickets' | 'user' | 'voting' | 'workflow';
 
 export interface ToolDef {
   name: string;

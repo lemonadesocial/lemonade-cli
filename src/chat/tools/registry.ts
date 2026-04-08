@@ -2,6 +2,7 @@ import { ToolDef } from '../providers/interface.js';
 import { CanonicalCapability } from '../../capabilities/types.js';
 import { capabilitiesToRegistry } from '../../capabilities/adapter.js';
 import { filterCapabilities } from '../../capabilities/filter.js';
+import { workflowsToCapabilities } from '../../capabilities/workflows.js';
 import {
   connectorTools,
   eventTools,
@@ -50,5 +51,6 @@ export function getAllCapabilities(): CanonicalCapability[] {
     ...ticketsTools,
     ...userTools,
     ...votingTools,
+    ...workflowsToCapabilities(),
   ];
 }
