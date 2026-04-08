@@ -111,7 +111,7 @@ export function buildContext(session: SessionState): ExecutionContext {
     lastCreatedEvent: session.lastCreatedEvent,
     lastCreatedTicketType: session.lastCreatedTicketType,
     timezone: session.timezone,
-    // dryRun is set per-command by the CLI handler, not from session state
+    dryRun: session.dryRun,
   };
 }
 
