@@ -14,15 +14,15 @@ export const userTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetMe',
+    backendResolver: 'getMe',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async () => {
-      const result = await graphqlRequest<{ aiGetMe: { user: unknown } }>(
-        'query { aiGetMe { user { _id name email first_name last_name } } }',
+      const result = await graphqlRequest<{ getMe: { _id: string; name: string; email: string; first_name: string; last_name: string } }>(
+        'query { getMe { _id name email first_name last_name } }',
       );
-      return result.aiGetMe.user;
+      return result.getMe;
     },
     formatResult: (result) => {
       const r = result as { _id: string; name: string; email: string };
