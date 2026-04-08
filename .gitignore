@@ -4,3 +4,15 @@ dist/
 *.tgz
 .DS_Store
 src/chat/skills/generated/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+package-lock.json
+
+# Local docs / agent working files
+BACKEND-CLI-CAPABILITY-REPORT.md
+IMPL-*.md
+PRD-*.md
+docs/CLI-AUDIT-*.md
+docs/HANDOFF-*.md
+docs/orchestrator/
