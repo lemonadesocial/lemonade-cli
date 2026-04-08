@@ -21,13 +21,35 @@ export function createSessionState(user: {
   };
 }
 
+export interface SessionUpdate {
+  field: string;
+  extract: (result: unknown) => unknown;
+}
+
 export function updateSession(
   session: SessionState,
   toolName: string,
   result: unknown,
+  sessionUpdates?: SessionUpdate[],
 ): void {
   if (!result || typeof result !== 'object') return;
 
+  // Declarative path: if sessionUpdates are provided, use them
+  if (sessionUpdates) {
+    for (const update of sessionUpdates) {
+      try {
+        const value = update.extract(result);
+        if (value !== undefined) {
+          (session as unknown as Record<string, unknown>)[update.field] = value;
+        }
+      } catch {
+        // Extraction failed, skip this update
+      }
+    }
+    return;
+  }
+
+  // Legacy switch fallback
   const data = result as Record<string, unknown>;
 
   switch (toolName) {

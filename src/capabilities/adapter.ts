@@ -12,6 +12,7 @@ export function toToolDef(cap: CanonicalCapability): ToolDef {
     execute: cap.execute,
     ...(cap.formatResult ? { formatResult: cap.formatResult } : {}),
     backendType: cap.backendType,
+    ...(cap.sessionUpdates ? { sessionUpdates: cap.sessionUpdates } : {}),
   };
 }
 

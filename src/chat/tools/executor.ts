@@ -135,7 +135,7 @@ async function executeParallelBatch(
         });
       }
 
-      updateSession(session, item.call.name, execResult.result);
+      updateSession(session, item.call.name, execResult.result, item.tool.sessionUpdates);
 
       results.push({
         type: 'tool_result',
@@ -287,7 +287,7 @@ async function executeSequential(
       engine.emit('tool_done', { id: call.id, name: tool.displayName, result, turnId });
     }
 
-    updateSession(session, call.name, result);
+    updateSession(session, call.name, result, tool.sessionUpdates);
 
     results.push({
       type: 'tool_result',

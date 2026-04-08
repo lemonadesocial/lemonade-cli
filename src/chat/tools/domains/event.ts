@@ -45,6 +45,21 @@ export const eventTools: CanonicalCapability[] = [
     backendResolver: 'createEvent',
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
+    sessionUpdates: [
+      { field: 'lastCreatedEvent', extract: (r: unknown) => {
+        const d = r as Record<string, unknown>;
+        return { _id: d._id, title: d.title };
+      }},
+      { field: 'currentEvent', extract: (r: unknown) => {
+        const d = r as Record<string, unknown>;
+        return { _id: d._id, title: d.title };
+      }},
+      { field: 'currentSpace', extract: (r: unknown) => {
+        const d = r as Record<string, unknown>;
+        const space = (d.hosted_by || d.space) as Record<string, unknown> | undefined;
+        return space ? { _id: space._id, title: space.title } : undefined;
+      }},
+    ],
     execute: async (args, context) => {
       const spaceId = (args.space as string) || context?.defaultSpace;
       const input: Record<string, unknown> = {

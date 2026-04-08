@@ -89,4 +89,8 @@ export interface ToolDef {
   execute: (args: Record<string, unknown>, context?: ExecutionContext) => Promise<unknown>;
   formatResult?: (result: unknown) => string;
   backendType?: 'query' | 'mutation' | 'none';
+  sessionUpdates?: {
+    field: string;
+    extract: (result: unknown) => unknown;
+  }[];
 }
