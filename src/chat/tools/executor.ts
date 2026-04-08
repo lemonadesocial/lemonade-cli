@@ -67,8 +67,13 @@ interface ClassifiedCall {
   needsPlan?: boolean;
 }
 
+/** Narrowed type for calls entering parallel execution — tool is guaranteed non-null. */
+type ParallelCall = ClassifiedCall & { tool: ToolDef };
+
+// Parallel batch does not support interactive prompts (plan mode, confirmation).
+// Only non-interactive query tools are eligible for parallelization.
 async function executeParallelBatch(
-  batch: ClassifiedCall[],
+  batch: ParallelCall[],
   session: SessionState,
   engine?: ChatEngine,
   turnId?: string,
@@ -86,7 +91,7 @@ async function executeParallelBatch(
   const execResults = await Promise.all(
     batch.map(async (item) => {
       try {
-        const result = await item.tool!.execute(item.call.arguments);
+        const result = await item.tool.execute(item.call.arguments);
         return { success: true as const, result };
       } catch (err) {
         return { success: false as const, error: err };
@@ -94,7 +99,9 @@ async function executeParallelBatch(
     }),
   );
 
-  // Process results in original order: emit events, update session, collect results
+  // Process results in original order: emit events, update session, collect results.
+  // Session updates apply in original call order. If two parallel queries update
+  // the same session field, the last one in call order wins.
   let fatal = false;
   for (let idx = 0; idx < batch.length; idx++) {
     const item = batch[idx];
@@ -104,7 +111,7 @@ async function executeParallelBatch(
       if (engine) {
         engine.emit('tool_done', {
           id: item.call.id,
-          name: item.tool!.displayName,
+          name: item.tool.displayName,
           result: execResult.result,
           turnId,
         });
@@ -123,7 +130,7 @@ async function executeParallelBatch(
       if (engine) {
         engine.emit('tool_done', {
           id: item.call.id,
-          name: item.tool!.displayName,
+          name: item.tool.displayName,
           error: classified.message,
           turnId,
         });
@@ -137,6 +144,8 @@ async function executeParallelBatch(
       });
 
       if (classified.fatal) {
+        // Fatal errors don't cancel in-flight siblings because Promise.all has already
+        // started all executions. This is acceptable for short-lived query tools.
         if (engine) {
           engine.emit('error', { message: classified.message, fatal: true, turnId });
         } else {
@@ -171,7 +180,7 @@ async function executeSequential(
     return { results, fatal: false };
   }
 
-  const validation = validateArgs(call.arguments, tool.params);
+  const validation = item.validation ?? validateArgs(call.arguments, tool.params);
   if (!validation.valid) {
     const missingRequired = tool.params.filter(
       (p) => p.required && !(p.name in call.arguments),
@@ -314,6 +323,7 @@ export async function executeToolCalls(
 
     const validation = validateArgs(call.arguments, tool.params);
     const needsPlan = !validation.valid && tool.params.some(p => p.required && !(p.name in call.arguments));
+    // Only query-type tools are parallelized. 'none' and 'mutation' run sequentially for safety.
     const canParallelize = !tool.destructive && tool.backendType === 'query' && validation.valid && !needsPlan;
 
     return { call, tool, parallel: canParallelize, validation, needsPlan };
@@ -322,10 +332,10 @@ export async function executeToolCalls(
   // Process in batches: consecutive parallelizable calls run together
   let i = 0;
   while (i < classified.length) {
-    // Collect consecutive parallelizable calls
-    const batch: ClassifiedCall[] = [];
+    // Collect consecutive parallelizable calls (parallel === true guarantees tool is non-null)
+    const batch: ParallelCall[] = [];
     while (i < classified.length && classified[i].parallel) {
-      batch.push(classified[i]);
+      batch.push(classified[i] as ParallelCall);
       i++;
     }
 

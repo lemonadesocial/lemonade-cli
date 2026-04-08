@@ -6,6 +6,7 @@ import { createSessionState, SessionState } from '../../../src/chat/session/stat
 function mockTool(overrides: Partial<ToolDef> = {}): ToolDef {
   return {
     name: 'test_tool',
+    category: 'event' as ToolDef['category'],
     displayName: 'test tool',
     description: 'A test tool',
     params: [
@@ -30,24 +31,23 @@ describe('parallel tool execution', () => {
   });
 
   it('two query tools execute concurrently', async () => {
-    const startTimes: Record<string, number> = {};
-    const endTimes: Record<string, number> = {};
+    const executionLog: string[] = [];
 
     const toolA = mockTool({
       name: 'tool_a',
       execute: vi.fn().mockImplementation(async () => {
-        startTimes['a'] = Date.now();
-        await delay(50);
-        endTimes['a'] = Date.now();
+        executionLog.push('a-start');
+        await delay(30);
+        executionLog.push('a-end');
         return { result: 'a' };
       }),
     });
     const toolB = mockTool({
       name: 'tool_b',
       execute: vi.fn().mockImplementation(async () => {
-        startTimes['b'] = Date.now();
-        await delay(50);
-        endTimes['b'] = Date.now();
+        executionLog.push('b-start');
+        await delay(30);
+        executionLog.push('b-end');
         return { result: 'b' };
       }),
     });
@@ -69,8 +69,15 @@ describe('parallel tool execution', () => {
     expect(results).toHaveLength(2);
 
     // Both should start before either finishes (concurrent execution)
-    expect(startTimes['b']).toBeLessThanOrEqual(endTimes['a']);
-    expect(startTimes['a']).toBeLessThanOrEqual(endTimes['b']);
+    const aStartIdx = executionLog.indexOf('a-start');
+    const bStartIdx = executionLog.indexOf('b-start');
+    const aEndIdx = executionLog.indexOf('a-end');
+    const bEndIdx = executionLog.indexOf('b-end');
+    expect(aStartIdx).toBeLessThan(aEndIdx);
+    expect(bStartIdx).toBeLessThan(bEndIdx);
+    // Both start before either ends
+    expect(aStartIdx).toBeLessThan(bEndIdx);
+    expect(bStartIdx).toBeLessThan(aEndIdx);
   });
 
   it('a mutation tool forces sequential execution', async () => {
@@ -231,7 +238,8 @@ describe('parallel tool execution', () => {
   it('session updates apply in original call order after parallel batch', async () => {
     const updateOrder: string[] = [];
 
-    // Spy on updateSession to track call order
+    // Spy on updateSession to track call order.
+    // Note: module spy relies on ESM module cache sharing. May need adjustment if module isolation changes.
     const { updateSession: realUpdate } = await import('../../../src/chat/session/state');
     const updateSpy = vi.spyOn(
       await import('../../../src/chat/session/state'),
@@ -346,5 +354,81 @@ describe('parallel tool execution', () => {
     // but tool_c should NOT have executed (fatal stops further batches)
     expect(results.length).toBeLessThanOrEqual(2);
     expect(toolC.execute).not.toHaveBeenCalled();
+  });
+
+  it('all unknown tool names are handled sequentially with error results', async () => {
+    const registry = {};
+
+    const { results, fatal } = await executeToolCalls(
+      [
+        { id: 'tc1', name: 'nonexistent_a', arguments: { id: '1' } },
+        { id: 'tc2', name: 'nonexistent_b', arguments: { id: '2' } },
+        { id: 'tc3', name: 'nonexistent_c', arguments: { id: '3' } },
+      ],
+      registry,
+      session,
+      null,
+      false,
+    );
+
+    expect(fatal).toBe(false);
+    expect(results).toHaveLength(3);
+    for (const r of results) {
+      expect(r.is_error).toBe(true);
+      expect(r.content).toContain('Unknown tool');
+    }
+  });
+
+  it('tool with backendType none runs sequentially even between query tools', async () => {
+    const callOrder: string[] = [];
+
+    const toolQ1 = mockTool({
+      name: 'tool_q1',
+      execute: vi.fn().mockImplementation(async () => {
+        callOrder.push('q1_start');
+        await delay(10);
+        callOrder.push('q1_end');
+        return { result: 'q1' };
+      }),
+    });
+    const toolNone = mockTool({
+      name: 'tool_none',
+      backendType: 'none',
+      execute: vi.fn().mockImplementation(async () => {
+        callOrder.push('none_start');
+        await delay(10);
+        callOrder.push('none_end');
+        return { result: 'none' };
+      }),
+    });
+    const toolQ2 = mockTool({
+      name: 'tool_q2',
+      execute: vi.fn().mockImplementation(async () => {
+        callOrder.push('q2_start');
+        await delay(10);
+        callOrder.push('q2_end');
+        return { result: 'q2' };
+      }),
+    });
+
+    const registry = { tool_q1: toolQ1, tool_none: toolNone, tool_q2: toolQ2 };
+
+    const { results } = await executeToolCalls(
+      [
+        { id: 'tc1', name: 'tool_q1', arguments: { id: '1' } },
+        { id: 'tc2', name: 'tool_none', arguments: { id: '2' } },
+        { id: 'tc3', name: 'tool_q2', arguments: { id: '3' } },
+      ],
+      registry,
+      session,
+      null,
+      false,
+    );
+
+    expect(results).toHaveLength(3);
+    // tool_none must start after q1 ends (sequential break)
+    expect(callOrder.indexOf('none_start')).toBeGreaterThan(callOrder.indexOf('q1_end'));
+    // q2 must start after tool_none ends
+    expect(callOrder.indexOf('q2_start')).toBeGreaterThan(callOrder.indexOf('none_end'));
   });
 });
