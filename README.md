@@ -17,16 +17,35 @@ The most powerful events and community management toolkit for AI agents. 223 too
 
 ---
 
-## Quick start
+## Getting started
+
+### Prerequisites
+
+You need [Node.js](https://nodejs.org) (v18 or later) installed on your machine. Then install the CLI:
 
 ```bash
 npm install -g @lemonade-social/cli
+```
+
+Log in to your [Lemonade](https://lemonade.social) account:
+
+```bash
 lemonade auth login
 ```
 
-### Use with Claude Code or Claude Desktop
+This opens your browser. Sign in, and you're authenticated.
 
-Add to your MCP config:
+---
+
+### Option A: Use with Claude Desktop
+
+If you use the [Claude Desktop app](https://claude.ai/download), you can manage events and communities right from your conversations with Claude.
+
+**Step 1.** Open Claude Desktop settings
+
+**Step 2.** Go to the **MCP Servers** section (under Developer settings)
+
+**Step 3.** Add a new server with this config:
 
 ```json
 {
@@ -39,38 +58,65 @@ Add to your MCP config:
 }
 ```
 
-That's it. Claude now has access to every Lemonade tool. Try:
+**Step 4.** Restart Claude Desktop
+
+**Step 5.** Start a conversation and try:
 
 ```
-> Create a paid event called "Warehouse Party" next Saturday in Berlin
->   with $25 early bird tickets, a 20% launch discount, and publish it
+Create a paid event called "Warehouse Party" next Saturday in Berlin
+with $25 early bird tickets, a 20% launch discount, and publish it
 ```
 
-One message. Four tools chained automatically: `event_create` -> `tickets_create_type` -> `tickets_create_discount` -> `event_publish`.
+Claude handles everything -- one message creates the event, adds tickets, applies the discount, and publishes. Four tools chained automatically.
 
+---
+
+### Option B: Use with Claude Code
+
+If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), add Lemonade to your MCP config (`~/.claude.json`):
+
+```json
+{
+  "mcpServers": {
+    "lemonade": {
+      "command": "lemonade",
+      "args": ["mcp"]
+    }
+  }
+}
 ```
-> Give me a full health check on my Warehouse Party event
-```
 
-Guest stats, ticket sales, page views, and feedback pulled in parallel.
+All 223 tools are now available in your Claude Code sessions alongside your coding tools.
 
-### Use the AI terminal
+---
+
+### Option C: Use the AI terminal (`make-lemonade`)
+
+Don't use Claude Desktop or Claude Code? No problem. `make-lemonade` is a standalone AI terminal that runs directly in your terminal -- no additional apps needed.
 
 ```bash
 make-lemonade
 ```
 
-A standalone AI terminal for managing events and communities with natural language. No MCP setup needed -- just run the command and start talking.
+On first launch, it walks you through setup:
 
-Three ways to power it:
+1. **Have a Lemonade subscription?** Choose **credits mode** -- no API key needed. Lemonade provides the AI, powered by your subscription credits.
+2. **Have your own AI key?** Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` as an environment variable and `make-lemonade` picks it up automatically.
+3. **Not sure?** The onboarding wizard explains both options and lets you choose.
 
-| Mode | Setup | Best for |
-|------|-------|----------|
-| **Lemonade Credits** | No API key needed -- uses your Lemonade subscription | Getting started instantly |
-| **Anthropic** | `export ANTHROPIC_API_KEY=sk-ant-...` | Claude users with their own key |
-| **OpenAI** | `export OPENAI_API_KEY=sk-...` | GPT users with their own key |
+| Mode | What you need | How to activate |
+|------|---------------|-----------------|
+| **Lemonade Credits** | A Lemonade subscription | `make-lemonade --mode credits` or select during onboarding |
+| **Anthropic** | An Anthropic API key | `export ANTHROPIC_API_KEY=sk-ant-...` then `make-lemonade` |
+| **OpenAI** | An OpenAI API key | `export OPENAI_API_KEY=sk-...` then `make-lemonade --provider openai` |
 
-On first launch, `make-lemonade` walks you through setup. If you have a Lemonade subscription with AI credits, you can skip the API key step entirely.
+Once running, just type what you want:
+
+```
+> create a techno event in Berlin next Saturday at 10pm
+> add a 25 dollar early bird ticket
+> publish it
+```
 
 ---
 
