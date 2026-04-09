@@ -71,8 +71,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetSpaceStats: ['total_members', 'admins', 'ambassadors', 'subscribers', 'total_events', 'total_attendees', 'average_event_rating'],
   aiAddSpaceMember: [], // scalar
   aiRemoveSpaceMember: [], // scalar
-  aiGetNotifications: ['id', 'type', 'message', 'from_user_name', 'ref_event_title', 'read', 'created_at'],
-  getNotifications: ['_id', 'type', 'title', 'message', 'from', 'ref_event', 'created_at', 'is_seen'],
+  getNotifications: ['_id', 'type', 'title', 'message', 'created_at', 'is_seen', 'from_expanded', 'ref_event_expanded', 'ref_space_expanded', 'name'],
   readNotifications: [], // Boolean
   getNotificationFilters: ['_id', 'mode', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],
   setNotificationFilter: ['_id', 'mode', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],

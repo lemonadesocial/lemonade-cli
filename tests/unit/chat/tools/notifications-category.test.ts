@@ -40,6 +40,16 @@ describe('notifications_list category filter', () => {
     expect(variables).toEqual({ skip: 0, limit: 25, category: 'event' });
   });
 
+  it('requests expanded fields (from_expanded, ref_event_expanded, ref_space_expanded)', async () => {
+    mockedRequest.mockResolvedValueOnce({ getNotifications: [] });
+    await tool.execute({});
+
+    const [query] = mockedRequest.mock.calls[0] as [string];
+    expect(query).toContain('from_expanded');
+    expect(query).toContain('ref_event_expanded');
+    expect(query).toContain('ref_space_expanded');
+  });
+
   it('omits category from variables when not provided', async () => {
     mockedRequest.mockResolvedValueOnce({ getNotifications: [] });
     await tool.execute({});
@@ -57,13 +67,65 @@ describe('notifications_list category filter', () => {
     expect(variables).toEqual({ skip: 5, limit: 10 });
   });
 
-  it('wraps the result as { items: [...] }', async () => {
+  it('wraps the result as { items: [...] } and surfaces expanded names', async () => {
     mockedRequest.mockResolvedValueOnce({
-      getNotifications: [{ _id: '1', type: 'event_published', created_at: '2026-01-01' }],
+      getNotifications: [
+        {
+          _id: '1',
+          type: 'event_published',
+          title: 'Welcome',
+          message: 'msg',
+          created_at: '2026-01-01',
+          is_seen: false,
+          from_expanded: { _id: 'u1', name: 'Alice' },
+          ref_event_expanded: { _id: 'e1', title: 'Pizza Party' },
+          ref_space_expanded: { _id: 's1', title: 'Foodies' },
+        },
+      ],
     });
     const result = await tool.execute({});
     expect(result).toEqual({
-      items: [{ _id: '1', type: 'event_published', created_at: '2026-01-01' }],
+      items: [
+        {
+          _id: '1',
+          type: 'event_published',
+          title: 'Welcome',
+          message: 'msg',
+          created_at: '2026-01-01',
+          is_seen: false,
+          from_user_name: 'Alice',
+          ref_event_title: 'Pizza Party',
+          ref_space_title: 'Foodies',
+        },
+      ],
+    });
+  });
+
+  it('handles missing expanded fields gracefully', async () => {
+    mockedRequest.mockResolvedValueOnce({
+      getNotifications: [
+        {
+          _id: '2',
+          type: 'system',
+          created_at: '2026-01-02',
+        },
+      ],
+    });
+    const result = await tool.execute({});
+    expect(result).toEqual({
+      items: [
+        {
+          _id: '2',
+          type: 'system',
+          title: undefined,
+          message: undefined,
+          created_at: '2026-01-02',
+          is_seen: undefined,
+          from_user_name: undefined,
+          ref_event_title: undefined,
+          ref_space_title: undefined,
+        },
+      ],
     });
   });
 });

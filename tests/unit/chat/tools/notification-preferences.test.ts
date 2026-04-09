@@ -203,20 +203,22 @@ describe('notification preference consolidated tools', () => {
     });
   }
 
-  it('manage_notification_filters has correct action enum', () => {
+  it('manage_notification_filters has correct action enum (no delete)', () => {
     const tool = consolidatedTools.find((t) => t.name === 'manage_notification_filters')!;
     const action = tool.params.find((p) => p.name === 'action');
     expect(action).toBeDefined();
     expect(action!.required).toBe(true);
-    expect(action!.enum).toEqual(['list', 'set', 'delete']);
+    expect(action!.enum).toEqual(['list', 'set']);
+    expect(action!.enum).not.toContain('delete');
   });
 
-  it('manage_notification_channel_preferences has correct action enum', () => {
+  it('manage_notification_channel_preferences has correct action enum (no delete)', () => {
     const tool = consolidatedTools.find((t) => t.name === 'manage_notification_channel_preferences')!;
     const action = tool.params.find((p) => p.name === 'action');
     expect(action).toBeDefined();
     expect(action!.required).toBe(true);
-    expect(action!.enum).toEqual(['list', 'set', 'delete']);
+    expect(action!.enum).toEqual(['list', 'set']);
+    expect(action!.enum).not.toContain('delete');
   });
 
   it('manage_notification_filters throws on unknown action', async () => {
@@ -227,6 +229,18 @@ describe('notification preference consolidated tools', () => {
   it('manage_notification_channel_preferences throws on unknown action', async () => {
     const tool = consolidatedTools.find((t) => t.name === 'manage_notification_channel_preferences')!;
     await expect(tool.execute({ action: '__nonexistent__' })).rejects.toThrow('Unknown action');
+  });
+
+  it('manage_notification_filters rejects delete action (use granular tool)', async () => {
+    const tool = consolidatedTools.find((t) => t.name === 'manage_notification_filters')!;
+    await expect(tool.execute({ action: 'delete', filter_id: 'f1' })).rejects.toThrow('Unknown action');
+    expect(mockedRequest).not.toHaveBeenCalled();
+  });
+
+  it('manage_notification_channel_preferences rejects delete action (use granular tool)', async () => {
+    const tool = consolidatedTools.find((t) => t.name === 'manage_notification_channel_preferences')!;
+    await expect(tool.execute({ action: 'delete', preference_id: 'p9' })).rejects.toThrow('Unknown action');
+    expect(mockedRequest).not.toHaveBeenCalled();
   });
 
   it('manage_notification_filters delegates list → notification_filters_list', async () => {
@@ -251,14 +265,12 @@ describe('notification preference consolidated tools', () => {
     expect(variables).toEqual({ input: { mode: 'mute', notification_category: 'event' } });
   });
 
-  it('manage_notification_filters delegates delete → notification_filters_delete', async () => {
-    mockedRequest.mockResolvedValueOnce({ deleteNotificationFilter: true });
+  it('manage_notification_filters set throws when mode is missing', async () => {
     const tool = consolidatedTools.find((t) => t.name === 'manage_notification_filters')!;
-    const result = await tool.execute({ action: 'delete', filter_id: 'f1' });
-    expect(result).toEqual({ deleted: true });
-    const [query, variables] = mockedRequest.mock.calls[0] as [string, Record<string, unknown>];
-    expect(query).toContain('deleteNotificationFilter');
-    expect(variables).toEqual({ filterId: 'f1' });
+    await expect(tool.execute({ action: 'set', notification_category: 'event' })).rejects.toThrow(
+      /mode is required when action=set/,
+    );
+    expect(mockedRequest).not.toHaveBeenCalled();
   });
 
   it('manage_notification_channel_preferences delegates list → notification_channel_preferences_list', async () => {
@@ -284,13 +296,19 @@ describe('notification preference consolidated tools', () => {
     });
   });
 
-  it('manage_notification_channel_preferences delegates delete → notification_channel_preferences_delete', async () => {
-    mockedRequest.mockResolvedValueOnce({ deleteNotificationChannelPreference: true });
+  it('manage_notification_channel_preferences set throws when enabled_channels is missing', async () => {
     const tool = consolidatedTools.find((t) => t.name === 'manage_notification_channel_preferences')!;
-    const result = await tool.execute({ action: 'delete', preference_id: 'p9' });
-    expect(result).toEqual({ deleted: true });
-    const [query, variables] = mockedRequest.mock.calls[0] as [string, Record<string, unknown>];
-    expect(query).toContain('deleteNotificationChannelPreference');
-    expect(variables).toEqual({ preferenceId: 'p9' });
+    await expect(tool.execute({ action: 'set', notification_category: 'event' })).rejects.toThrow(
+      /enabled_channels is required/,
+    );
+    expect(mockedRequest).not.toHaveBeenCalled();
+  });
+
+  it('manage_notification_channel_preferences set throws when enabled_channels is empty array', async () => {
+    const tool = consolidatedTools.find((t) => t.name === 'manage_notification_channel_preferences')!;
+    await expect(
+      tool.execute({ action: 'set', enabled_channels: [], notification_category: 'event' }),
+    ).rejects.toThrow(/enabled_channels is required/);
+    expect(mockedRequest).not.toHaveBeenCalled();
   });
 });

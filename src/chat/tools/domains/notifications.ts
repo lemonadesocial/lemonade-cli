@@ -2,9 +2,9 @@ import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 
-const NOTIFICATION_CATEGORIES = ['event', 'social', 'messaging', 'payment', 'space', 'store', 'system'];
-const NOTIFICATION_FILTER_MODES = ['mute', 'hide', 'only'];
-const NOTIFICATION_REF_TYPES = ['Event', 'Space', 'User', 'StoreOrder'];
+export const NOTIFICATION_CATEGORIES = ['event', 'social', 'messaging', 'payment', 'space', 'store', 'system'] as const;
+export const NOTIFICATION_FILTER_MODES = ['mute', 'hide', 'only'] as const;
+export const NOTIFICATION_REF_TYPES = ['Event', 'Space', 'User', 'StoreOrder'] as const;
 
 interface NotificationFilterRecord {
   _id: string;
@@ -42,7 +42,7 @@ export const notificationsTools: CanonicalCapability[] = [
     displayName: 'notifications list',
     description: 'Get recent notifications, optionally filtered by category.',
     params: [
-      { name: 'category', type: 'string', description: 'Filter by category: event, social, messaging, payment, space, store, or system', required: false, enum: NOTIFICATION_CATEGORIES },
+      { name: 'category', type: 'string', description: 'Filter by category: event, social, messaging, payment, space, store, or system', required: false, enum: [...NOTIFICATION_CATEGORIES] },
       { name: 'limit', type: 'number', description: 'Max results (default 25)', required: false },
       { name: 'skip', type: 'number', description: 'Pagination offset (default 0)', required: false },
     ],
@@ -57,21 +57,62 @@ export const notificationsTools: CanonicalCapability[] = [
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const variables: Record<string, unknown> = {
-        skip: (args.skip as number) || 0,
-        limit: (args.limit as number) || 25,
+        skip: (args.skip as number) ?? 0,
+        limit: (args.limit as number) ?? 25,
       };
       if (args.category !== undefined && args.category !== null && args.category !== '') {
         variables.category = args.category;
       }
-      const result = await graphqlRequest<{ getNotifications: Array<{ _id: string; type: string; title?: string | null; message?: string | null; from?: string | null; ref_event?: string | null; created_at: string; is_seen?: boolean | null }> }>(
+      const result = await graphqlRequest<{
+        getNotifications: Array<{
+          _id: string;
+          type: string;
+          title?: string | null;
+          message?: string | null;
+          created_at: string;
+          is_seen?: boolean | null;
+          from_expanded?: { _id: string; name?: string | null } | null;
+          ref_event_expanded?: { _id: string; title?: string | null } | null;
+          ref_space_expanded?: { _id: string; title?: string | null } | null;
+        }>;
+      }>(
         `query GetNotifications($skip: Int, $limit: Int, $category: NotificationCategory) {
           getNotifications(skip: $skip, limit: $limit, category: $category) {
-            _id type title message from ref_event created_at is_seen
+            _id
+            type
+            title
+            message
+            created_at
+            is_seen
+            from_expanded {
+              _id
+              name
+            }
+            ref_event_expanded {
+              _id
+              title
+            }
+            ref_space_expanded {
+              _id
+              title
+            }
           }
         }`,
         variables,
       );
-      return { items: result.getNotifications };
+      return {
+        items: result.getNotifications.map((n) => ({
+          _id: n._id,
+          type: n.type,
+          title: n.title,
+          message: n.message,
+          created_at: n.created_at,
+          is_seen: n.is_seen,
+          from_user_name: n.from_expanded?.name ?? undefined,
+          ref_event_title: n.ref_event_expanded?.title ?? undefined,
+          ref_space_title: n.ref_space_expanded?.title ?? undefined,
+        })),
+      };
     },
   }),
   buildCapability({
@@ -118,7 +159,7 @@ export const notificationsTools: CanonicalCapability[] = [
     surfaces: ['aiTool'],
     execute: async () => {
       const result = await graphqlRequest<{ getNotificationFilters: NotificationFilterRecord[] }>(
-        `query {
+        `query GetNotificationFilters {
           getNotificationFilters {
             _id mode notification_type notification_category ref_type ref_id space_scoped
           }
@@ -143,10 +184,10 @@ export const notificationsTools: CanonicalCapability[] = [
     description: 'Create or update a notification filter (mute/hide/only rule). Provide filter_id to update an existing filter.',
     params: [
       { name: 'filter_id', type: 'string', description: 'Filter ID (omit to create a new filter)', required: false },
-      { name: 'mode', type: 'string', description: 'Filter mode: mute (no delivery), hide (no badge), or only (whitelist)', required: true, enum: NOTIFICATION_FILTER_MODES },
+      { name: 'mode', type: 'string', description: 'Filter mode: mute (no delivery), hide (no badge), or only (whitelist)', required: true, enum: [...NOTIFICATION_FILTER_MODES] },
       { name: 'notification_type', type: 'string', description: 'Specific notification type to target (optional)', required: false },
-      { name: 'notification_category', type: 'string', description: 'Notification category to target (optional)', required: false, enum: NOTIFICATION_CATEGORIES },
-      { name: 'ref_type', type: 'string', description: 'Scope filter to a reference type', required: false, enum: NOTIFICATION_REF_TYPES },
+      { name: 'notification_category', type: 'string', description: 'Notification category to target (optional)', required: false, enum: [...NOTIFICATION_CATEGORIES] },
+      { name: 'ref_type', type: 'string', description: 'Scope filter to a reference type', required: false, enum: [...NOTIFICATION_REF_TYPES] },
       { name: 'ref_id', type: 'string', description: 'Specific reference ID (requires ref_type)', required: false },
       { name: 'space_scoped', type: 'string', description: 'Limit filter to a specific space ID', required: false },
     ],
@@ -247,7 +288,7 @@ export const notificationsTools: CanonicalCapability[] = [
     surfaces: ['aiTool'],
     execute: async () => {
       const result = await graphqlRequest<{ getNotificationChannelPreferences: NotificationChannelPreferenceRecord[] }>(
-        `query {
+        `query GetNotificationChannelPreferences {
           getNotificationChannelPreferences {
             _id enabled_channels notification_type notification_category ref_type ref_id space_scoped
           }
@@ -272,10 +313,10 @@ export const notificationsTools: CanonicalCapability[] = [
     description: 'Create or update a notification channel preference. Provide preference_id to update an existing preference.',
     params: [
       { name: 'preference_id', type: 'string', description: 'Preference ID (omit to create a new preference)', required: false },
-      { name: 'enabled_channels', type: 'string[]', description: 'Channels to enable delivery on (e.g. ["push"])', required: true },
+      { name: 'enabled_channels', type: 'string[]', description: 'Enabled delivery channels (currently only "push" is supported)', required: true },
       { name: 'notification_type', type: 'string', description: 'Specific notification type to target (optional)', required: false },
-      { name: 'notification_category', type: 'string', description: 'Notification category to target (optional)', required: false, enum: NOTIFICATION_CATEGORIES },
-      { name: 'ref_type', type: 'string', description: 'Scope preference to a reference type', required: false, enum: NOTIFICATION_REF_TYPES },
+      { name: 'notification_category', type: 'string', description: 'Notification category to target (optional)', required: false, enum: [...NOTIFICATION_CATEGORIES] },
+      { name: 'ref_type', type: 'string', description: 'Scope preference to a reference type', required: false, enum: [...NOTIFICATION_REF_TYPES] },
       { name: 'ref_id', type: 'string', description: 'Specific reference ID (requires ref_type)', required: false },
       { name: 'space_scoped', type: 'string', description: 'Limit preference to a specific space ID', required: false },
     ],

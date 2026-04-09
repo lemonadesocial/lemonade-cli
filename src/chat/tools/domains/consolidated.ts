@@ -1,5 +1,10 @@
 import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
+import {
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_FILTER_MODES,
+  NOTIFICATION_REF_TYPES,
+} from './notifications.js';
 
 /**
  * Helper: look up a granular tool by name from the full registry and delegate execution.
@@ -262,20 +267,20 @@ export const consolidatedTools: CanonicalCapability[] = [
     category: 'notifications',
     displayName: 'manage notification filters',
     description:
-      'Manage notification filters (mute/hide/only rules): list, set (create/update), or delete.',
+      'Manage notification filters (mute/hide/only rules): list or set (create/update). Use the granular notification_filters_delete tool to remove filters.',
     params: [
       {
         name: 'action',
         type: 'string',
         description: 'Action to perform',
         required: true,
-        enum: ['list', 'set', 'delete'],
+        enum: ['list', 'set'],
       },
-      { name: 'filter_id', type: 'string', description: 'Filter ID (for set update or delete)', required: false },
-      { name: 'mode', type: 'string', description: 'Filter mode (for set)', required: false, enum: ['mute', 'hide', 'only'] },
+      { name: 'filter_id', type: 'string', description: 'Filter ID (for set update)', required: false },
+      { name: 'mode', type: 'string', description: 'Filter mode (required for set)', required: false, enum: [...NOTIFICATION_FILTER_MODES] },
       { name: 'notification_type', type: 'string', description: 'Notification type to target (for set)', required: false },
-      { name: 'notification_category', type: 'string', description: 'Notification category to target (for set)', required: false, enum: ['event', 'social', 'messaging', 'payment', 'space', 'store', 'system'] },
-      { name: 'ref_type', type: 'string', description: 'Reference type scope (for set)', required: false, enum: ['Event', 'Space', 'User', 'StoreOrder'] },
+      { name: 'notification_category', type: 'string', description: 'Notification category to target (for set)', required: false, enum: [...NOTIFICATION_CATEGORIES] },
+      { name: 'ref_type', type: 'string', description: 'Reference type scope (for set)', required: false, enum: [...NOTIFICATION_REF_TYPES] },
       { name: 'ref_id', type: 'string', description: 'Reference ID (for set)', required: false },
       { name: 'space_scoped', type: 'string', description: 'Limit to a specific space (for set)', required: false },
     ],
@@ -286,16 +291,18 @@ export const consolidatedTools: CanonicalCapability[] = [
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool'],
-    whenToUse: 'when user wants to manage notification filters (list, set mute/hide/only rules, delete)',
-    searchHint: 'notification filter mute hide only list create update delete rules',
+    whenToUse: 'when user wants to list or set notification filters (mute/hide/only rules). For deletes, use notification_filters_delete directly.',
+    searchHint: 'notification filter mute hide only list create update rules',
     execute: async (args, context) => {
       const actionMap: Record<string, string> = {
         list: 'notification_filters_list',
         set: 'notification_filters_set',
-        delete: 'notification_filters_delete',
       };
       const toolName = actionMap[args.action as string];
       if (!toolName) throw new Error(`Unknown action: ${args.action}`);
+      if (args.action === 'set' && !args.mode) {
+        throw new Error('mode is required when action=set (must be: mute, hide, or only)');
+      }
       const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== 'action'));
       return delegateToTool(toolName, rest, context);
     },
@@ -307,20 +314,20 @@ export const consolidatedTools: CanonicalCapability[] = [
     category: 'notifications',
     displayName: 'manage notification channel preferences',
     description:
-      'Manage notification channel preferences (which channels deliver which notifications): list, set, or delete.',
+      'Manage notification channel preferences (which channels deliver which notifications): list or set. Use the granular notification_channel_preferences_delete tool to remove preferences.',
     params: [
       {
         name: 'action',
         type: 'string',
         description: 'Action to perform',
         required: true,
-        enum: ['list', 'set', 'delete'],
+        enum: ['list', 'set'],
       },
-      { name: 'preference_id', type: 'string', description: 'Preference ID (for set update or delete)', required: false },
-      { name: 'enabled_channels', type: 'string[]', description: 'Channels to enable delivery on (for set)', required: false },
+      { name: 'preference_id', type: 'string', description: 'Preference ID (for set update)', required: false },
+      { name: 'enabled_channels', type: 'string[]', description: 'Enabled delivery channels, required for set (currently only "push" is supported)', required: false },
       { name: 'notification_type', type: 'string', description: 'Notification type to target (for set)', required: false },
-      { name: 'notification_category', type: 'string', description: 'Notification category to target (for set)', required: false, enum: ['event', 'social', 'messaging', 'payment', 'space', 'store', 'system'] },
-      { name: 'ref_type', type: 'string', description: 'Reference type scope (for set)', required: false, enum: ['Event', 'Space', 'User', 'StoreOrder'] },
+      { name: 'notification_category', type: 'string', description: 'Notification category to target (for set)', required: false, enum: [...NOTIFICATION_CATEGORIES] },
+      { name: 'ref_type', type: 'string', description: 'Reference type scope (for set)', required: false, enum: [...NOTIFICATION_REF_TYPES] },
       { name: 'ref_id', type: 'string', description: 'Reference ID (for set)', required: false },
       { name: 'space_scoped', type: 'string', description: 'Limit to a specific space (for set)', required: false },
     ],
@@ -331,16 +338,21 @@ export const consolidatedTools: CanonicalCapability[] = [
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool'],
-    whenToUse: 'when user wants to manage notification delivery channel preferences (list, set, delete)',
-    searchHint: 'notification channel preference delivery push list create update delete',
+    whenToUse: 'when user wants to list or set notification delivery channel preferences. For deletes, use notification_channel_preferences_delete directly.',
+    searchHint: 'notification channel preference delivery push list create update',
     execute: async (args, context) => {
       const actionMap: Record<string, string> = {
         list: 'notification_channel_preferences_list',
         set: 'notification_channel_preferences_set',
-        delete: 'notification_channel_preferences_delete',
       };
       const toolName = actionMap[args.action as string];
       if (!toolName) throw new Error(`Unknown action: ${args.action}`);
+      if (args.action === 'set') {
+        const channels = args.enabled_channels;
+        if (!channels || (Array.isArray(channels) && channels.length === 0)) {
+          throw new Error('enabled_channels is required and must be non-empty when action=set');
+        }
+      }
       const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== 'action'));
       return delegateToTool(toolName, rest, context);
     },
