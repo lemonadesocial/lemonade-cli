@@ -6,6 +6,76 @@ export const NOTIFICATION_CATEGORIES = ['event', 'social', 'messaging', 'payment
 export const NOTIFICATION_FILTER_MODES = ['mute', 'hide', 'only'] as const;
 export const NOTIFICATION_REF_TYPES = ['Event', 'Space', 'User', 'StoreOrder'] as const;
 
+/**
+ * NOTIFICATION_TYPES mirrors the backend `NotificationType` enum in
+ * lemonade-backend/src/app/models/notification.ts. Keep in sync if the
+ * backend enum changes — this drives the schema-level enum constraint
+ * exposed to the LLM for `notification_type` params.
+ */
+export const NOTIFICATION_TYPES = [
+  // event
+  'event_announce',
+  'event_invite',
+  'event_approve',
+  'event_cohost_added',
+  'event_request_created',
+  'event_invite_attending',
+  'event_declined',
+  'event_cancellation',
+  'event_chat_announce',
+  'event_donation',
+  'event_attestation_sync_completed',
+  'event_invite_verify_accept_request',
+  'event_invite_verify_request',
+  'event_request_approved',
+  'event_request_declined',
+  'event_unlock_verify_accept_request',
+  'event_unlock_verify_request',
+  'event_update',
+  'event_reminder',
+  // social
+  'user_discovery_match',
+  'user_friendship_request',
+  'user_friendship_request_accept',
+  'user_contact_signup',
+  'user_follow',
+  // messaging
+  'chat_message',
+  'xmtp_message',
+  // payment
+  'payment_authorized',
+  'payment_failed',
+  'payment_refunded',
+  'payment_succeeded',
+  'payments_captured_summary',
+  'payments_wired_summary',
+  'ticket_assigned',
+  'ticket_cancelled',
+  // space
+  'space_verification_approved',
+  'space_verification_rejected',
+  'space_member_added',
+  'space_event_pin_request',
+  'space_event_submission_approved',
+  'space_admin_added',
+  // store
+  'store_order_accepted',
+  'store_order_awaiting_pickup',
+  'store_order_cancelled',
+  'store_order_declined',
+  'store_order_delivered',
+  'store_order_delivery_confirmed',
+  'store_order_in_transit',
+  'store_order_pending',
+  'store_order_preparing',
+  // system
+  'stripe_connected',
+  'email_send_failed',
+  'admin_payment_verification',
+  'safe_vault_init_failed',
+  'safe_vault_init_success',
+] as const;
+
 interface NotificationFilterRecord {
   _id: string;
   mode: string;
@@ -43,7 +113,7 @@ export const notificationsTools: CanonicalCapability[] = [
     description: 'Get recent notifications, optionally filtered by category.',
     params: [
       { name: 'category', type: 'string', description: 'Filter by category: event, social, messaging, payment, space, store, or system', required: false, enum: [...NOTIFICATION_CATEGORIES] },
-      { name: 'limit', type: 'number', description: 'Max results (default 25)', required: false },
+      { name: 'limit', type: 'number', description: 'Max results (default 25, cap 1000)', required: false },
       { name: 'skip', type: 'number', description: 'Pagination offset (default 0)', required: false },
     ],
     whenToUse: 'to fetch recent alerts, messages, and activity notifications (optionally filtered by category)',
@@ -56,9 +126,10 @@ export const notificationsTools: CanonicalCapability[] = [
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
+      const limit = Math.min((args.limit as number) ?? 25, 1000);
       const variables: Record<string, unknown> = {
         skip: (args.skip as number) ?? 0,
-        limit: (args.limit as number) ?? 25,
+        limit,
       };
       if (args.category !== undefined && args.category !== null && args.category !== '') {
         variables.category = args.category;
@@ -171,7 +242,7 @@ export const notificationsTools: CanonicalCapability[] = [
     params: [
       { name: 'filter_id', type: 'string', description: 'Filter ID (omit to create a new filter)', required: false },
       { name: 'mode', type: 'string', description: 'Filter mode: mute (no delivery), hide (no badge), or only (whitelist)', required: true, enum: [...NOTIFICATION_FILTER_MODES] },
-      { name: 'notification_type', type: 'string', description: 'Specific notification type to target (optional)', required: false },
+      { name: 'notification_type', type: 'string', description: 'Specific notification type to target (optional)', required: false, enum: [...NOTIFICATION_TYPES] },
       { name: 'notification_category', type: 'string', description: 'Notification category to target (optional)', required: false, enum: [...NOTIFICATION_CATEGORIES] },
       { name: 'ref_type', type: 'string', description: 'Scope filter to a reference type', required: false, enum: [...NOTIFICATION_REF_TYPES] },
       { name: 'ref_id', type: 'string', description: 'Specific reference ID (requires ref_type)', required: false },
@@ -217,8 +288,7 @@ export const notificationsTools: CanonicalCapability[] = [
       return result.setNotificationFilter;
     },
     formatResult: (result) => {
-      const f = result as NotificationFilterRecord | null;
-      if (!f || !f._id) return JSON.stringify(result);
+      const f = result as NotificationFilterRecord;
       return `Filter ${f._id} set: ${f.mode.toUpperCase()} ${describeScope(f)}`;
     },
   }),
@@ -300,7 +370,7 @@ export const notificationsTools: CanonicalCapability[] = [
     params: [
       { name: 'preference_id', type: 'string', description: 'Preference ID (omit to create a new preference)', required: false },
       { name: 'enabled_channels', type: 'string[]', description: 'Enabled delivery channels (currently only "push" is supported)', required: true },
-      { name: 'notification_type', type: 'string', description: 'Specific notification type to target (optional)', required: false },
+      { name: 'notification_type', type: 'string', description: 'Specific notification type to target (optional)', required: false, enum: [...NOTIFICATION_TYPES] },
       { name: 'notification_category', type: 'string', description: 'Notification category to target (optional)', required: false, enum: [...NOTIFICATION_CATEGORIES] },
       { name: 'ref_type', type: 'string', description: 'Scope preference to a reference type', required: false, enum: [...NOTIFICATION_REF_TYPES] },
       { name: 'ref_id', type: 'string', description: 'Specific reference ID (requires ref_type)', required: false },
@@ -346,8 +416,7 @@ export const notificationsTools: CanonicalCapability[] = [
       return result.setNotificationChannelPreference;
     },
     formatResult: (result) => {
-      const p = result as NotificationChannelPreferenceRecord | null;
-      if (!p || !p._id) return JSON.stringify(result);
+      const p = result as NotificationChannelPreferenceRecord;
       return `Preference ${p._id} set: channels=[${(p.enabled_channels || []).join(',')}] ${describeScope(p)}`;
     },
   }),

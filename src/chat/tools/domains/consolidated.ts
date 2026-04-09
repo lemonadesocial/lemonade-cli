@@ -4,6 +4,7 @@ import {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_FILTER_MODES,
   NOTIFICATION_REF_TYPES,
+  NOTIFICATION_TYPES,
 } from './notifications.js';
 
 /**
@@ -281,7 +282,7 @@ export const consolidatedTools: CanonicalCapability[] = [
       },
       { name: 'filter_id', type: 'string', description: 'Filter ID (for set update)', required: false },
       { name: 'mode', type: 'string', description: 'Filter mode (required for set)', required: false, enum: [...NOTIFICATION_FILTER_MODES] },
-      { name: 'notification_type', type: 'string', description: 'Notification type to target (for set)', required: false },
+      { name: 'notification_type', type: 'string', description: 'Notification type to target (for set)', required: false, enum: [...NOTIFICATION_TYPES] },
       { name: 'notification_category', type: 'string', description: 'Notification category to target (for set)', required: false, enum: [...NOTIFICATION_CATEGORIES] },
       { name: 'ref_type', type: 'string', description: 'Reference type scope (for set)', required: false, enum: [...NOTIFICATION_REF_TYPES] },
       { name: 'ref_id', type: 'string', description: 'Reference ID (for set)', required: false },
@@ -328,7 +329,7 @@ export const consolidatedTools: CanonicalCapability[] = [
       },
       { name: 'preference_id', type: 'string', description: 'Preference ID (for set update)', required: false },
       { name: 'enabled_channels', type: 'string[]', description: 'Enabled delivery channels, required for set (currently only "push" is supported)', required: false },
-      { name: 'notification_type', type: 'string', description: 'Notification type to target (for set)', required: false },
+      { name: 'notification_type', type: 'string', description: 'Notification type to target (for set)', required: false, enum: [...NOTIFICATION_TYPES] },
       { name: 'notification_category', type: 'string', description: 'Notification category to target (for set)', required: false, enum: [...NOTIFICATION_CATEGORIES] },
       { name: 'ref_type', type: 'string', description: 'Reference type scope (for set)', required: false, enum: [...NOTIFICATION_REF_TYPES] },
       { name: 'ref_id', type: 'string', description: 'Reference ID (for set)', required: false },
