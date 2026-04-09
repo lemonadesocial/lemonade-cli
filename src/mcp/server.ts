@@ -115,8 +115,12 @@ export async function startMcpServer(options: McpServerOptions = {}): Promise<vo
     const { startNotificationListener } = await import(
       '../chat/notifications/listener.js'
     );
+    const { formatNotificationForMCP } = await import(
+      '../chat/notifications/formatter.js'
+    );
     const notificationListener = startNotificationListener({
-      onNotification: (formatted) => {
+      onNotification: (_formatted, raw) => {
+        const formatted = formatNotificationForMCP(raw);
         try {
           server.server.sendLoggingMessage({
             level: 'info',

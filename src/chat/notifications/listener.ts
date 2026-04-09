@@ -22,7 +22,14 @@ export function startNotificationListener(
   let wsConnected = false;
   let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
+  const recentIds = new Set<string>();
   const handleNotification = (notification: LemonadeNotification) => {
+    if (recentIds.has(notification._id)) return;
+    recentIds.add(notification._id);
+    if (recentIds.size > 100) {
+      const first = recentIds.values().next().value as string;
+      recentIds.delete(first);
+    }
     const formatted = formatNotification(notification);
     options.onNotification(formatted, notification);
   };

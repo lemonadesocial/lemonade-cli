@@ -59,12 +59,15 @@ export function createNotificationSubscription(
       options.onError?.(new Error('Not authenticated'));
       return;
     }
-    const token = auth.replace('Bearer ', '');
 
     client = createClient({
       url: wsUrl,
       webSocketImpl: WebSocket as unknown as typeof globalThis.WebSocket,
-      connectionParams: { token },
+      connectionParams: async () => {
+        const freshAuth = await ensureAuthHeader();
+        const freshToken = freshAuth?.replace('Bearer ', '') ?? '';
+        return { token: freshToken };
+      },
       shouldRetry: () => !disposed,
       retryAttempts: Infinity,
       retryWait: async (retryCount: number) => {
@@ -113,7 +116,9 @@ export function createNotificationSubscription(
     client?.dispose();
   }
 
-  connect();
+  connect().catch((err) => {
+    options.onError?.(err instanceof Error ? err : new Error(String(err)));
+  });
 
   return { dispose };
 }

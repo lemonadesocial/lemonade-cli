@@ -23,9 +23,10 @@ export function startNotificationPoller(
   onNotification: (notification: LemonadeNotification) => void,
   intervalMs: number = 60_000,
 ): { stop: () => void } {
-  let lastSeenId: string | null = null;
+  const seenIds = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
+  let firstPoll = true;
 
   async function poll() {
     if (stopped) return;
@@ -36,23 +37,32 @@ export function startNotificationPoller(
 
       const notifications = result.getNotifications || [];
 
-      // Filter to only new notifications (assumes newest first from API)
-      const newNotifications = lastSeenId
-        ? notifications.filter((n) => n._id > lastSeenId!)
-        : [];
+      // On first poll, seed the seen set without emitting
+      if (firstPoll) {
+        for (const n of notifications) seenIds.add(n._id);
+        firstPoll = false;
+      } else {
+        // Filter to only new notifications using bounded Set
+        const newNotifications = notifications.filter((n) => !seenIds.has(n._id));
+        for (const n of notifications) seenIds.add(n._id);
 
-      if (notifications.length > 0) {
-        lastSeenId = notifications[0]._id;
-      }
+        // Prune if over 200
+        if (seenIds.size > 200) {
+          const iter = seenIds.values();
+          for (let i = 0; i < seenIds.size - 200; i++) {
+            seenIds.delete(iter.next().value as string);
+          }
+        }
 
-      // Emit new notifications oldest-first
-      for (const n of newNotifications.reverse()) {
-        if (!n.is_seen) {
-          onNotification(n);
+        // Emit new notifications oldest-first
+        for (const n of newNotifications.reverse()) {
+          if (!n.is_seen) {
+            onNotification(n);
+          }
         }
       }
-    } catch {
-      // Silently skip poll failures
+    } catch (err) {
+      process.stderr.write(`[notifications] Poll failed: ${err instanceof Error ? err.message : String(err)}\n`);
     }
 
     if (!stopped) {
