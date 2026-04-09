@@ -56,6 +56,8 @@
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
     "figures": "^6",
+    "graphql": "^16.13.2",
+    "graphql-ws": "^6.0.8",
     "ink": "^6.8.0",
     "open": "^10.1.0",
     "openai": "^6.33.0",
@@ -63,11 +65,13 @@
     "react": "^19.2.4",
     "string-width": "^7.2.0",
     "terminal-link": "^4",
+    "ws": "^8.20.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.14",
+    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0",

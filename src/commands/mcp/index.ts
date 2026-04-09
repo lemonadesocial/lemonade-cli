@@ -4,8 +4,9 @@ export function registerMcpCommand(program: Command): void {
   program
     .command('mcp')
     .description('Start MCP server for Claude Code integration')
-    .action(async () => {
+    .option('--watch', 'Subscribe to real-time notifications')
+    .action(async (opts: { watch?: boolean }) => {
       const { startMcpServer } = await import('../../mcp/server.js');
-      await startMcpServer();
+      await startMcpServer({ watch: opts.watch });
     });
 }

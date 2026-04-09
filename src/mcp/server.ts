@@ -8,7 +8,11 @@ import { ensureAuthHeader, getDefaultSpace } from '../auth/store.js';
 import { getPackageVersion } from '../config/version.js';
 import type { CanonicalCapability, ExecutionContext } from '../capabilities/types.js';
 
-export async function startMcpServer(): Promise<void> {
+export interface McpServerOptions {
+  watch?: boolean;
+}
+
+export async function startMcpServer(options: McpServerOptions = {}): Promise<void> {
   // Redirect all console methods to stderr to prevent MCP stdio protocol corruption.
   // console.warn/error already default to stderr, but we redirect for consistency.
   const stderrWrite = (...args: unknown[]) => { process.stderr.write(args.map(String).join(' ') + '\n'); };
@@ -106,4 +110,30 @@ export async function startMcpServer(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  if (options.watch) {
+    const { startNotificationListener } = await import(
+      '../chat/notifications/listener.js'
+    );
+    const notificationListener = startNotificationListener({
+      onNotification: (formatted) => {
+        try {
+          server.server.sendLoggingMessage({
+            level: 'info',
+            logger: 'notifications',
+            data: formatted,
+          });
+        } catch {
+          // Client may not support logging
+        }
+      },
+      onStatusChange: (status) => {
+        process.stderr.write(`[notifications] Status: ${status}\n`);
+      },
+    });
+
+    const cleanup = () => notificationListener.stop();
+    process.on('SIGTERM', cleanup);
+    process.on('SIGINT', cleanup);
+  }
 }
