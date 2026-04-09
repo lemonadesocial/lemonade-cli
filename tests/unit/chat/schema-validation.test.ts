@@ -72,7 +72,14 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiAddSpaceMember: [], // scalar
   aiRemoveSpaceMember: [], // scalar
   aiGetNotifications: ['id', 'type', 'message', 'from_user_name', 'ref_event_title', 'read', 'created_at'],
+  getNotifications: ['_id', 'type', 'title', 'message', 'from', 'ref_event', 'created_at', 'is_seen'],
   readNotifications: [], // Boolean
+  getNotificationFilters: ['_id', 'mode', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],
+  setNotificationFilter: ['_id', 'mode', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],
+  deleteNotificationFilter: [], // Boolean
+  getNotificationChannelPreferences: ['_id', 'enabled_channels', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],
+  setNotificationChannelPreference: ['_id', 'enabled_channels', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],
+  deleteNotificationChannelPreference: [], // Boolean
   listChains: ['chain_id', 'name', 'platform', 'rpc_url'],
   aiListLaunchpadCoins: ['items', '_id', 'name', 'symbol', 'status'],
   aiAddLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],

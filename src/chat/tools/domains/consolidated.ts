@@ -256,6 +256,96 @@ export const consolidatedTools: CanonicalCapability[] = [
     },
   }),
 
+  // ── manage_notification_filters ─────────────────────────────────────
+  buildCapability({
+    name: 'manage_notification_filters',
+    category: 'notifications',
+    displayName: 'manage notification filters',
+    description:
+      'Manage notification filters (mute/hide/only rules): list, set (create/update), or delete.',
+    params: [
+      {
+        name: 'action',
+        type: 'string',
+        description: 'Action to perform',
+        required: true,
+        enum: ['list', 'set', 'delete'],
+      },
+      { name: 'filter_id', type: 'string', description: 'Filter ID (for set update or delete)', required: false },
+      { name: 'mode', type: 'string', description: 'Filter mode (for set)', required: false, enum: ['mute', 'hide', 'only'] },
+      { name: 'notification_type', type: 'string', description: 'Notification type to target (for set)', required: false },
+      { name: 'notification_category', type: 'string', description: 'Notification category to target (for set)', required: false, enum: ['event', 'social', 'messaging', 'payment', 'space', 'store', 'system'] },
+      { name: 'ref_type', type: 'string', description: 'Reference type scope (for set)', required: false, enum: ['Event', 'Space', 'User', 'StoreOrder'] },
+      { name: 'ref_id', type: 'string', description: 'Reference ID (for set)', required: false },
+      { name: 'space_scoped', type: 'string', description: 'Limit to a specific space (for set)', required: false },
+    ],
+    alwaysLoad: true,
+    shouldDefer: false,
+    destructive: false,
+    backendType: 'none',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool'],
+    whenToUse: 'when user wants to manage notification filters (list, set mute/hide/only rules, delete)',
+    searchHint: 'notification filter mute hide only list create update delete rules',
+    execute: async (args, context) => {
+      const actionMap: Record<string, string> = {
+        list: 'notification_filters_list',
+        set: 'notification_filters_set',
+        delete: 'notification_filters_delete',
+      };
+      const toolName = actionMap[args.action as string];
+      if (!toolName) throw new Error(`Unknown action: ${args.action}`);
+      const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== 'action'));
+      return delegateToTool(toolName, rest, context);
+    },
+  }),
+
+  // ── manage_notification_channel_preferences ─────────────────────────
+  buildCapability({
+    name: 'manage_notification_channel_preferences',
+    category: 'notifications',
+    displayName: 'manage notification channel preferences',
+    description:
+      'Manage notification channel preferences (which channels deliver which notifications): list, set, or delete.',
+    params: [
+      {
+        name: 'action',
+        type: 'string',
+        description: 'Action to perform',
+        required: true,
+        enum: ['list', 'set', 'delete'],
+      },
+      { name: 'preference_id', type: 'string', description: 'Preference ID (for set update or delete)', required: false },
+      { name: 'enabled_channels', type: 'string[]', description: 'Channels to enable delivery on (for set)', required: false },
+      { name: 'notification_type', type: 'string', description: 'Notification type to target (for set)', required: false },
+      { name: 'notification_category', type: 'string', description: 'Notification category to target (for set)', required: false, enum: ['event', 'social', 'messaging', 'payment', 'space', 'store', 'system'] },
+      { name: 'ref_type', type: 'string', description: 'Reference type scope (for set)', required: false, enum: ['Event', 'Space', 'User', 'StoreOrder'] },
+      { name: 'ref_id', type: 'string', description: 'Reference ID (for set)', required: false },
+      { name: 'space_scoped', type: 'string', description: 'Limit to a specific space (for set)', required: false },
+    ],
+    alwaysLoad: true,
+    shouldDefer: false,
+    destructive: false,
+    backendType: 'none',
+    requiresSpace: false,
+    requiresEvent: false,
+    surfaces: ['aiTool'],
+    whenToUse: 'when user wants to manage notification delivery channel preferences (list, set, delete)',
+    searchHint: 'notification channel preference delivery push list create update delete',
+    execute: async (args, context) => {
+      const actionMap: Record<string, string> = {
+        list: 'notification_channel_preferences_list',
+        set: 'notification_channel_preferences_set',
+        delete: 'notification_channel_preferences_delete',
+      };
+      const toolName = actionMap[args.action as string];
+      if (!toolName) throw new Error(`Unknown action: ${args.action}`);
+      const rest = Object.fromEntries(Object.entries(args).filter(([k]) => k !== 'action'));
+      return delegateToTool(toolName, rest, context);
+    },
+  }),
+
   // ── manage_page_config ──────────────────────────────────────────────
   buildCapability({
     name: 'manage_page_config',
