@@ -54,21 +54,23 @@ One message. Four tools chained automatically: `event_create` -> `tickets_create
 
 Guest stats, ticket sales, page views, and feedback pulled in parallel.
 
-### Use from the terminal
-
-```bash
-lemonade event create --title "Warehouse Party" --start "2026-05-01T22:00:00Z"
-lemonade event list --json
-lemonade space stripe-connect
-```
-
-### Use as an AI terminal
+### Use the AI terminal
 
 ```bash
 make-lemonade
 ```
 
-Interactive AI chat for natural language event management. Supports Anthropic and OpenAI.
+A standalone AI terminal for managing events and communities with natural language. No MCP setup needed -- just run the command and start talking.
+
+Three ways to power it:
+
+| Mode | Setup | Best for |
+|------|-------|----------|
+| **Lemonade Credits** | No API key needed -- uses your Lemonade subscription | Getting started instantly |
+| **Anthropic** | `export ANTHROPIC_API_KEY=sk-ant-...` | Claude users with their own key |
+| **OpenAI** | `export OPENAI_API_KEY=sk-...` | GPT users with their own key |
+
+On first launch, `make-lemonade` walks you through setup. If you have a Lemonade subscription with AI credits, you can skip the API key step entirely.
 
 ---
 
@@ -174,29 +176,103 @@ Returns the full payload that would be sent to the API. Works on all mutation co
 
 ---
 
-## Interactive AI mode
+## make-lemonade AI terminal
+
+A full-featured AI terminal for event and community management. No MCP config, no IDE -- just natural language in your terminal.
+
+### Getting started
 
 ```bash
+# Install and authenticate
+npm install -g @lemonade-social/cli
+lemonade auth login
+
+# Launch
 make-lemonade
 ```
 
-Standalone AI terminal for managing your Lemonade account with natural language.
+On first launch, `make-lemonade` detects your setup automatically:
+- **Have a Lemonade subscription?** Use AI credits -- no API key needed
+- **Have an Anthropic or OpenAI key?** Set it as an environment variable and go
+- **Neither?** The onboarding wizard walks you through both options
+
+### What it looks like
 
 ```
 > create a techno event in Berlin next Saturday at 10pm
+
+  Creating event...
+  Event created: "Techno Night" (ID: abc123)
+  Start: Saturday, April 12 at 10:00 PM CEST
+  Status: Draft
+
 > add a 25 dollar early bird ticket
+
+  Creating ticket type...
+  Ticket type created: "Early Bird" -- $25.00
+  Event: Techno Night
+
 > publish it
-> switch to my Berlin Techno space
-> how are ticket sales for my warehouse party?
+
+  Publishing event...
+  Event published: Techno Night
+  Link: https://lemonade.social/e/techno-night
+
+> how are ticket sales?
+
+  Ticket Sales: Techno Night
+  Early Bird -- $25.00 -- 12 sold / 100 total -- $300.00 revenue
+  Total revenue: $300.00
 ```
 
-**Options:**
+### Plan mode
+
+Say "help me create an event" or "walk me through setting up tickets" and `make-lemonade` enters plan mode -- a step-by-step wizard that collects every detail interactively:
+
+```
+> help me create an event
+
+  Let's set up your event step by step.
+
+  Which space? (select)
+  1. Berlin Techno
+  2. Wellness Community
+  > 1
+
+  Event title?
+  > Warehouse Party Vol. 3
+
+  Start date and time?
+  > next saturday at 10pm
+
+  Location?
+  > Warehouse 23, Berlin
+
+  ...
+```
+
+Plan mode works for event creation, ticket setup, page building, and any tool with complex parameters. You can also trigger it by calling a tool with no arguments -- the system detects missing required fields and activates the wizard automatically.
+
+### AI providers
 
 ```bash
-make-lemonade --provider openai          # Use OpenAI (default: Anthropic)
-make-lemonade --model gpt-4o            # Override model
-echo "list my events" | make-lemonade    # Batch mode via stdin
-make-lemonade --json                     # JSON output (batch mode)
+# Lemonade Credits (no API key needed)
+make-lemonade --mode credits
+
+# Anthropic (default when key is set)
+export ANTHROPIC_API_KEY=sk-ant-...
+make-lemonade
+
+# OpenAI
+export OPENAI_API_KEY=sk-...
+make-lemonade --provider openai
+
+# Override model
+make-lemonade --model gpt-4o
+make-lemonade --model claude-sonnet-4-6
+
+# Batch mode (stdin)
+echo "list my events" | make-lemonade --json
 ```
 
 ---
@@ -257,10 +333,12 @@ lemonade config get default_space
 |---|---|
 | `LEMONADE_API_KEY` | API key (skips browser login) |
 | `LEMONADE_API_URL` | Backend URL (default: production) |
-| `ANTHROPIC_API_KEY` | For `make-lemonade` AI mode |
-| `OPENAI_API_KEY` | For `make-lemonade` AI mode |
+| `ANTHROPIC_API_KEY` | Anthropic API key for `make-lemonade` |
+| `OPENAI_API_KEY` | OpenAI API key for `make-lemonade` |
 | `MAKE_LEMONADE_PROVIDER` | AI provider: `anthropic` or `openai` |
 | `MAKE_LEMONADE_MODEL` | Model override (e.g. `claude-sonnet-4-6`, `gpt-4o`) |
+
+No API key? Use `make-lemonade --mode credits` to run on Lemonade's built-in AI with your subscription credits.
 
 ---
 
