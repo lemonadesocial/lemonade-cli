@@ -83,7 +83,7 @@ Interactive AI chat for natural language event management. Supports Anthropic an
 | Pages | 17 | AI-powered page builder. Generate landing pages, manage sections, version history. |
 | Payments | 16 | Stripe connect, wallet setup, payment accounts, escrow, relay, and stake configurations. |
 | Tickets | 14 | Ticket types, pricing, discounts, purchases, assignments, upgrades, and email receipts. |
-| Connectors | 9 | Sync with Eventbrite, Luma, and other platforms. Import and export event data. |
+| Connectors | 9 | Google Sheets, Airtable, Eventbrite, Luma, Meetup, Dice. Real-time sync, import/export. |
 | Newsletters | 8 | Create, send, and track email campaigns to your community. |
 | Subscriptions | 6 | Plan management, feature access, upgrades, and billing. |
 | Rewards | 6 | Balance, history, payouts, referrals, and reward settings. |
@@ -126,6 +126,39 @@ Multi-step operations that chain tools automatically:
 `event_guest_stats` + `event_ticket_sold_insight` + `event_view_insight` (runs in parallel)
 
 Workflows are registered as AI tools. Ask Claude to "set up a paid event" and it selects the right workflow.
+
+---
+
+## Connectors
+
+Extend Lemonade with real-time integrations to the tools you already use.
+
+**Supported platforms:**
+
+| Platform | Type | What you can do |
+|----------|------|-----------------|
+| Google Sheets | OAuth | Export guest lists, sync attendees, real-time event data feeds |
+| Airtable | OAuth | Sync guests to bases, import attendee data, build custom views |
+| Eventbrite | OAuth | Import events, sync ticket sales, migrate attendees |
+| Luma | API key | Sync events and calendars, import guest data |
+| Meetup | OAuth | Import events and RSVPs |
+| Dice | API key | Sync event lineups and ticket data |
+
+**What this enables:**
+
+- **Real-time guest list sync** -- connect Google Sheets or Airtable and every new registration appears automatically. Build custom dashboards, mail merge lists, or check-in sheets without manual exports.
+- **Content calendars** -- sync event schedules to Airtable or Notion-connected sheets. Plan community activations, social posts, and marketing campaigns around your event timeline.
+- **Cross-platform migration** -- import your existing Eventbrite or Luma events into Lemonade with one command. Bring your attendee history with you.
+- **Custom API workflows** -- use the connector tools programmatically to build automated pipelines. New event created? Auto-export the guest list. Ticket sold? Update the spreadsheet.
+
+**Example: sync guests to Google Sheets**
+
+```
+> connect Google Sheets to my Berlin Techno space
+> sync the guest list from my Warehouse Party to the connected sheet
+```
+
+The CLI handles OAuth, configuration, and sync execution. Ask Claude to set it up and it walks through each step.
 
 ---
 
