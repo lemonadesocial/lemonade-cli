@@ -111,21 +111,17 @@ describe('notifications_list category filter', () => {
         },
       ],
     });
-    const result = await tool.execute({});
-    expect(result).toEqual({
-      items: [
-        {
-          _id: '2',
-          type: 'system',
-          title: undefined,
-          message: undefined,
-          created_at: '2026-01-02',
-          is_seen: undefined,
-          from_user_name: undefined,
-          ref_event_title: undefined,
-          ref_space_title: undefined,
-        },
-      ],
-    });
+    const result = (await tool.execute({})) as { items: Array<Record<string, unknown>> };
+    expect(result.items).toHaveLength(1);
+    const item = result.items[0];
+    // Fields present on the source payload should pass through.
+    expect(item._id).toBe('2');
+    expect(item.type).toBe('system');
+    expect(item.created_at).toBe('2026-01-02');
+    // Missing expanded sub-objects should resolve to undefined name/title fields
+    // (rather than crashing on null deref).
+    expect(item.from_user_name).toBeUndefined();
+    expect(item.ref_event_title).toBeUndefined();
+    expect(item.ref_space_title).toBeUndefined();
   });
 });

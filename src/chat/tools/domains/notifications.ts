@@ -78,24 +78,10 @@ export const notificationsTools: CanonicalCapability[] = [
       }>(
         `query GetNotifications($skip: Int, $limit: Int, $category: NotificationCategory) {
           getNotifications(skip: $skip, limit: $limit, category: $category) {
-            _id
-            type
-            title
-            message
-            created_at
-            is_seen
-            from_expanded {
-              _id
-              name
-            }
-            ref_event_expanded {
-              _id
-              title
-            }
-            ref_space_expanded {
-              _id
-              title
-            }
+            _id type title message created_at is_seen
+            from_expanded { _id name }
+            ref_event_expanded { _id title }
+            ref_space_expanded { _id title }
           }
         }`,
         variables,

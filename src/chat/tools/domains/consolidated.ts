@@ -54,8 +54,11 @@ export const consolidatedTools: CanonicalCapability[] = [
     alwaysLoad: true,
     shouldDefer: false,
     destructive: false,
-    // Consolidated wrappers use 'none' — they don't call the backend directly.
-    // Each delegate tool has its own correct backendType for dry-run handling.
+    // Consolidated wrappers use backendType 'none' because they don't make
+    // direct backend calls — they delegate to granular tools. However, this
+    // means the executor's dry-run interception (which checks the outer tool's
+    // backendType) does NOT cover mutations performed by the delegate. For
+    // destructive operations, call the granular *_delete tools directly.
     backendType: 'none',
     requiresSpace: false,
     requiresEvent: false,
