@@ -105,6 +105,15 @@ export function registerAuthCommands(program: Command): void {
     .option('--json', 'Output as JSON')
     .action(async (opts) => {
       try {
+        // Revoke current session on the backend before clearing local auth
+        try {
+          await graphqlRequest<{ revokeMySession: { success: boolean } }>(
+            'mutation { revokeMySession { success } }',
+          );
+        } catch {
+          // Best-effort: if the server is unreachable or token is already invalid,
+          // proceed with local logout anyway.
+        }
         clearAuth();
         if (opts.json) {
           console.log(jsonSuccess({ logged_out: true }));
