@@ -90,15 +90,11 @@ function promptForInput(prompt: string): Promise<string> {
       rl.close();
       resolve(answer.trim());
     });
-    rl.on('error', reject);
+    rl.on('error', (err) => {
+      rl.close();
+      reject(err);
+    });
   });
-}
-
-function formatSessionId(session: ActiveSession): string {
-  if (!session.kratos_session_id) {
-    return 'API Key';
-  }
-  return session.kratos_session_id.slice(0, 8) + '...';
 }
 
 export function registerSessionsCommands(program: Command): void {
@@ -143,6 +139,13 @@ export function registerSessionsCommands(program: Command): void {
     .option('--json', 'Output as JSON')
     .action(async (id: string, opts) => {
       try {
+        // Check if this is the current session and warn
+        const listResult = await graphqlRequest<ListSessionsResponse>(LIST_SESSIONS_QUERY);
+        const targetSession = listResult.getMyActiveSessions.find((s) => s._id === id);
+        if (targetSession?.is_current) {
+          process.stderr.write('Warning: revoking your current session will invalidate your auth token.\n');
+        }
+
         const result = await graphqlRequest<RevokeSessionResponse>(
           REVOKE_SESSION_MUTATION,
           { session_id: id },
@@ -173,7 +176,7 @@ export function registerSessionsCommands(program: Command): void {
 
         // Step 2: Prompt for 6-digit OTP code
         const code = await promptForInput('Enter 6-digit verification code: ');
-        if (!code || code.length !== 6) {
+        if (!code || !/^\d{6}$/.test(code)) {
           throw new Error('Invalid verification code. Must be 6 digits.');
         }
 

@@ -123,6 +123,7 @@ describe('Sessions Commands', () => {
 
   describe('sessions revoke', () => {
     it('calls revokeMySession mutation with session id', async () => {
+      mockGraphqlRequest.mockResolvedValueOnce({ getMyActiveSessions: [] });
       mockGraphqlRequest.mockResolvedValueOnce({ revokeMySession: { success: true } });
 
       await program.parseAsync(['node', 'test', 'sessions', 'revoke', 'sess_001']);
@@ -135,6 +136,7 @@ describe('Sessions Commands', () => {
     });
 
     it('outputs JSON on success with --json flag', async () => {
+      mockGraphqlRequest.mockResolvedValueOnce({ getMyActiveSessions: [] });
       mockGraphqlRequest.mockResolvedValueOnce({ revokeMySession: { success: true } });
 
       await program.parseAsync(['node', 'test', 'sessions', 'revoke', 'sess_001', '--json']);

@@ -9,7 +9,7 @@ export interface GraphQLResponse<T> {
 
 let clientType = 'cli';
 
-export function setClientType(type: string): void {
+export function setClientType(type: 'cli' | 'mcp'): void {
   clientType = type;
 }
 
