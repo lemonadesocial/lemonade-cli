@@ -105,10 +105,12 @@ export function registerAuthCommands(program: Command): void {
     .option('--json', 'Output as JSON')
     .action(async (opts) => {
       try {
-        // Revoke current session on the backend before clearing local auth
+        // Revoke current session on the backend before clearing local auth.
+        // revokeCurrentSession derives identity + session from the auth context
+        // (no args), so the CLI does not need to look up its own session ID.
         try {
-          await graphqlRequest<{ revokeMySession: { success: boolean } }>(
-            'mutation { revokeMySession { success } }',
+          await graphqlRequest<{ revokeCurrentSession: boolean }>(
+            'mutation { revokeCurrentSession }',
           );
         } catch {
           // Best-effort: if the server is unreachable or token is already invalid,
