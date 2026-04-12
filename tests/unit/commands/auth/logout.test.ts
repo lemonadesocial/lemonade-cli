@@ -30,7 +30,9 @@ describe('auth logout', () => {
   let stderrSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    // resetAllMocks clears both call history AND mock implementations — prevents
+    // a throwing clearAuth from a previous test leaking into the next.
+    vi.resetAllMocks();
     program = new Command();
     program.exitOverride();
     registerAuthCommands(program);
@@ -100,7 +102,6 @@ describe('auth logout', () => {
   });
 
   it('calls revokeCurrentSession mutation before clearAuth', async () => {
-    vi.mocked(clearAuth).mockImplementation(() => {});
     vi.mocked(graphqlRequest).mockResolvedValueOnce({
       revokeCurrentSession: true,
     });
@@ -110,6 +111,7 @@ describe('auth logout', () => {
     expect(graphqlRequest).toHaveBeenCalledWith(
       expect.stringContaining('revokeCurrentSession'),
     );
+    expect(clearAuth).toHaveBeenCalledOnce();
     // graphqlRequest invocation order must precede clearAuth
     const revokeOrder = vi.mocked(graphqlRequest).mock.invocationCallOrder[0];
     const clearOrder = vi.mocked(clearAuth).mock.invocationCallOrder[0];
@@ -117,9 +119,6 @@ describe('auth logout', () => {
   });
 
   it('still clears auth when revokeCurrentSession fails (best-effort)', async () => {
-    // Reset clearAuth to a no-op — vi.clearAllMocks() in beforeEach does not
-    // reset mock implementations, so the throw from an earlier test leaks in.
-    vi.mocked(clearAuth).mockImplementation(() => {});
     vi.mocked(graphqlRequest).mockRejectedValueOnce(
       new Error('Server unreachable'),
     );
