@@ -6,6 +6,7 @@ import { capabilityToInputSchema, capabilityToAnnotations } from './schema-adapt
 import { searchCapabilities } from '../capabilities/search.js';
 import { ensureAuthHeader, getDefaultSpace } from '../auth/store.js';
 import { getPackageVersion } from '../config/version.js';
+import { setClientType } from '../api/graphql.js';
 import type { CanonicalCapability, ExecutionContext } from '../capabilities/types.js';
 
 export interface McpServerOptions {
@@ -13,6 +14,9 @@ export interface McpServerOptions {
 }
 
 export async function startMcpServer(options: McpServerOptions = {}): Promise<void> {
+  // Tag all outbound API requests with MCP client type
+  setClientType('mcp');
+
   // Redirect all console methods to stderr to prevent MCP stdio protocol corruption.
   // console.warn/error already default to stderr, but we redirect for consistency.
   const stderrWrite = (...args: unknown[]) => { process.stderr.write(args.map(String).join(' ') + '\n'); };

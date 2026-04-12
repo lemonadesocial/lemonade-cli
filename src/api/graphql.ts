@@ -1,8 +1,26 @@
+import { hostname, platform, release } from 'os';
 import { getApiUrl, ensureAuthHeader } from '../auth/store.js';
+import { getPackageVersion } from '../config/version.js';
 
 export interface GraphQLResponse<T> {
   data?: T;
   errors?: Array<{ message: string; extensions?: { code?: string } }>;
+}
+
+let clientType = 'cli';
+
+export function setClientType(type: 'cli' | 'mcp'): void {
+  clientType = type;
+}
+
+export function getClientHeaders(): Record<string, string> {
+  return {
+    'X-Client-Type': clientType,
+    'X-Client-Device-Name': hostname(),
+    'X-Client-OS': platform() + ' ' + release(),
+    'X-Client-App-Version': getPackageVersion(),
+    'X-Client-Locale': process.env.LANG || 'en-US',
+  };
 }
 
 export class GraphQLError extends Error {
@@ -37,6 +55,7 @@ export async function graphqlRequest<T>(
     headers: {
       'Content-Type': 'application/json',
       'Authorization': auth,
+      ...getClientHeaders(),
     },
     body: JSON.stringify({ query: operation, variables }),
     signal: AbortSignal.timeout(30_000),
