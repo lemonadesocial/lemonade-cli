@@ -4,6 +4,13 @@
 
 * align connector_disconnect with DisconnectResult contract; token-revocation failures are now surfaced instead of silently succeeding
 
+## [1.4.1](https://github.com/lemonadesocial/lemonade-cli/compare/v1.4.0...v1.4.1) (2026-04-19)
+
+
+### Bug Fixes
+
+* **cli:** remove expires_at field from stripe-connect mutation ([#186](https://github.com/lemonadesocial/lemonade-cli/issues/186)) ([8a0402a](https://github.com/lemonadesocial/lemonade-cli/commit/8a0402aaeac3e7bb961ef0e0b4b1b792d8fdb72d))
+
 ## [1.4.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.3.0...v1.4.0) (2026-04-19)
 
 
