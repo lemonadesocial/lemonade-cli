@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 
 // Mock dependencies before importing the module under test
 const mockTool = vi.fn();
@@ -39,14 +39,10 @@ vi.mock('../../../src/capabilities/search.js', () => ({
   searchCapabilities: vi.fn().mockReturnValue([]),
 }));
 
-// Stub hostname() deterministically so the MCP device-name assertion is stable.
-vi.mock('os', async () => {
-  const actual = await vi.importActual<typeof import('os')>('os');
-  return {
-    ...actual,
-    hostname: () => 'test-host',
-  };
-});
+// NOTE: The `os` module is NOT mocked here at module scope. The outer describe's
+// pre-existing tests see the real `os.hostname()`. The nested `Phase 1 WS client
+// metadata` describe block below applies a scoped os mock via vi.doMock +
+// vi.resetModules and restores it in afterAll.
 
 import { startMcpServer } from '../../../src/mcp/server.js';
 import { ensureAuthHeader } from '../../../src/auth/store.js';
@@ -219,31 +215,119 @@ describe('startMcpServer', () => {
     ]);
   });
 
-  // ---------------------------------------------------------------------------
-  // Phase 1: WS session-revocation — X-Client-Type / X-Client-Device-Name
-  // ---------------------------------------------------------------------------
+});
+
+// ---------------------------------------------------------------------------
+// Phase 1: WS session-revocation — X-Client-Type / X-Client-Device-Name
+//
+// The os.hostname() stub is scoped to THIS describe only (A-004). We use
+// vi.doMock('os', ...) + vi.resetModules() so the dynamically imported copies
+// of src/api/graphql.js and src/mcp/server.js bind to the stubbed hostname.
+// The outer describe above continues to see the real os.hostname().
+// ---------------------------------------------------------------------------
+
+describe('Phase 1 WS client metadata', () => {
+  // Dynamic re-imports bound to the scoped os mock.
+  let startMcpServerScoped: typeof import('../../../src/mcp/server.js').startMcpServer;
+  let getClientHeadersScoped: typeof import('../../../src/api/graphql.js').getClientHeaders;
+  let setClientTypeScoped: typeof import('../../../src/api/graphql.js').setClientType;
+  let ensureAuthHeaderScoped: ReturnType<
+    typeof vi.mocked<typeof import('../../../src/auth/store.js').ensureAuthHeader>
+  >;
+  let partitionToolsScoped: ReturnType<
+    typeof vi.mocked<typeof import('../../../src/capabilities/partitioner.js').partitionTools>
+  >;
+
+  beforeAll(async () => {
+    // Scoped os stub — ONLY applies to the module graph re-imported below.
+    vi.doMock('os', async () => {
+      const actual = await vi.importActual<typeof import('os')>('os');
+      return {
+        ...actual,
+        hostname: () => 'test-host',
+      };
+    });
+
+    // Re-register the hoisted mocks for the fresh module graph that
+    // vi.resetModules() invalidates below.
+    vi.doMock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
+      McpServer: class MockMcpServer {
+        tool = mockTool;
+        connect = mockConnect;
+        constructor() {}
+      },
+    }));
+    vi.doMock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
+      StdioServerTransport: class MockTransport {
+        constructor() {}
+      },
+    }));
+    vi.doMock('../../../src/auth/store.js', () => ({
+      ensureAuthHeader: vi.fn(),
+      getDefaultSpace: vi.fn(),
+    }));
+    vi.doMock('../../../src/capabilities/partitioner.js', () => ({
+      partitionTools: vi.fn(),
+    }));
+    vi.doMock('../../../src/config/version.js', () => ({
+      getPackageVersion: vi.fn().mockReturnValue('1.0.0-test'),
+    }));
+    vi.doMock('../../../src/capabilities/search.js', () => ({
+      searchCapabilities: vi.fn().mockReturnValue([]),
+    }));
+
+    vi.resetModules();
+
+    const serverMod = await import('../../../src/mcp/server.js');
+    const graphqlMod = await import('../../../src/api/graphql.js');
+    const storeMod = await import('../../../src/auth/store.js');
+    const partitionerMod = await import('../../../src/capabilities/partitioner.js');
+
+    startMcpServerScoped = serverMod.startMcpServer;
+    getClientHeadersScoped = graphqlMod.getClientHeaders;
+    setClientTypeScoped = graphqlMod.setClientType;
+    ensureAuthHeaderScoped = vi.mocked(storeMod.ensureAuthHeader);
+    partitionToolsScoped = vi.mocked(partitionerMod.partitionTools);
+  });
+
+  afterAll(() => {
+    vi.doUnmock('os');
+    vi.doUnmock('@modelcontextprotocol/sdk/server/mcp.js');
+    vi.doUnmock('@modelcontextprotocol/sdk/server/stdio.js');
+    vi.doUnmock('../../../src/auth/store.js');
+    vi.doUnmock('../../../src/capabilities/partitioner.js');
+    vi.doUnmock('../../../src/config/version.js');
+    vi.doUnmock('../../../src/capabilities/search.js');
+    vi.resetModules();
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    partitionToolsScoped.mockReturnValue({ alwaysLoad: [], deferred: [] });
+    setClientTypeScoped('cli');
+  });
 
   it('after startMcpServer() runs, getClientHeaders() reports X-Client-Type = "mcp"', async () => {
-    mockEnsureAuthHeader.mockResolvedValue('Bearer test-token');
+    ensureAuthHeaderScoped.mockResolvedValue('Bearer test-token');
 
-    await startMcpServer();
+    await startMcpServerScoped();
 
-    const headers = getClientHeaders();
+    const headers = getClientHeadersScoped();
     expect(headers['X-Client-Type']).toBe('mcp');
   });
 
   it('after startMcpServer() runs, getClientHeaders() reports prefixed X-Client-Device-Name = "Lemonade MCP (<hostname>)"', async () => {
-    mockEnsureAuthHeader.mockResolvedValue('Bearer test-token');
+    ensureAuthHeaderScoped.mockResolvedValue('Bearer test-token');
 
-    await startMcpServer();
+    await startMcpServerScoped();
 
-    const headers = getClientHeaders();
+    const headers = getClientHeadersScoped();
     expect(headers['X-Client-Device-Name']).toBe('Lemonade MCP (test-host)');
   });
 
   it('CLI baseline (no startMcpServer run): getClientHeaders() reports raw hostname without MCP prefix', () => {
     // beforeEach reset clientType to 'cli'; no startMcpServer call.
-    const headers = getClientHeaders();
+    const headers = getClientHeadersScoped();
     expect(headers['X-Client-Type']).toBe('cli');
     expect(headers['X-Client-Device-Name']).toBe('test-host');
   });

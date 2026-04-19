@@ -110,9 +110,16 @@ export function createNotificationSubscription(
           tokenRefreshAttempted = false;
           options.onConnected?.();
         },
-        closed: (rawEvent: unknown) => {
-          const event = rawEvent as { code?: number } | undefined;
-          const code = typeof event?.code === 'number' ? event.code : undefined;
+        closed: async (rawEvent: unknown) => {
+          // Narrow via structural typeof guard: avoids a bare `as` cast and
+          // tolerates non-object payloads (undefined, strings) without throwing.
+          const code =
+            typeof rawEvent === 'object' &&
+            rawEvent !== null &&
+            'code' in rawEvent &&
+            typeof (rawEvent as { code: unknown }).code === 'number'
+              ? (rawEvent as { code: number }).code
+              : undefined;
 
           if (code === CLOSE_CODE_SESSION_REVOKED) {
             handleSessionRevoked();
@@ -136,11 +143,20 @@ export function createNotificationSubscription(
               '[lemonade-cli] token expired, refreshing code=4403\n',
             );
             tokenRefreshAttempted = true;
-            // Fire-and-forget: refresh happens in-flight; the reconnect's async
-            // connectionParams will re-read the fresh token via ensureAuthHeader().
-            ensureAuthHeader().catch(() => {
-              /* swallow — retry will try again with current state */
-            });
+            // Await ensureAuthHeader() per its contract ("MUST be awaited").
+            // graphql-ws v6 Client.on.closed permits Promise<void>, so we can
+            // hold the callback until the refresh attempt settles before the
+            // next reconnect pulls a token via connectionParams.
+            try {
+              await ensureAuthHeader();
+            } catch {
+              // Surface the intermediate failure so ops can see a refresh
+              // attempt actually errored (otherwise a silent catch hides the
+              // root cause of an eventual 4403→4401 promotion).
+              process.stderr.write(
+                '[lemonade-cli] token refresh attempt errored code=4403\n',
+              );
+            }
             return;
           }
 

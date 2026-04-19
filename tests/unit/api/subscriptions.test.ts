@@ -64,6 +64,16 @@ async function loadFreshModule() {
   return import('../../../src/api/subscriptions.js');
 }
 
+/**
+ * Narrowing helper: asserts the subscription factory has captured the
+ * createClient options and returns a non-null handle. Lets call sites read
+ * `getLastOpts().on.closed(...)` without a bang-operator everywhere (A-007).
+ */
+function getLastOpts(): NonNullable<typeof lastCreateClientOptions> {
+  expect(lastCreateClientOptions).not.toBeNull();
+  return lastCreateClientOptions!;
+}
+
 async function startSubscription(
   opts: Partial<Parameters<Awaited<ReturnType<typeof loadFreshModule>>['createNotificationSubscription']>[0]> = {},
 ) {
@@ -140,7 +150,7 @@ describe('createNotificationSubscription', () => {
   it('close code 4401 → disposes, clears auth, invokes onSessionRevoked, breadcrumb before any user message', async () => {
     const { opts } = await startSubscription();
 
-    lastCreateClientOptions!.on.closed({ code: 4401 });
+    getLastOpts().on.closed({ code: 4401 });
 
     expect(clearAuthMock).toHaveBeenCalledTimes(1);
     expect(opts.onSessionRevoked).toHaveBeenCalledTimes(1);
@@ -155,7 +165,7 @@ describe('createNotificationSubscription', () => {
     expect(revokedBreadcrumbs).toHaveLength(1);
 
     // shouldRetry must return false after 4401 (disposed=true).
-    expect(lastCreateClientOptions!.shouldRetry?.(undefined)).toBe(false);
+    expect(getLastOpts().shouldRetry?.(undefined)).toBe(false);
   });
 
   // -------------------------------------------------------------------------
@@ -168,7 +178,7 @@ describe('createNotificationSubscription', () => {
     // Baseline call count from the initial connect()
     const baselineAuthCalls = ensureAuthHeaderMock.mock.calls.length;
 
-    lastCreateClientOptions!.on.closed({ code: 4403 });
+    getLastOpts().on.closed({ code: 4403 });
     // Allow the fire-and-forget ensureAuthHeader() refresh to settle.
     await Promise.resolve();
 
@@ -192,7 +202,7 @@ describe('createNotificationSubscription', () => {
     ).toBe(false);
 
     // shouldRetry still true (disposed unchanged).
-    expect(lastCreateClientOptions!.shouldRetry?.(undefined)).toBe(true);
+    expect(getLastOpts().shouldRetry?.(undefined)).toBe(true);
   });
 
   // -------------------------------------------------------------------------
@@ -203,11 +213,11 @@ describe('createNotificationSubscription', () => {
     const { opts } = await startSubscription();
 
     // First 4403 flips tokenRefreshAttempted = true
-    lastCreateClientOptions!.on.closed({ code: 4403 });
+    getLastOpts().on.closed({ code: 4403 });
     await Promise.resolve();
 
     // Second 4403 → promote
-    lastCreateClientOptions!.on.closed({ code: 4403 });
+    getLastOpts().on.closed({ code: 4403 });
 
     expect(clearAuthMock).toHaveBeenCalledTimes(1);
     expect(opts.onSessionRevoked).toHaveBeenCalledTimes(1);
@@ -234,7 +244,7 @@ describe('createNotificationSubscription', () => {
     async (code) => {
       const { opts } = await startSubscription();
 
-      lastCreateClientOptions!.on.closed({ code });
+      getLastOpts().on.closed({ code });
 
       expect(clearAuthMock).not.toHaveBeenCalled();
       expect(opts.onSessionRevoked).not.toHaveBeenCalled();
@@ -242,7 +252,7 @@ describe('createNotificationSubscription', () => {
 
       const calls = stderrWriteSpy.mock.calls.map((c) => String(c[0]));
       expect(calls.some((msg) => msg.startsWith('[lemonade-cli]'))).toBe(false);
-      expect(lastCreateClientOptions!.shouldRetry?.(undefined)).toBe(true);
+      expect(getLastOpts().shouldRetry?.(undefined)).toBe(true);
     },
   );
 
@@ -253,7 +263,7 @@ describe('createNotificationSubscription', () => {
   it('close code undefined (clean shutdown) → no breadcrumb, onDisconnected invoked, disposed unchanged', async () => {
     const { opts } = await startSubscription();
 
-    lastCreateClientOptions!.on.closed(undefined);
+    getLastOpts().on.closed(undefined);
 
     expect(clearAuthMock).not.toHaveBeenCalled();
     expect(opts.onSessionRevoked).not.toHaveBeenCalled();
@@ -261,7 +271,7 @@ describe('createNotificationSubscription', () => {
 
     const calls = stderrWriteSpy.mock.calls.map((c) => String(c[0]));
     expect(calls.some((msg) => msg.startsWith('[lemonade-cli]'))).toBe(false);
-    expect(lastCreateClientOptions!.shouldRetry?.(undefined)).toBe(true);
+    expect(getLastOpts().shouldRetry?.(undefined)).toBe(true);
   });
 
   // -------------------------------------------------------------------------
@@ -271,7 +281,7 @@ describe('createNotificationSubscription', () => {
   it('close code 9999 (unknown) → permissive default: no breadcrumb, no clearAuth, retry allowed', async () => {
     const { opts } = await startSubscription();
 
-    lastCreateClientOptions!.on.closed({ code: 9999 });
+    getLastOpts().on.closed({ code: 9999 });
 
     expect(clearAuthMock).not.toHaveBeenCalled();
     expect(opts.onSessionRevoked).not.toHaveBeenCalled();
@@ -279,7 +289,7 @@ describe('createNotificationSubscription', () => {
 
     const calls = stderrWriteSpy.mock.calls.map((c) => String(c[0]));
     expect(calls.some((msg) => msg.startsWith('[lemonade-cli]'))).toBe(false);
-    expect(lastCreateClientOptions!.shouldRetry?.(undefined)).toBe(true);
+    expect(getLastOpts().shouldRetry?.(undefined)).toBe(true);
   });
 
   // -------------------------------------------------------------------------
@@ -289,7 +299,7 @@ describe('createNotificationSubscription', () => {
   it('connectionParams includes literal "X-Client-Type" title-case = "cli" plus token', async () => {
     await startSubscription();
 
-    const params = await lastCreateClientOptions!.connectionParams!();
+    const params = await getLastOpts().connectionParams!();
     expect(params['X-Client-Type']).toBe('cli');
     expect(params).toHaveProperty('token');
     expect(params.token).toBe('test-token');
@@ -306,7 +316,7 @@ describe('createNotificationSubscription', () => {
 
     await startSubscription();
 
-    const params = await lastCreateClientOptions!.connectionParams!();
+    const params = await getLastOpts().connectionParams!();
     expect(params['X-Client-Type']).toBe('mcp');
     expect(params).toHaveProperty('token');
   });
@@ -319,7 +329,7 @@ describe('createNotificationSubscription', () => {
     const { opts } = await startSubscription();
 
     // Burn the refresh budget with a 4403
-    lastCreateClientOptions!.on.closed({ code: 4403 });
+    getLastOpts().on.closed({ code: 4403 });
     await Promise.resolve();
     const afterFirstBreadcrumbCount = stderrWriteSpy.mock.calls.filter((c) =>
       String(c[0]).includes('token expired, refreshing code=4403'),
@@ -327,11 +337,11 @@ describe('createNotificationSubscription', () => {
     expect(afterFirstBreadcrumbCount).toBe(1);
 
     // Reconnect — on.connected must reset the flag
-    lastCreateClientOptions!.on.connected?.();
+    getLastOpts().on.connected?.();
     expect(opts.onConnected).toHaveBeenCalled();
 
     // Another 4403 should now be treated as first-occurrence (refresh, NOT promote to 4401)
-    lastCreateClientOptions!.on.closed({ code: 4403 });
+    getLastOpts().on.closed({ code: 4403 });
     await Promise.resolve();
 
     expect(clearAuthMock).not.toHaveBeenCalled();
@@ -347,14 +357,14 @@ describe('createNotificationSubscription', () => {
     await startSubscription();
 
     // Burn the refresh budget with 4403
-    lastCreateClientOptions!.on.closed({ code: 4403 });
+    getLastOpts().on.closed({ code: 4403 });
     await Promise.resolve();
 
     // Transient close resets the flag
-    lastCreateClientOptions!.on.closed({ code: 1006 });
+    getLastOpts().on.closed({ code: 1006 });
 
     // Another 4403 should be treated as first-occurrence again
-    lastCreateClientOptions!.on.closed({ code: 4403 });
+    getLastOpts().on.closed({ code: 4403 });
     await Promise.resolve();
 
     expect(clearAuthMock).not.toHaveBeenCalled();
