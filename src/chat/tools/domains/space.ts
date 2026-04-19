@@ -369,6 +369,7 @@ export const spaceTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'addSpaceMembers',
     requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const emailList: string[] = Array.isArray(args.emails)
         ? (args.emails as string[])
@@ -423,6 +424,7 @@ export const spaceTools: CanonicalCapability[] = [
     backendType: 'mutation',
     backendResolver: 'deleteSpaceMembers',
     requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
       const ids: string[] = Array.isArray(args.member_ids)
         ? (args.member_ids as string[])
