@@ -351,27 +351,59 @@ export const spaceTools: CanonicalCapability[] = [
     name: 'space_add_member',
     category: 'space',
     displayName: 'space add-member',
-    description: 'Add a member to a space.',
+    description: 'Add one or more members to a space by email.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
-      { name: 'user_id', type: 'string', description: 'User ID to add', required: true },
-      { name: 'role', type: 'string', description: 'Role: admin|host|member', required: false, default: 'member' },
+      { name: 'email', type: 'string', description: 'Email address of the member to add (use emails for multiple)', required: false },
+      { name: 'emails', type: 'string[]', description: 'Multiple emails to add in one call', required: false },
+      { name: 'user_name', type: 'string', description: 'Display name for the added user (single-email invites only)', required: false },
+      { name: 'role', type: 'string', description: 'Space role', required: false, default: 'subscriber',
+        enum: ['unsubscriber', 'subscriber', 'ambassador', 'admin', 'creator'] },
+      { name: 'visible', type: 'boolean', description: 'Whether the member is visible in the space roster', required: false },
+      { name: 'tags', type: 'string[]', description: 'Space tag IDs to apply to the new members', required: false },
     ],
-    whenToUse: 'when user wants to add someone to the community',
-    searchHint: 'add member invite user community join',
+    whenToUse: 'when user wants to add people to a community by email',
+    searchHint: 'add member invite user community join email',
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiAddSpaceMember',
+    backendResolver: 'addSpaceMembers',
     requiresEvent: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiAddSpaceMember: unknown }>(
-        `mutation($space: MongoID!, $user: MongoID!, $role: String) {
-          aiAddSpaceMember(space: $space, user: $user, role: $role)
+      const emailList: string[] = Array.isArray(args.emails)
+        ? (args.emails as string[])
+        : args.email
+          ? [args.email as string]
+          : [];
+      if (emailList.length === 0) {
+        throw new Error('At least one email is required (provide --email or --emails).');
+      }
+      const users = emailList.map((email) => {
+        const user: Record<string, unknown> = { email };
+        if (emailList.length === 1 && args.user_name !== undefined) {
+          user.user_name = args.user_name;
+        }
+        return user;
+      });
+      const input: Record<string, unknown> = {
+        space: args.space_id,
+        role: args.role || 'subscriber',
+        users,
+      };
+      if (args.visible !== undefined) input.visible = args.visible;
+      if (args.tags !== undefined) input.tags = args.tags;
+      const result = await graphqlRequest<{ addSpaceMembers: boolean }>(
+        `mutation($input: AddSpaceMemberInput!) {
+          addSpaceMembers(input: $input)
         }`,
-        { space: args.space_id, user: args.user_id, role: args.role || 'member' },
+        { input },
       );
-      return result.aiAddSpaceMember;
+      return { added: result.addSpaceMembers, count: users.length, role: input.role };
+    },
+    formatResult: (result) => {
+      const r = result as { added: boolean; count: number; role: string };
+      if (!r.added) return 'No members were added (backend returned false).';
+      return `Added ${r.count} member(s) to the space as ${r.role}.`;
     },
   }),
   buildCapability({
