@@ -151,7 +151,10 @@ describe('Tool Registry', () => {
 
     expect(registry.page_preview_link).toBeDefined();
     expect(registry.page_preview_link.destructive).toBe(false);
-    expect(registry.page_preview_link.params.find((p) => p.name === 'config_id')?.required).toBe(true);
+    expect(registry.page_preview_link.params.find((p) => p.name === 'link_type')?.required).toBe(true);
+    expect(registry.page_preview_link.params.find((p) => p.name === 'link_type')?.enum).toContain('event');
+    expect(registry.page_preview_link.params.find((p) => p.name === 'link_type')?.enum).toContain('space');
+    expect(registry.page_preview_link.params.find((p) => p.name === 'resource_id')?.required).toBe(true);
     expect(registry.page_preview_link.params.find((p) => p.name === 'password')?.required).toBe(false);
     expect(registry.page_preview_link.params.find((p) => p.name === 'expires_in_hours')?.type).toBe('number');
 

@@ -48,7 +48,7 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   page_config_get: 'getPageConfig',
   page_config_update: 'updatePageConfig',
   page_config_published: 'getPublishedConfig',
-  page_preview_link: 'generatePreviewLink',
+  page_preview_link: 'createPreviewLink',
   page_config_create: 'createPageConfig',
   get_backend_version: 'aiGetBackendVersion',
   list_chains: 'listChains',
