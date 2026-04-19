@@ -263,34 +263,35 @@ export const spaceTools: CanonicalCapability[] = [
     name: 'space_stats',
     category: 'space',
     displayName: 'space analytics',
-    description: 'Get space analytics (members, events, ratings).',
+    description: 'Get space analytics (members by role, events, ratings).',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
-    whenToUse: 'to get member count, event count, and growth metrics for a community',
+    whenToUse: 'to get role-level counts, event counts, and rating metrics for a community',
     searchHint: 'stats overview space community analytics metrics',
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetSpaceStats',
+    backendResolver: 'getSpaceStatistics',
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetSpaceStats: unknown }>(
+      const result = await graphqlRequest<{ getSpaceStatistics: unknown }>(
         `query($space: MongoID!) {
-          aiGetSpaceStats(space: $space) {
-            total_members admins ambassadors subscribers
-            total_events total_attendees average_event_rating
+          getSpaceStatistics(space: $space) {
+            admins ambassadors subscribers
+            created_events submitted_events event_attendees
+            avg_event_rating
           }
         }`,
         { space: args.space_id },
       );
-      return result.aiGetSpaceStats;
+      return result.getSpaceStatistics;
     },
     formatResult: (result) => {
-      const r = result as { total_members: number; admins: number; ambassadors: number; subscribers: number; total_events: number; total_attendees: number; average_event_rating?: number };
-      const rating = r.average_event_rating ? `${r.average_event_rating}/5 rating` : 'no ratings yet';
-      return `Space: ${r.total_members} members (${r.admins} admins, ${r.ambassadors} ambassadors, ${r.subscribers} subscribers), ${r.total_events} events, ${r.total_attendees} attendees, ${rating}.`;
+      const r = result as { admins: number; ambassadors: number; subscribers: number; created_events: number; submitted_events: number; event_attendees: number; avg_event_rating?: number };
+      const rating = r.avg_event_rating ? `${r.avg_event_rating.toFixed(1)}/5 avg rating` : 'no ratings yet';
+      return `Space: ${r.admins} admins, ${r.ambassadors} ambassadors, ${r.subscribers} subscribers | ${r.created_events} events created, ${r.submitted_events} submitted, ${r.event_attendees} attendees | ${rating}.`;
     },
   }),
   buildCapability({
