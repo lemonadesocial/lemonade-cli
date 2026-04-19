@@ -263,115 +263,200 @@ export const spaceTools: CanonicalCapability[] = [
     name: 'space_stats',
     category: 'space',
     displayName: 'space analytics',
-    description: 'Get space analytics (members, events, ratings).',
+    description: 'Get space analytics (members by role, events, ratings).',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
     ],
-    whenToUse: 'to get member count, event count, and growth metrics for a community',
+    whenToUse: 'to get role-level counts, event counts, and rating metrics for a community',
     searchHint: 'stats overview space community analytics metrics',
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetSpaceStats',
+    backendResolver: 'getSpaceStatistics',
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetSpaceStats: unknown }>(
+      const result = await graphqlRequest<{ getSpaceStatistics: unknown }>(
         `query($space: MongoID!) {
-          aiGetSpaceStats(space: $space) {
-            total_members admins ambassadors subscribers
-            total_events total_attendees average_event_rating
+          getSpaceStatistics(space: $space) {
+            admins ambassadors subscribers
+            created_events submitted_events event_attendees
+            avg_event_rating
           }
         }`,
         { space: args.space_id },
       );
-      return result.aiGetSpaceStats;
+      return result.getSpaceStatistics;
     },
     formatResult: (result) => {
-      const r = result as { total_members: number; admins: number; ambassadors: number; subscribers: number; total_events: number; total_attendees: number; average_event_rating?: number };
-      const rating = r.average_event_rating ? `${r.average_event_rating}/5 rating` : 'no ratings yet';
-      return `Space: ${r.total_members} members (${r.admins} admins, ${r.ambassadors} ambassadors, ${r.subscribers} subscribers), ${r.total_events} events, ${r.total_attendees} attendees, ${rating}.`;
+      const r = result as { admins: number; ambassadors: number; subscribers: number; created_events: number; submitted_events: number; event_attendees: number; avg_event_rating?: number };
+      const rating = r.avg_event_rating ? `${r.avg_event_rating.toFixed(1)}/5 avg rating` : 'no ratings yet';
+      return `Space: ${r.admins} admins, ${r.ambassadors} ambassadors, ${r.subscribers} subscribers | ${r.created_events} events created, ${r.submitted_events} submitted, ${r.event_attendees} attendees | ${rating}.`;
     },
   }),
   buildCapability({
     name: 'space_members',
     category: 'space',
     displayName: 'space members',
-    description: 'List members of a space.',
+    description: 'List members of a space with roles and membership state.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+      { name: 'search', type: 'string', description: 'Search by name or email', required: false },
     ],
     whenToUse: 'to browse the member roster and roles in a community',
     searchHint: 'members list people community roster roles',
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetSpaceMembers',
+    backendResolver: 'listSpaceMembers',
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetSpaceMembers: unknown }>(
-        `query($space: MongoID!) {
-          aiGetSpaceMembers(space: $space) {
-            items { name email role joined_at }
+      const variables: Record<string, unknown> = { space: args.space_id };
+      if (args.limit !== undefined) variables.limit = Number(args.limit);
+      if (args.skip !== undefined) variables.skip = Number(args.skip);
+      if (args.search !== undefined) variables.search = args.search;
+      const result = await graphqlRequest<{ listSpaceMembers: { total: number; items: Array<Record<string, unknown>> } }>(
+        `query($space: MongoID!, $limit: Int, $skip: Int, $search: String) {
+          listSpaceMembers(space: $space, limit: $limit, skip: $skip, search: $search) {
+            total
+            items {
+              _id user_name email role state visible
+              role_changed_at deleted_at
+            }
           }
         }`,
-        { space: args.space_id },
+        variables,
       );
-      return result.aiGetSpaceMembers;
+      return result.listSpaceMembers;
+    },
+    formatResult: (result) => {
+      const r = result as { total: number; items: Array<{ _id?: string; user_name?: string; email?: string; role?: string; state?: string }> };
+      if (!r || !r.items) return JSON.stringify(result);
+      if (!r.items.length) return `No members found (total: ${r.total}).`;
+      const lines = [`Total: ${r.total}`];
+      for (const m of r.items) {
+        const name = m.user_name || '(unnamed)';
+        const email = m.email ? ` <${m.email}>` : '';
+        const role = m.role || 'member';
+        const state = m.state ? ` [${m.state}]` : '';
+        lines.push(`- ${name}${email} — ${role}${state}`);
+      }
+      return lines.join('\n');
     },
   }),
   buildCapability({
     name: 'space_add_member',
     category: 'space',
     displayName: 'space add-member',
-    description: 'Add a member to a space.',
+    description: 'Add one or more members to a space by email.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
-      { name: 'user_id', type: 'string', description: 'User ID to add', required: true },
-      { name: 'role', type: 'string', description: 'Role: admin|host|member', required: false, default: 'member' },
+      { name: 'email', type: 'string', description: 'Email address of the member to add (use emails for multiple)', required: false },
+      { name: 'emails', type: 'string[]', description: 'Multiple emails to add in one call', required: false },
+      { name: 'user_name', type: 'string', description: 'Display name for the added user (single-email invites only)', required: false },
+      { name: 'role', type: 'string', description: 'Space role', required: false, default: 'subscriber',
+        enum: ['unsubscriber', 'subscriber', 'ambassador', 'admin', 'creator'] },
+      { name: 'visible', type: 'boolean', description: 'Whether the member is visible in the space roster', required: false },
+      { name: 'tags', type: 'string[]', description: 'Space tag IDs to apply to the new members', required: false },
     ],
-    whenToUse: 'when user wants to add someone to the community',
-    searchHint: 'add member invite user community join',
+    whenToUse: 'when user wants to add people to a community by email',
+    searchHint: 'add member invite user community join email',
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiAddSpaceMember',
+    backendResolver: 'addSpaceMembers',
     requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiAddSpaceMember: unknown }>(
-        `mutation($space: MongoID!, $user: MongoID!, $role: String) {
-          aiAddSpaceMember(space: $space, user: $user, role: $role)
+      const emailList: string[] = Array.isArray(args.emails)
+        ? (args.emails as string[])
+        : args.email
+          ? [args.email as string]
+          : [];
+      if (emailList.length === 0) {
+        throw new Error('At least one email is required (provide --email or --emails).');
+      }
+      const users = emailList.map((email) => {
+        const user: Record<string, unknown> = { email };
+        if (emailList.length === 1 && args.user_name !== undefined) {
+          user.user_name = args.user_name;
+        }
+        return user;
+      });
+      const input: Record<string, unknown> = {
+        space: args.space_id,
+        role: args.role || 'subscriber',
+        users,
+      };
+      if (args.visible !== undefined) input.visible = args.visible;
+      if (args.tags !== undefined) input.tags = args.tags;
+      const result = await graphqlRequest<{ addSpaceMembers: boolean }>(
+        `mutation($input: AddSpaceMemberInput!) {
+          addSpaceMembers(input: $input)
         }`,
-        { space: args.space_id, user: args.user_id, role: args.role || 'member' },
+        { input },
       );
-      return result.aiAddSpaceMember;
+      return { added: result.addSpaceMembers, count: users.length, role: input.role };
+    },
+    formatResult: (result) => {
+      const r = result as { added: boolean; count: number; role: string };
+      if (!r.added) return 'No members were added (backend returned false).';
+      return `Added ${r.count} member(s) to the space as ${r.role}.`;
     },
   }),
   buildCapability({
     name: 'space_remove_member',
     category: 'space',
     displayName: 'space remove-member',
-    description: 'Remove a member from a space.',
+    description: 'Remove one or more members from a space by SpaceMember ID.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
-      { name: 'user_id', type: 'string', description: 'User ID to remove', required: true },
+      { name: 'member_id', type: 'string', description: 'SpaceMember ID to remove (use member_ids for multiple). Obtain via space_members.', required: false },
+      { name: 'member_ids', type: 'string[]', description: 'Multiple SpaceMember IDs to remove in one call', required: false },
     ],
-    whenToUse: 'when user wants to remove a community member',
+    whenToUse: 'when user wants to remove community members (uses SpaceMember IDs from space_members, not user IDs)',
     searchHint: 'remove kick member community ban user',
     shouldDefer: true,
     destructive: true,
     backendType: 'mutation',
-    backendResolver: 'aiRemoveSpaceMember',
+    backendResolver: 'deleteSpaceMembers',
     requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiRemoveSpaceMember: unknown }>(
-        `mutation($space: MongoID!, $user: MongoID!) {
-          aiRemoveSpaceMember(space: $space, user: $user)
+      const ids: string[] = Array.isArray(args.member_ids)
+        ? (args.member_ids as string[])
+        : args.member_id
+          ? [args.member_id as string]
+          : [];
+      if (ids.length === 0) {
+        throw new Error('At least one SpaceMember ID is required (provide --member-id or --member-ids). Use space_members to find the _id of the membership.');
+      }
+      const input = { space: args.space_id, ids };
+      const result = await graphqlRequest<{ deleteSpaceMembers: Array<Record<string, unknown>> }>(
+        `mutation($input: DeleteSpaceMemberInput!) {
+          deleteSpaceMembers(input: $input) {
+            _id user_name email role state deleted_at
+          }
         }`,
-        { space: args.space_id, user: args.user_id },
+        { input },
       );
-      return result.aiRemoveSpaceMember;
+      return result.deleteSpaceMembers;
+    },
+    formatResult: (result) => {
+      const removed = result as Array<{ _id?: string; user_name?: string; email?: string; role?: string; state?: string }>;
+      if (!Array.isArray(removed)) return JSON.stringify(result);
+      if (!removed.length) return 'No members were removed.';
+      const lines = [`Removed ${removed.length} member(s):`];
+      for (const m of removed) {
+        const name = m.user_name || '(unnamed)';
+        const email = m.email ? ` <${m.email}>` : '';
+        const role = m.role ? ` — ${m.role}` : '';
+        lines.push(`- ${name}${email}${role}`);
+      }
+      return lines.join('\n');
     },
   }),
   buildCapability({
@@ -389,16 +474,30 @@ export const spaceTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'spaceConnections',
     requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ spaceConnections: unknown }>(
-        `query($space: MongoID!) {
-          spaceConnections(space: $space) {
-            id connectorType status lastSyncAt lastSyncStatus enabled errorMessage
+      const result = await graphqlRequest<{ spaceConnections: Array<Record<string, unknown>> }>(
+        `query($spaceId: String!) {
+          spaceConnections(spaceId: $spaceId) {
+            id connectorType status installedBy installedAt
+            lastSyncAt lastSyncStatus enabled errorMessage
           }
         }`,
-        { space: args.space_id },
+        { spaceId: args.space_id },
       );
       return result.spaceConnections;
+    },
+    formatResult: (result) => {
+      const items = result as Array<{ id: string; connectorType: string; status: string; lastSyncAt?: string | null; lastSyncStatus?: string | null; enabled: boolean; errorMessage?: string | null }>;
+      if (!Array.isArray(items)) return JSON.stringify(result);
+      if (!items.length) return 'No connectors installed on this space.';
+      const lines = [`${items.length} connector(s):`];
+      for (const c of items) {
+        const sync = c.lastSyncAt ? `${c.lastSyncStatus ?? 'unknown'} @ ${c.lastSyncAt}` : 'never synced';
+        const err = c.errorMessage ? ` (error: ${c.errorMessage})` : '';
+        lines.push(`- ${c.connectorType} [${c.id}] — ${c.status}, enabled=${c.enabled}, ${sync}${err}`);
+      }
+      return lines.join('\n');
     },
   }),
   buildCapability({
