@@ -298,28 +298,53 @@ export const spaceTools: CanonicalCapability[] = [
     name: 'space_members',
     category: 'space',
     displayName: 'space members',
-    description: 'List members of a space.',
+    description: 'List members of a space with roles and membership state.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
+      { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
+      { name: 'search', type: 'string', description: 'Search by name or email', required: false },
     ],
     whenToUse: 'to browse the member roster and roles in a community',
     searchHint: 'members list people community roster roles',
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetSpaceMembers',
+    backendResolver: 'listSpaceMembers',
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetSpaceMembers: unknown }>(
-        `query($space: MongoID!) {
-          aiGetSpaceMembers(space: $space) {
-            items { name email role joined_at }
+      const variables: Record<string, unknown> = { space: args.space_id };
+      if (args.limit !== undefined) variables.limit = Number(args.limit);
+      if (args.skip !== undefined) variables.skip = Number(args.skip);
+      if (args.search !== undefined) variables.search = args.search;
+      const result = await graphqlRequest<{ listSpaceMembers: { total: number; items: Array<Record<string, unknown>> } }>(
+        `query($space: MongoID!, $limit: Int, $skip: Int, $search: String) {
+          listSpaceMembers(space: $space, limit: $limit, skip: $skip, search: $search) {
+            total
+            items {
+              _id user_name email role state visible
+              role_changed_at deleted_at
+            }
           }
         }`,
-        { space: args.space_id },
+        variables,
       );
-      return result.aiGetSpaceMembers;
+      return result.listSpaceMembers;
+    },
+    formatResult: (result) => {
+      const r = result as { total: number; items: Array<{ _id?: string; user_name?: string; email?: string; role?: string; state?: string }> };
+      if (!r || !r.items) return JSON.stringify(result);
+      if (!r.items.length) return `No members found (total: ${r.total}).`;
+      const lines = [`Total: ${r.total}`];
+      for (const m of r.items) {
+        const name = m.user_name || '(unnamed)';
+        const email = m.email ? ` <${m.email}>` : '';
+        const role = m.role || 'member';
+        const state = m.state ? ` [${m.state}]` : '';
+        lines.push(`- ${name}${email} — ${role}${state}`);
+      }
+      return lines.join('\n');
     },
   }),
   buildCapability({
