@@ -445,30 +445,43 @@ export const eventTools: CanonicalCapability[] = [
     name: 'event_view_insight',
     category: 'event',
     displayName: 'event view stats',
-    description: 'Get page view statistics for an event.',
+    description: 'Get per-view events on an event page over a date window. Returns { items: [{ date }] } — each item is one page view, timestamped. Count items to derive total views in the window.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'start', type: 'string', description: 'Start date (ISO 8601, inclusive). Defaults to 30 days ago.', required: false },
+      { name: 'end', type: 'string', description: 'End date (ISO 8601, exclusive). Defaults to now.', required: false },
     ],
-    whenToUse: 'when user wants event page view analytics',
-    searchHint: 'views insight analytics traffic pageviews',
+    whenToUse: 'when user wants event page view analytics over a time window; defaults to the last 30 days if no dates are provided',
+    searchHint: 'views insight analytics traffic pageviews chart',
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventViewInsight',
+    backendResolver: 'getEventViewChartData',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventViewInsight: unknown }>(
-        `query($event: MongoID!) {
-          aiGetEventViewInsight(event: $event) {
-            total_views unique_visitors
-            top_sources { source count }
-            top_cities { city count }
+      const now = new Date();
+      const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const start = args.start
+        ? new Date(args.start as string).toISOString()
+        : defaultStart.toISOString();
+      const end = args.end
+        ? new Date(args.end as string).toISOString()
+        : now.toISOString();
+
+      const result = await graphqlRequest<{ getEventViewChartData: unknown }>(
+        `query($event: MongoID!, $start: DateTimeISO!, $end: DateTimeISO!) {
+          getEventViewChartData(event: $event, start: $start, end: $end) {
+            items { date }
           }
         }`,
-        { event: args.event_id },
+        { event: args.event_id, start, end },
       );
-      return result.aiGetEventViewInsight;
+      return result.getEventViewChartData;
+    },
+    formatResult: (result) => {
+      const r = result as { items: Array<{ date: string }> };
+      return `${r.items.length} page view${r.items.length === 1 ? '' : 's'} in the selected window.`;
     },
   }),
   buildCapability({

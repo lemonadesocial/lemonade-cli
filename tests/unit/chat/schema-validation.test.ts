@@ -39,7 +39,6 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiPublishEvent: ['_id', 'title', 'published', 'shortid'],
   cancelEvent: ['_id'], // Returns Event!
   aiSearchEvents: ['items', '_id', 'title', 'shortid', 'start', 'end', 'published', 'description', 'address', 'cover', 'attending_count', 'city', 'country', 'latitude', 'longitude'],
-  aiGetEventViewInsight: ['total_views', 'unique_visitors', 'top_sources', 'top_cities', 'source', 'count', 'city'],
   aiGetEventCheckins: ['items', 'name', 'email', 'ticket_type_title', 'checked_in_at'],
   aiGetEventFeedbackSummary: ['average_rating', 'total_reviews', 'rating_distribution', 'rating', 'count'],
   aiListEventFeedbacks: ['items', 'rating', 'comment', 'user_name', 'created_at'],
