@@ -5,7 +5,11 @@ import {
 import { startNotificationPoller } from './poller.js';
 import { formatNotification } from './formatter.js';
 
-export type NotificationStatus = 'connected' | 'disconnected' | 'polling';
+export type NotificationStatus =
+  | 'connected'
+  | 'disconnected'
+  | 'disconnected-revoked'
+  | 'polling';
 
 export interface NotificationListenerOptions {
   onNotification: (formatted: string, raw: LemonadeNotification) => void;
@@ -77,6 +81,22 @@ export function startNotificationListener(
         );
         options.onStatusChange?.('polling');
       }
+    },
+    onSessionRevoked: () => {
+      // Terminal status — WS is gone for good. Surface `disconnected-revoked`
+      // so the chat UI can render a re-auth indicator (US-2.6d).
+      // Do NOT re-emit the `[lemonade-cli] session revoked code=4401` breadcrumb —
+      // subscriptions.ts already emitted it exactly once (US-6.9).
+      wsConnected = false;
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+      if (poller) {
+        poller.stop();
+        poller = null;
+      }
+      options.onStatusChange?.('disconnected-revoked');
     },
   });
 
