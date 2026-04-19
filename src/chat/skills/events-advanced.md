@@ -4,12 +4,6 @@ event_list_cohost_requests -- filter by state: PENDING, ACCEPTED, DECLINED.
 event_add_cohost -- by email/user_id. Roles: cohost, gatekeeper, representative.
 event_remove_cohost -- destructive.
 
-# Broadcasting
-
-event_broadcast_create -- providers: embed, local, twitch, video, youtube, zoom. Requires: provider, provider_id, title.
-event_broadcast_update -- change description/position. event_broadcast_delete -- destructive.
-Provider IDs: YouTube=video ID, Twitch=channel, Zoom=meeting ID, embed=URL, video=file URL.
-
 # Token Gates
 
 event_token_gates_list -- filter by networks/ticket_types.
