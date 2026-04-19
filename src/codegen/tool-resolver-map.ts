@@ -11,7 +11,7 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   event_cancel: 'cancelEvent',
   event_list: 'getHostingEvents',
   event_invite: 'inviteEvent',
-  event_approvals: 'aiDecideEventJoinRequests',
+  event_approvals: 'decideUserJoinRequests',
   event_feedback_summary: 'aiGetEventFeedbackSummary',
   event_feedbacks: 'aiListEventFeedbacks',
   event_checkins: 'aiGetEventCheckins',

@@ -49,7 +49,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   createEventTicketDiscounts: ['_id', 'payment_ticket_discounts', 'code', 'ratio', 'active', 'use_limit', 'use_limit_per', 'ticket_limit', 'ticket_limit_per', 'ticket_types'],
   calculateTicketsPricing: ['subtotal', 'discount', 'total'],
   inviteEvent: ['_id'], // Returns Event!
-  aiDecideEventJoinRequests: ['processed_count', 'decision'],
+  decideUserJoinRequests: ['_id', 'processed'],
   acceptEvent: ['state'], // Returns EventRsvp!
   declineEvent: ['state'], // Returns EventRsvp!
   aiGetMyTickets: ['items', 'event_title', 'ticket_type_title', 'status', 'event_id', 'event_start', 'event_end'],

@@ -602,10 +602,10 @@ export function registerEventCommands(program: Command): void {
 
   event
     .command('approvals <event-id>')
-    .description('Manage event join requests')
-    .option('--approve', 'Approve pending requests')
-    .option('--decline', 'Decline pending requests')
-    .option('--request-id <ids...>', 'Specific request IDs')
+    .description('Approve or decline specific join requests. Request IDs are required — the backend no longer supports a "decide all pending" shortcut.')
+    .option('--approve', 'Approve the listed requests')
+    .option('--decline', 'Decline the listed requests')
+    .requiredOption('--request-id <ids...>', 'Join request IDs to decide')
     .option('--json', 'Output as JSON')
     .option('--api-key <key>', 'API key override')
     .action(async (eventId: string, opts) => {
@@ -620,25 +620,26 @@ export function registerEventCommands(program: Command): void {
         }
 
         const decision = opts.approve ? 'approved' : 'declined';
-        const result = await graphqlRequest<{ aiDecideEventJoinRequests: { processed_count: number; decision: string } }>(
-          `mutation($event: MongoID!, $decision: String!, $request_ids: [MongoID!]) {
-            aiDecideEventJoinRequests(event: $event, decision: $decision, request_ids: $request_ids) {
-              processed_count decision
-            }
+        const result = await graphqlRequest<{ decideUserJoinRequests: Array<{ _id: string; processed: boolean }> }>(
+          `mutation($input: DecideUserJoinRequestsInput!) {
+            decideUserJoinRequests(input: $input) { _id processed }
           }`,
           {
-            event: eventId,
-            decision,
-            request_ids: opts.requestId,
+            input: {
+              event: eventId,
+              requests: opts.requestId,
+              decision,
+            },
           },
         );
         setFlagApiKey(undefined);
 
-        const r = result.aiDecideEventJoinRequests;
+        const r = result.decideUserJoinRequests;
         if (opts.json) {
           console.log(jsonSuccess(r));
         } else {
-          console.log(`Processed ${r.processed_count} requests (${r.decision})`);
+          const processed = r.filter((x) => x.processed).length;
+          console.log(`Decided ${r.length} requests (${processed} processed, ${r.length - processed} skipped, decision=${decision})`);
         }
       } catch (error) {
         setFlagApiKey(undefined);

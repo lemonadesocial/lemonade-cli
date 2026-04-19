@@ -591,35 +591,42 @@ export const eventTools: CanonicalCapability[] = [
     name: 'event_approvals',
     category: 'event',
     displayName: 'event approvals',
-    description: 'Approve or decline event join requests.',
+    description: 'Approve or decline specific event join requests. Returns an array of { _id, processed }. Use event_join_requests (getEventJoinRequests) to look up pending request IDs first — the backend requires an explicit list.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
-      { name: 'decision', type: 'string', description: 'Decision: approved or declined', required: true,
+      { name: 'decision', type: 'string', description: 'Target state (EventJoinRequestState): approved or declined', required: true,
         enum: ['approved', 'declined'] },
-      { name: 'request_ids', type: 'string[]', description: 'Specific request IDs (optional)', required: false },
+      { name: 'request_ids', type: 'string[]', description: 'Join request IDs to decide. Required by the backend — no implicit "all pending" batch.', required: true },
     ],
-    whenToUse: 'when user wants to approve or reject join requests',
-    searchHint: 'approve reject requests pending join',
+    whenToUse: 'when user wants to approve or reject specific join requests. The implicit "decide all pending" shortcut is no longer supported — request IDs must be listed explicitly.',
+    searchHint: 'approve reject requests pending join decision',
     shouldDefer: true,
     destructive: true,
     backendType: 'mutation',
-    backendResolver: 'aiDecideEventJoinRequests',
+    backendResolver: 'decideUserJoinRequests',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiDecideEventJoinRequests: unknown }>(
-        `mutation($event: MongoID!, $decision: String!, $request_ids: [MongoID!]) {
-          aiDecideEventJoinRequests(event: $event, decision: $decision, request_ids: $request_ids) {
-            processed_count decision
+      const result = await graphqlRequest<{ decideUserJoinRequests: unknown }>(
+        `mutation($input: DecideUserJoinRequestsInput!) {
+          decideUserJoinRequests(input: $input) {
+            _id processed
           }
         }`,
         {
-          event: args.event_id,
-          decision: args.decision,
-          request_ids: args.request_ids as string[] | undefined,
+          input: {
+            event: args.event_id,
+            requests: args.request_ids,
+            decision: args.decision,
+          },
         },
       );
-      return result.aiDecideEventJoinRequests;
+      return result.decideUserJoinRequests;
+    },
+    formatResult: (result) => {
+      const r = result as Array<{ _id: string; processed: boolean }>;
+      const processed = r.filter((x) => x.processed).length;
+      return `Decided ${r.length} request${r.length === 1 ? '' : 's'} (${processed} processed, ${r.length - processed} skipped).`;
     },
   }),
   buildCapability({
