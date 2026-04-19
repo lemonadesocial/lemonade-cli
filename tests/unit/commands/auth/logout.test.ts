@@ -21,6 +21,7 @@ vi.mock('../../../../src/api/graphql.js', async (importOriginal) => {
 import { Command } from 'commander';
 import { registerAuthCommands } from '../../../../src/commands/auth/index.js';
 import { clearAuth } from '../../../../src/auth/store.js';
+import { graphqlRequest } from '../../../../src/api/graphql.js';
 
 describe('auth logout', () => {
   let program: Command;
@@ -29,7 +30,9 @@ describe('auth logout', () => {
   let stderrSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    // resetAllMocks clears both call history AND mock implementations — prevents
+    // a throwing clearAuth from a previous test leaking into the next.
+    vi.resetAllMocks();
     program = new Command();
     program.exitOverride();
     registerAuthCommands(program);
@@ -96,5 +99,39 @@ describe('auth logout', () => {
     expect(parsed.ok).toBe(false);
     expect(parsed.error.message).toContain('Permission denied');
     expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('calls revokeCurrentSession mutation before clearAuth', async () => {
+    vi.mocked(graphqlRequest).mockResolvedValueOnce({
+      revokeCurrentSession: true,
+    });
+
+    await program.parseAsync(['node', 'test', 'auth', 'logout']);
+
+    expect(graphqlRequest).toHaveBeenCalledWith(
+      expect.stringContaining('revokeCurrentSession'),
+    );
+    expect(clearAuth).toHaveBeenCalledOnce();
+    // graphqlRequest invocation order must precede clearAuth
+    const revokeOrder = vi.mocked(graphqlRequest).mock.invocationCallOrder[0];
+    const clearOrder = vi.mocked(clearAuth).mock.invocationCallOrder[0];
+    expect(revokeOrder).toBeLessThan(clearOrder);
+  });
+
+  it('still clears auth when revokeCurrentSession fails (best-effort)', async () => {
+    vi.mocked(graphqlRequest).mockRejectedValueOnce(
+      new Error('Server unreachable'),
+    );
+
+    await program.parseAsync(['node', 'test', 'auth', 'logout']);
+
+    expect(graphqlRequest).toHaveBeenCalledWith(
+      expect.stringContaining('revokeCurrentSession'),
+    );
+    expect(clearAuth).toHaveBeenCalledOnce();
+    expect(logSpy).toHaveBeenCalledWith(
+      'Logged out. Lemonade auth tokens cleared.',
+    );
+    expect(exitSpy).toHaveBeenCalledWith(0);
   });
 });
