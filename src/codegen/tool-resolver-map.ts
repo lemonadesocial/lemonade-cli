@@ -29,7 +29,7 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   space_add_member: 'addSpaceMembers',
   space_remove_member: 'deleteSpaceMembers',
   space_connectors: 'spaceConnections',
-  event_guests: 'aiGetEventGuests',
+  event_guests: 'listEventGuests',
   event_guest_stats: 'aiGetEventGuestStats',
   event_ticket_sold_insight: 'aiGetEventTicketSoldInsight',
   event_view_insight: 'aiGetEventViewInsight',

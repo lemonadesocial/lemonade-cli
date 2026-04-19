@@ -77,8 +77,8 @@ const MANUAL_RESOLVERS = new Set([
   // Event commands
   'createEvent', 'getHostingEvents', 'aiSearchEvents', 'getEvent',
   'updateEvent', 'aiPublishEvent', 'cancelEvent',
-  'aiGetEventGuests', 'inviteEvent', 'aiDecideEventJoinRequests',
-  'aiGetEventFeedbackSummary', 'aiListEventFeedbacks', 'aiGetEventCheckins',
+  'listEventGuests', 'inviteEvent', 'decideUserJoinRequests',
+  'aiGetEventFeedbackSummary', 'listEventFeedBacks', 'aiGetEventCheckins',
   // Ticket commands
   'listEventTicketTypes', 'createEventTicketType', 'updateEventTicketType',
   'calculateTicketsPricing', 'aiBuyTickets',

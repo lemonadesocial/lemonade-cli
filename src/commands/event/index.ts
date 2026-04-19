@@ -525,31 +525,44 @@ export function registerEventCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const skip = opts.cursor ? parseInt(opts.cursor, 10) : 0;
 
-        const result = await graphqlRequest<{ aiGetEventGuests: { items: Array<Record<string, unknown>> } }>(
+        const result = await graphqlRequest<{ listEventGuests: { total: number; items: Array<Record<string, unknown>> } }>(
           `query($event: MongoID!, $search: String, $limit: Int, $skip: Int) {
-            aiGetEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
-              items { name email status ticket_type_title checked_in }
+            listEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
+              total
+              items {
+                user { _id name display_name email }
+                ticket { _id type_expanded { _id title } checkin { _id } }
+                join_request { _id state }
+              }
             }
           }`,
           { event: eventId, search: opts.search, limit, skip },
         );
         setFlagApiKey(undefined);
 
-        const items = result.aiGetEventGuests.items;
+        const items = result.listEventGuests.items;
+        const total = result.listEventGuests.total;
         if (opts.json) {
           const nextCursor = items.length === limit ? String(skip + limit) : null;
-          console.log(jsonSuccess(items, { cursor: nextCursor }));
+          console.log(jsonSuccess(items, { cursor: nextCursor, total }));
         } else {
           console.log(renderTable(
-            ['Name', 'Email', 'Status', 'Ticket Type', 'Checked In'],
-            items.map((g) => [
-              String(g.name || ''),
-              String(g.email || ''),
-              String(g.status || ''),
-              String(g.ticket_type_title || ''),
-              g.checked_in ? 'Yes' : 'No',
-            ]),
+            ['Name', 'Email', 'Ticket Type', 'State', 'Checked In'],
+            items.map((g) => {
+              const user = (g.user || {}) as Record<string, unknown>;
+              const ticket = (g.ticket || {}) as Record<string, unknown>;
+              const typeExp = (ticket.type_expanded || {}) as Record<string, unknown>;
+              const jr = (g.join_request || {}) as Record<string, unknown>;
+              return [
+                String(user.display_name || user.name || ''),
+                String(user.email || ''),
+                String(typeExp.title || ''),
+                String(jr.state || ''),
+                ticket.checkin ? 'Yes' : 'No',
+              ];
+            }),
           ));
+          console.log(`\n${items.length} of ${total} guests`);
         }
       } catch (error) {
         setFlagApiKey(undefined);

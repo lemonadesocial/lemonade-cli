@@ -487,7 +487,7 @@ export const eventTools: CanonicalCapability[] = [
     name: 'event_guests',
     category: 'event',
     displayName: 'event guests',
-    description: 'List attendees for an event.',
+    description: 'List attendees for an event. Returns { items: [{ user, ticket, payment, application, join_request }], total }.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
       { name: 'search', type: 'string', description: 'Search guests by name or email', required: false },
@@ -499,14 +499,19 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventGuests',
+    backendResolver: 'listEventGuests',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventGuests: unknown }>(
+      const result = await graphqlRequest<{ listEventGuests: unknown }>(
         `query($event: MongoID!, $search: String, $limit: Int, $skip: Int) {
-          aiGetEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
-            items { name email status ticket_type_title checked_in }
+          listEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
+            total
+            items {
+              user { _id name display_name email image_avatar }
+              ticket { _id type type_expanded { _id title } checkin { _id created_at } }
+              join_request { _id state created_at }
+            }
           }
         }`,
         {
@@ -516,7 +521,11 @@ export const eventTools: CanonicalCapability[] = [
           skip: (args.skip as number) || 0,
         },
       );
-      return result.aiGetEventGuests;
+      return result.listEventGuests;
+    },
+    formatResult: (result) => {
+      const r = result as { total: number; items: unknown[] };
+      return `${r.items.length} of ${r.total} guest${r.total === 1 ? '' : 's'}.`;
     },
   }),
   buildCapability({
