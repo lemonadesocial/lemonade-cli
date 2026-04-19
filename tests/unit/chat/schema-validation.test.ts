@@ -168,9 +168,6 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   deleteEventTicketDiscounts: ['_id', 'title', 'payment_ticket_discounts', 'code', 'active', 'use_count'],
   generateStripeAccountLink: ['url', 'expires_at'],
   manageEventCohostRequests: [], // Boolean
-  createEventBroadcast: [], // Boolean
-  updateEventBroadcast: [], // Boolean
-  deleteEventBroadcast: [], // Boolean
 
   // === Page config endpoints ===
   publishPageConfig: ['_id', 'name', 'status', 'published_version'],
