@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { graphqlRequest } from '../../api/graphql.js';
+import { getActiveSubscription } from '../../api/subscriptions.js';
 import { jsonSuccess } from '../../output/json.js';
 import { renderKeyValue } from '../../output/table.js';
 import { handleError } from '../../output/error.js';
@@ -14,6 +15,31 @@ interface MeResponse {
     first_name: string;
     last_name: string;
   };
+}
+
+/**
+ * Max time we wait for the backend `revokeCurrentSession` mutation before
+ * giving up and proceeding with local teardown. Mirrors
+ * `web-new/lib/hooks/useLogout.ts:12` (`REVOKE_TIMEOUT_MS = 2000`).
+ *
+ * The timer leg of the race MUST resolve (not reject) to a sentinel — see
+ * US-1.2b + IMPL § Phase 2 Contracts. The losing promise is allowed to leak
+ * (process exits shortly after logout per PRD Non-Goal 7).
+ */
+const REVOKE_TIMEOUT_MS = 2000;
+
+/**
+ * Type-guard for the timer-leg sentinel of the revoke race (US-1.2b).
+ * Narrows an unknown `Promise.race` result to `{ timedOut: true }` so the
+ * race site can stay a single line.
+ */
+function isTimeoutSentinel(x: unknown): x is { timedOut: true } {
+  return (
+    typeof x === 'object' &&
+    x !== null &&
+    'timedOut' in x &&
+    (x as { timedOut: unknown }).timedOut === true
+  );
 }
 
 export function registerAuthCommands(program: Command): void {
@@ -105,10 +131,63 @@ export function registerAuthCommands(program: Command): void {
     .option('--json', 'Output as JSON')
     .action(async (opts) => {
       try {
+        // Ordered logout teardown per IMPL § Phase 2 / US-1.1c / US-1.4:
+        //   1. revokeCurrentSession (raced against a 2s timer)
+        //   2. dispose() any live WS subscription
+        //   3. clearAuth() local credentials
+        //
+        // Mirror of `web-new/lib/hooks/useLogout.ts:29-66`. Reversing the
+        // dispose → clearAuth order would race the close-code handler against
+        // cleared tokens (IMPL Anti-Pattern 7).
+        let revokeTimedOut = false;
+        try {
+          const revokePromise = graphqlRequest<{
+            revokeCurrentSession: boolean;
+          }>('mutation { revokeCurrentSession }');
+          // Timer MUST resolve (not reject) to a sentinel per US-1.2b +
+          // web-new useLogout.ts:31-37 pattern.
+          const timeoutPromise = new Promise<{ timedOut: true }>((resolve) => {
+            setTimeout(
+              () => resolve({ timedOut: true }),
+              REVOKE_TIMEOUT_MS,
+            );
+          });
+          const raceResult = await Promise.race([
+            revokePromise,
+            timeoutPromise,
+          ]);
+          revokeTimedOut = isTimeoutSentinel(raceResult);
+          if (revokeTimedOut) {
+            // Stderr breadcrumb per US-6.1 — ops observability for timeouts.
+            process.stderr.write(
+              '[lemonade-cli] revokeCurrentSession timeout flow=logout\n',
+            );
+          }
+        } catch {
+          // Best-effort: if the server is unreachable, auth ctx missing, or
+          // token already invalid, proceed with dispose + local logout
+          // (US-1.7a / US-1.7b). Not a timeout — do NOT emit the timeout
+          // breadcrumb, do NOT set revoke_timed_out in --json output.
+        }
+
+        // Dispose BEFORE clearAuth (US-1.1c / US-1.4 / IMPL Anti-Pattern 7).
+        // Safe no-op when no subscription is registered in this process
+        // (US-1.8). Option A registry: see src/api/subscriptions.ts.
+        getActiveSubscription()?.dispose();
+
         clearAuth();
+
         if (opts.json) {
-          console.log(jsonSuccess({ logged_out: true }));
+          console.log(
+            jsonSuccess({
+              logged_out: true,
+              ...(revokeTimedOut ? { revoke_timed_out: true } : {}),
+            }),
+          );
         } else {
+          // Exit 0 even on timeout or revoke error in non-`--json` mode
+          // (US-1.7c). The local teardown succeeded, which is what the
+          // user asked for.
           console.log('Logged out. Lemonade auth tokens cleared.');
         }
         process.exit(0);

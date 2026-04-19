@@ -71,8 +71,14 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetSpaceStats: ['total_members', 'admins', 'ambassadors', 'subscribers', 'total_events', 'total_attendees', 'average_event_rating'],
   aiAddSpaceMember: [], // scalar
   aiRemoveSpaceMember: [], // scalar
-  aiGetNotifications: ['id', 'type', 'message', 'from_user_name', 'ref_event_title', 'read', 'created_at'],
+  getNotifications: ['_id', 'type', 'title', 'message', 'created_at', 'is_seen', 'from_expanded', 'ref_event_expanded', 'ref_space_expanded', 'name'],
   readNotifications: [], // Boolean
+  getNotificationFilters: ['_id', 'mode', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],
+  setNotificationFilter: ['_id', 'mode', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],
+  deleteNotificationFilter: [], // Boolean
+  getNotificationChannelPreferences: ['_id', 'enabled_channels', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],
+  setNotificationChannelPreference: ['_id', 'enabled_channels', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],
+  deleteNotificationChannelPreference: [], // Boolean
   listChains: ['chain_id', 'name', 'platform', 'rpc_url'],
   aiListLaunchpadCoins: ['items', '_id', 'name', 'symbol', 'status'],
   aiAddLaunchpadCoin: ['_id', 'name', 'symbol', 'status'],
@@ -116,7 +122,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   configureConnection: ['id', 'connectorType', 'status', 'config', 'enabled', 'errorMessage'],
   fetchConnectionConfigOptions: ['value', 'label'],
   connectionLogs: ['_id', 'actionId', 'triggerType', 'triggeredBy', 'status', 'recordsProcessed', 'recordsFailed', 'duration', 'errorMessage', 'createdAt'],
-  disconnectPlatform: [], // Boolean
+  disconnectPlatform: ['success', 'tokenRevoked', 'revocationError'], // DisconnectResult
   connectorSlotInfo: ['used', 'max', 'canAddMore', 'currentTier'],
   availableConnectors: ['id', 'name', 'category', 'authType', 'capabilities'],
   executeConnectorAction: [], // opaque
