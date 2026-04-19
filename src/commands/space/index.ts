@@ -336,11 +336,11 @@ export function registerSpaceCommands(program: Command): void {
         setFlagApiKey(opts.apiKey);
 
         const result = await graphqlRequest<{
-          generateStripeAccountLink: { url: string; expires_at?: string };
+          generateStripeAccountLink: { url: string };
         }>(
           `mutation($return_url: String!, $refresh_url: String!) {
             generateStripeAccountLink(return_url: $return_url, refresh_url: $refresh_url) {
-              url expires_at
+              url
             }
           }`,
           { return_url: opts.returnUrl, refresh_url: opts.returnUrl },
@@ -351,7 +351,7 @@ export function registerSpaceCommands(program: Command): void {
         const link = result.generateStripeAccountLink;
 
         if (opts.json) {
-          console.log(jsonSuccess({ onboarding_url: link.url, expires_at: link.expires_at }));
+          console.log(jsonSuccess({ onboarding_url: link.url }));
         } else {
           console.log('Opening Stripe Connect onboarding...');
           console.log(`If the browser does not open, visit: ${link.url}`);
