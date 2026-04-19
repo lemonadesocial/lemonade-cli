@@ -260,47 +260,76 @@ export const ticketsTools: CanonicalCapability[] = [
     name: 'tickets_price',
     category: 'tickets',
     displayName: 'tickets price',
-    description: 'Calculate ticket price with optional discount.',
+    description: 'Calculate ticket pricing for an event with optional discount. Supports multiple items in one call.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
-      { name: 'ticket_type', type: 'string', description: 'Ticket type ID', required: true },
-      { name: 'quantity', type: 'number', description: 'Number of tickets', required: false, default: '1' },
-      { name: 'discount_code', type: 'string', description: 'Discount code', required: false },
+      { name: 'currency', type: 'string', description: 'Pricing currency code (e.g. USD)', required: true },
+      { name: 'ticket_type', type: 'string', description: 'Ticket type ID (for a single-item call — alternative to items)', required: false },
+      { name: 'quantity', type: 'number', description: 'Number of tickets when using ticket_type', required: false, default: '1' },
+      { name: 'items', type: 'string', description: 'JSON array of purchasable items: [{id, count}]. Overrides ticket_type/quantity.', required: false },
+      { name: 'discount', type: 'string', description: 'Discount code', required: false },
     ],
     whenToUse: 'when user wants to calculate ticket cost',
     searchHint: 'price calculate cost ticket discount preview',
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiCalculateTicketPrice',
+    backendResolver: 'calculateTicketsPricing',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      // Backend schema accepts Float for count, but ticket quantities are whole numbers
-      const count = Math.floor(args.quantity != null ? (args.quantity as number) : 1);
-      if (count < 1) throw new Error('Quantity must be a positive whole number.');
-      const result = await graphqlRequest<{ aiCalculateTicketPrice: unknown }>(
-        `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
-          aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
-            subtotal_cents discount_cents total_cents currency
+      let items: Array<{ id: string; count: number }>;
+      if (args.items !== undefined && args.items !== null && args.items !== '') {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(args.items as string);
+        } catch {
+          throw new Error('items must be a JSON array of {id, count} objects');
+        }
+        if (!Array.isArray(parsed)) throw new Error('items must be a JSON array');
+        items = parsed.map((raw, i) => {
+          const obj = raw as { id?: unknown; count?: unknown };
+          if (typeof obj.id !== 'string' || !obj.id) throw new Error(`items[${i}].id must be a non-empty string`);
+          const count = Math.floor(Number(obj.count));
+          if (!Number.isFinite(count) || count < 1) throw new Error(`items[${i}].count must be a positive integer`);
+          return { id: obj.id, count };
+        });
+      } else {
+        if (!args.ticket_type) {
+          throw new Error('Provide either items (JSON array) or ticket_type + quantity.');
+        }
+        const count = Math.floor(args.quantity != null ? (args.quantity as number) : 1);
+        if (count < 1) throw new Error('Quantity must be a positive whole number.');
+        items = [{ id: args.ticket_type as string, count }];
+      }
+
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        currency: args.currency,
+        items,
+      };
+      if (args.discount !== undefined && args.discount !== null && args.discount !== '') {
+        input.discount = args.discount;
+      }
+
+      const result = await graphqlRequest<{ calculateTicketsPricing: { subtotal: string; discount: string; total: string } }>(
+        `query($input: CalculateTicketsPricingInput!) {
+          calculateTicketsPricing(input: $input) {
+            subtotal
+            discount
+            total
           }
         }`,
-        {
-          event: args.event_id,
-          ticket_type: args.ticket_type,
-          count,
-          discount_code: args.discount_code as string | undefined,
-        },
+        { input },
       );
-      return result.aiCalculateTicketPrice;
+      return result.calculateTicketsPricing;
     },
     formatResult: (result) => {
-      const r = result as { subtotal_cents: number; discount_cents: number; total_cents: number; currency: string };
-      const fmt = (v: number) => { const n = Number(v); return Number.isFinite(n) ? (n / 100).toFixed(2) : '0.00'; };
-      const total = fmt(r.total_cents);
-      const subtotal = fmt(r.subtotal_cents);
-      const discount = fmt(r.discount_cents);
-      if (r.discount_cents > 0) return `Price: ${r.currency} ${total} (${r.currency} ${subtotal} - ${r.currency} ${discount} discount).`;
-      return `Price: ${r.currency} ${total}`;
+      const r = result as { subtotal: string; discount: string; total: string };
+      const hasDiscount = r.discount && r.discount !== '0' && r.discount !== '0.00' && Number(r.discount) !== 0;
+      if (hasDiscount) {
+        return `Total: ${r.total} (subtotal ${r.subtotal} - discount ${r.discount}).`;
+      }
+      return `Total: ${r.total} (subtotal ${r.subtotal}).`;
     },
   }),
   buildCapability({

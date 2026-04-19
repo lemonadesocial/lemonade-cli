@@ -19,7 +19,7 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   tickets_create_type: 'createEventTicketType',
   tickets_update_type: 'updateEventTicketType',
   tickets_buy: 'aiBuyTickets',
-  tickets_price: 'aiCalculateTicketPrice',
+  tickets_price: 'calculateTicketsPricing',
   get_me: 'getMe',
   space_list: 'listMySpaces',
   space_create: 'createSpace',

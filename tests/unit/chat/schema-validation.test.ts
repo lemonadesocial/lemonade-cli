@@ -51,7 +51,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   createEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
   updateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
   aiCreateEventTicketDiscount: ['_id', 'code', 'discount_type', 'value', 'limit', 'created_at'],
-  aiCalculateTicketPrice: ['subtotal_cents', 'discount_cents', 'total_cents', 'currency'],
+  calculateTicketsPricing: ['subtotal', 'discount', 'total'],
   inviteEvent: ['_id'], // Returns Event!
   aiDecideEventJoinRequests: ['processed_count', 'decision'],
   acceptEvent: ['state'], // Returns EventRsvp!
