@@ -28,6 +28,20 @@ interface MeResponse {
  */
 const REVOKE_TIMEOUT_MS = 2000;
 
+/**
+ * Type-guard for the timer-leg sentinel of the revoke race (US-1.2b).
+ * Narrows an unknown `Promise.race` result to `{ timedOut: true }` so the
+ * race site can stay a single line.
+ */
+function isTimeoutSentinel(x: unknown): x is { timedOut: true } {
+  return (
+    typeof x === 'object' &&
+    x !== null &&
+    'timedOut' in x &&
+    (x as { timedOut: unknown }).timedOut === true
+  );
+}
+
 export function registerAuthCommands(program: Command): void {
   const auth = program
     .command('auth')
@@ -142,11 +156,7 @@ export function registerAuthCommands(program: Command): void {
             revokePromise,
             timeoutPromise,
           ]);
-          revokeTimedOut =
-            typeof raceResult === 'object' &&
-            raceResult !== null &&
-            'timedOut' in raceResult &&
-            (raceResult as { timedOut: boolean }).timedOut === true;
+          revokeTimedOut = isTimeoutSentinel(raceResult);
           if (revokeTimedOut) {
             // Stderr breadcrumb per US-6.1 — ops observability for timeouts.
             process.stderr.write(

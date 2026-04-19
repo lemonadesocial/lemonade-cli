@@ -257,8 +257,9 @@ describe('auth logout', () => {
         'Logged out. Lemonade auth tokens cleared.',
       );
       expect(exitSpy).toHaveBeenCalledWith(0);
-      // Registry was consulted (proves no eager import of the factory;
-      // the call site uses optional-chain so a null handle skips dispose).
+      // Registry was consulted; null return skips dispose via optional
+      // chaining (no createNotificationSubscription invocation on the
+      // logout path).
       expect(getActiveSubscription).toHaveBeenCalled();
     });
 
