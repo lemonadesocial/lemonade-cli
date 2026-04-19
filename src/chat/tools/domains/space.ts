@@ -410,26 +410,51 @@ export const spaceTools: CanonicalCapability[] = [
     name: 'space_remove_member',
     category: 'space',
     displayName: 'space remove-member',
-    description: 'Remove a member from a space.',
+    description: 'Remove one or more members from a space by SpaceMember ID.',
     params: [
       { name: 'space_id', type: 'string', description: 'Space ID', required: true },
-      { name: 'user_id', type: 'string', description: 'User ID to remove', required: true },
+      { name: 'member_id', type: 'string', description: 'SpaceMember ID to remove (use member_ids for multiple). Obtain via space_members.', required: false },
+      { name: 'member_ids', type: 'string[]', description: 'Multiple SpaceMember IDs to remove in one call', required: false },
     ],
-    whenToUse: 'when user wants to remove a community member',
+    whenToUse: 'when user wants to remove community members (uses SpaceMember IDs from space_members, not user IDs)',
     searchHint: 'remove kick member community ban user',
     shouldDefer: true,
     destructive: true,
     backendType: 'mutation',
-    backendResolver: 'aiRemoveSpaceMember',
+    backendResolver: 'deleteSpaceMembers',
     requiresEvent: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiRemoveSpaceMember: unknown }>(
-        `mutation($space: MongoID!, $user: MongoID!) {
-          aiRemoveSpaceMember(space: $space, user: $user)
+      const ids: string[] = Array.isArray(args.member_ids)
+        ? (args.member_ids as string[])
+        : args.member_id
+          ? [args.member_id as string]
+          : [];
+      if (ids.length === 0) {
+        throw new Error('At least one SpaceMember ID is required (provide --member-id or --member-ids). Use space_members to find the _id of the membership.');
+      }
+      const input = { space: args.space_id, ids };
+      const result = await graphqlRequest<{ deleteSpaceMembers: Array<Record<string, unknown>> }>(
+        `mutation($input: DeleteSpaceMemberInput!) {
+          deleteSpaceMembers(input: $input) {
+            _id user_name email role state deleted_at
+          }
         }`,
-        { space: args.space_id, user: args.user_id },
+        { input },
       );
-      return result.aiRemoveSpaceMember;
+      return result.deleteSpaceMembers;
+    },
+    formatResult: (result) => {
+      const removed = result as Array<{ _id?: string; user_name?: string; email?: string; role?: string; state?: string }>;
+      if (!Array.isArray(removed)) return JSON.stringify(result);
+      if (!removed.length) return 'No members were removed.';
+      const lines = [`Removed ${removed.length} member(s):`];
+      for (const m of removed) {
+        const name = m.user_name || '(unnamed)';
+        const email = m.email ? ` <${m.email}>` : '';
+        const role = m.role ? ` — ${m.role}` : '';
+        lines.push(`- ${name}${email}${role}`);
+      }
+      return lines.join('\n');
     },
   }),
   buildCapability({
