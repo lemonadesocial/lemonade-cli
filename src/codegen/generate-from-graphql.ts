@@ -88,7 +88,7 @@ const MANUAL_RESOLVERS = new Set([
   'aiGeneratePageFromDescription', 'aiCreatePageConfig',
   'aiUpdatePageConfigSection', 'aiSuggestSections',
   'getPageConfig', 'updatePageConfig', 'getPublishedConfig',
-  'generatePreviewLink', 'createPageConfig',
+  'createPreviewLink', 'createPageConfig',
   // Payment accounts
   'listNewPaymentAccounts',
   'createNewPaymentAccount',

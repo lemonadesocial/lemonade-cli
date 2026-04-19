@@ -66,10 +66,9 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   disconnectStripeAccount: [], // Boolean
   getStripeConnectedAccountCapability: ['id', 'capabilities', 'type', 'detail', 'available', 'display_preference', 'overridable', 'preference', 'value'],
   getSafeFreeLimit: ['current', 'max'],
-  aiGetSpaceMembers: ['items', 'name', 'email', 'role', 'joined_at'],
-  aiGetSpaceStats: ['total_members', 'admins', 'ambassadors', 'subscribers', 'total_events', 'total_attendees', 'average_event_rating'],
-  aiAddSpaceMember: [], // scalar
-  aiRemoveSpaceMember: [], // scalar
+  listSpaceMembers: ['total', 'items', '_id', 'user', 'user_name', 'email', 'space', 'role', 'state', 'visible', 'role_changed_at', 'deleted_at', 'user_expanded', 'event_count', 'checkin_count', 'tags'],
+  addSpaceMembers: [], // Boolean scalar
+  deleteSpaceMembers: ['_id', 'user', 'user_name', 'email', 'space', 'role', 'state', 'visible', 'role_changed_at', 'deleted_at'],
   getNotifications: ['_id', 'type', 'title', 'message', 'created_at', 'is_seen', 'from_expanded', 'ref_event_expanded', 'ref_space_expanded', 'name'],
   readNotifications: [], // Boolean
   getNotificationFilters: ['_id', 'mode', 'notification_type', 'notification_category', 'ref_type', 'ref_id', 'space_scoped'],
@@ -88,7 +87,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   getPageConfig: ['_id', 'owner_type', 'owner_id', 'name', 'description', 'status', 'version', 'published_version', 'template_id', 'thumbnail_url', 'sections', 'id', 'type', 'order', 'hidden', 'props'],
   updatePageConfig: ['_id', 'name', 'status', 'version'],
   getPublishedConfig: ['_id', 'owner_type', 'owner_id', 'name', 'status', 'version', 'sections', 'id', 'type', 'order', 'hidden'],
-  generatePreviewLink: ['id', 'token', 'url', 'expires_at'],
+  createPreviewLink: ['_id', 'token', 'link_type', 'resource_id', 'expires_at'],
   createPageConfig: ['_id', 'owner_type', 'owner_id', 'name', 'status', 'version'],
   aiGeneratePageFromDescription: [], // opaque JSON
 
@@ -125,7 +124,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   connectorSlotInfo: ['used', 'max', 'canAddMore', 'currentTier'],
   availableConnectors: ['id', 'name', 'category', 'authType', 'capabilities'],
   executeConnectorAction: [], // opaque
-  spaceConnections: ['id', 'connectorType', 'status', 'config', 'enabled', 'lastSyncAt', 'lastSyncStatus', 'errorMessage'],
+  spaceConnections: ['id', 'connectorType', 'status', 'config', 'installedBy', 'installedAt', 'enabled', 'lastSyncAt', 'lastSyncStatus', 'errorMessage'],
 
   // === Atlas reward endpoints ===
   atlasRewardSummary: ['organizer_accrued_usdc', 'organizer_pending_usdc', 'organizer_paid_out_usdc', 'attendee_accrued_usdc', 'attendee_pending_usdc', 'attendee_paid_out_usdc', 'volume_tier', 'monthly_gmv_usdc', 'next_tier_threshold_usdc', 'next_payout_date', 'is_self_verified', 'verification_cta_extra_usdc'],
@@ -167,9 +166,6 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   deleteEventTicketDiscounts: ['_id', 'title', 'payment_ticket_discounts', 'code', 'active', 'use_count'],
   generateStripeAccountLink: ['url', 'expires_at'],
   manageEventCohostRequests: [], // Boolean
-  createEventBroadcast: [], // Boolean
-  updateEventBroadcast: [], // Boolean
-  deleteEventBroadcast: [], // Boolean
 
   // === Page config endpoints ===
   publishPageConfig: ['_id', 'name', 'status', 'published_version'],

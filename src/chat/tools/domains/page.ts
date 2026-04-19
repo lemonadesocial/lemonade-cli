@@ -471,49 +471,53 @@ export const pageTools: CanonicalCapability[] = [
     name: 'page_preview_link',
     category: 'page',
     displayName: 'page preview link',
-    description: 'Generate a preview link for a draft page configuration.',
+    description: 'Create a preview link for a draft event or space page. Returns a token; the full URL is constructed client-side.',
     params: [
-      { name: 'config_id', type: 'string', description: 'Page config ID', required: true },
+      { name: 'link_type', type: 'string', description: 'Resource type: event or space', required: true,
+        enum: ['event', 'space'] },
+      { name: 'resource_id', type: 'string', description: 'Event or space ID', required: true },
       { name: 'password', type: 'string', description: 'Optional password protection', required: false },
-      { name: 'expires_in_hours', type: 'number', description: 'Link expiry in hours', required: false },
+      { name: 'expires_in_hours', type: 'number', description: 'Link expiry in hours (converted to absolute expires_at)', required: false },
     ],
-    whenToUse: 'when user wants a preview link for a draft page',
-    searchHint: 'preview link draft page share test',
+    whenToUse: 'when user wants a preview link for a draft event or space page',
+    searchHint: 'preview link draft page share test event space',
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'generatePreviewLink',
+    backendResolver: 'createPreviewLink',
     requiresSpace: false,
     requiresEvent: false,
     execute: async (args) => {
-      const variables: Record<string, unknown> = {
-        config_id: args.config_id,
+      const input: Record<string, unknown> = {
+        link_type: args.link_type,
+        resource_id: args.resource_id,
       };
-      if (args.password !== undefined || args.expires_in_hours !== undefined) {
-        const options: Record<string, unknown> = {};
-        if (args.password !== undefined) options.password = args.password;
-        if (args.expires_in_hours !== undefined) {
-          const hours = Number(args.expires_in_hours);
-          if (isNaN(hours)) throw new Error('expires_in_hours must be a valid number');
-          options.expires_in_hours = hours;
-        }
-        variables.options = options;
+      if (args.password !== undefined) input.password = args.password;
+      if (args.expires_in_hours !== undefined) {
+        const hours = Number(args.expires_in_hours);
+        if (isNaN(hours)) throw new Error('expires_in_hours must be a valid number');
+        input.expires_at = new Date(Date.now() + hours * 3600_000).toISOString();
       }
 
-      const result = await graphqlRequest<{ generatePreviewLink: unknown }>(
-        `mutation($config_id: MongoID!, $options: PreviewLinkOptionsInput) {
-          generatePreviewLink(config_id: $config_id, options: $options) {
-            id token url expires_at
+      const result = await graphqlRequest<{ createPreviewLink: unknown }>(
+        `mutation($input: CreatePreviewLinkInput!) {
+          createPreviewLink(input: $input) {
+            _id token link_type resource_id expires_at
           }
         }`,
-        variables,
+        { input },
       );
-      return result.generatePreviewLink;
+      return result.createPreviewLink;
     },
     formatResult: (result) => {
       if (result === null || result === undefined) return 'Error: no response from server.';
-      const r = result as { url: string; expires_at?: string };
-      return r.expires_at ? `Preview: ${r.url} (expires ${r.expires_at})` : `Preview: ${r.url}`;
+      const r = result as { _id: string; token: string; link_type: string; resource_id: string; expires_at?: string };
+      const lines = [`Preview link created [${r._id}]`];
+      lines.push(`Type: ${r.link_type} ${r.resource_id}`);
+      lines.push(`Token: ${r.token}`);
+      lines.push('(Construct preview URL client-side from token.)');
+      if (r.expires_at) lines.push(`Expires: ${r.expires_at}`);
+      return lines.join('\n');
     },
   }),
   buildCapability({

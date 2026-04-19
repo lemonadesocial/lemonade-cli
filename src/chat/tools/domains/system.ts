@@ -20,7 +20,7 @@ export const systemTools: CanonicalCapability[] = [
     surfaces: ['aiTool'],
     destructive: false,
     params: [
-      { name: 'query', type: 'string', required: true, description: 'Tool name, keyword, or category to search for. Examples: "event_broadcast_create", "ticket assign", "payment refund"' },
+      { name: 'query', type: 'string', required: true, description: 'Tool name, keyword, or category to search for. Examples: "event_email_create", "ticket assign", "payment refund"' },
       { name: 'max_results', type: 'number', required: false, description: 'Maximum results to return (default: 5)' },
     ],
     execute: async (args) => {
