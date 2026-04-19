@@ -1,5 +1,5 @@
 {
-  "generated": "2026-04-06",
+  "generated": "2026-04-19",
   "source": "lemonade-backend",
   "queries": [
     "aiGetBackendVersion",
@@ -362,6 +362,7 @@
     "deleteUserDiscoverySwipe",
     "deleteUserFollow",
     "deleteUserFriendship",
+    "disconnectPlatform",
     "disconnectStripeAccount",
     "featureTemplate",
     "flagEvent",

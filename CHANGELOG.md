@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+* align connector_disconnect with DisconnectResult contract; token-revocation failures are now surfaced instead of silently succeeding
+
+## [1.4.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.3.0...v1.4.0) (2026-04-19)
+
+
+### Features
+
+* add CLI tools for notification filters and channel preferences ([#205](https://github.com/lemonadesocial/lemonade-cli/issues/205)) ([63a013e](https://github.com/lemonadesocial/lemonade-cli/commit/63a013e930fd55f1035d9bcda89914bc33d7e72f))
+* add sessions command group with MCP client tagging ([#207](https://github.com/lemonadesocial/lemonade-cli/issues/207)) ([38fa6f1](https://github.com/lemonadesocial/lemonade-cli/commit/38fa6f135bc27f22a8ae3e461cd777764da154e8))
+* **cli:** handle WS close codes 4401/4403 and send X-Client-Type on connection_init ([#211](https://github.com/lemonadesocial/lemonade-cli/issues/211)) ([69e131e](https://github.com/lemonadesocial/lemonade-cli/commit/69e131e0906909b3735138fd12708633c6ca1a32))
+* **cli:** ordered auth logout with 2s revoke timeout and WS dispose ([#212](https://github.com/lemonadesocial/lemonade-cli/issues/212)) ([b5db7f1](https://github.com/lemonadesocial/lemonade-cli/commit/b5db7f1b8dcd0ed9f43c075d75b258b24566db84))
+
+
+### Bug Fixes
+
+* **cli:** auth logout calls revokeCurrentSession ([#208](https://github.com/lemonadesocial/lemonade-cli/issues/208)) ([66c571c](https://github.com/lemonadesocial/lemonade-cli/commit/66c571c5f56423bea2341599a5cc2e643766e847))
+* **connector:** align disconnectPlatform consumer with DisconnectResult ([#210](https://github.com/lemonadesocial/lemonade-cli/issues/210)) ([09a0fd9](https://github.com/lemonadesocial/lemonade-cli/commit/09a0fd92a6afdf86ab36cdfa10128941e691e502))
+
 ## [1.3.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.2.2...v1.3.0) (2026-04-09)
 
 

@@ -122,7 +122,7 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   configureConnection: ['id', 'connectorType', 'status', 'config', 'enabled', 'errorMessage'],
   fetchConnectionConfigOptions: ['value', 'label'],
   connectionLogs: ['_id', 'actionId', 'triggerType', 'triggeredBy', 'status', 'recordsProcessed', 'recordsFailed', 'duration', 'errorMessage', 'createdAt'],
-  disconnectPlatform: [], // Boolean
+  disconnectPlatform: ['success', 'tokenRevoked', 'revocationError'], // DisconnectResult
   connectorSlotInfo: ['used', 'max', 'canAddMore', 'currentTier'],
   availableConnectors: ['id', 'name', 'category', 'authType', 'capabilities'],
   executeConnectorAction: [], // opaque
