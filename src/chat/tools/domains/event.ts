@@ -396,29 +396,49 @@ export const eventTools: CanonicalCapability[] = [
     name: 'event_ticket_sold_insight',
     category: 'event',
     displayName: 'event ticket sales',
-    description: 'Get ticket sales data for an event.',
+    description: 'Get per-ticket creation events over a date window. Returns { items: [{ created_at, type }] } — each item is a single sold ticket, timestamped. Count items to derive total sold; group by type for per-ticket-type breakdown.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'start', type: 'string', description: 'Start date (ISO 8601, inclusive). Defaults to 30 days ago.', required: false },
+      { name: 'end', type: 'string', description: 'End date (ISO 8601, exclusive). Defaults to now.', required: false },
+      { name: 'types', type: 'string[]', description: 'Optional ticket type IDs to filter', required: false },
     ],
-    whenToUse: 'when user wants ticket sales analytics',
-    searchHint: 'ticket sales insight analytics sold revenue',
+    whenToUse: 'when user wants ticket sales analytics over a time window; defaults to the last 30 days if no dates are provided',
+    searchHint: 'ticket sales insight analytics sold chart timeline',
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventTicketSoldInsight',
+    backendResolver: 'getEventTicketSoldChartData',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventTicketSoldInsight: unknown }>(
-        `query($event: MongoID!) {
-          aiGetEventTicketSoldInsight(event: $event) {
-            total_sold total_revenue_cents currency
-            by_type { ticket_type_id title sold revenue_cents }
+      const now = new Date();
+      const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const start = args.start
+        ? new Date(args.start as string).toISOString()
+        : defaultStart.toISOString();
+      const end = args.end
+        ? new Date(args.end as string).toISOString()
+        : now.toISOString();
+
+      const result = await graphqlRequest<{ getEventTicketSoldChartData: unknown }>(
+        `query($event: MongoID!, $start: DateTimeISO!, $end: DateTimeISO!, $types: [MongoID!]) {
+          getEventTicketSoldChartData(event: $event, start: $start, end: $end, types: $types) {
+            items { created_at type }
           }
         }`,
-        { event: args.event_id },
+        {
+          event: args.event_id,
+          start,
+          end,
+          types: args.types as string[] | undefined,
+        },
       );
-      return result.aiGetEventTicketSoldInsight;
+      return result.getEventTicketSoldChartData;
+    },
+    formatResult: (result) => {
+      const r = result as { items: Array<{ created_at: string; type: string }> };
+      return `${r.items.length} ticket${r.items.length === 1 ? '' : 's'} sold in the selected window.`;
     },
   }),
   buildCapability({

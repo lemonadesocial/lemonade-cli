@@ -31,7 +31,7 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   space_connectors: 'spaceConnections',
   event_guests: 'listEventGuests',
   event_guest_stats: 'getEventGuestsStatistics',
-  event_ticket_sold_insight: 'aiGetEventTicketSoldInsight',
+  event_ticket_sold_insight: 'getEventTicketSoldChartData',
   event_view_insight: 'aiGetEventViewInsight',
   event_payment_stats: 'getEventPaymentStatistics',
   event_application_answers: 'aiGetEventApplicationAnswers',
