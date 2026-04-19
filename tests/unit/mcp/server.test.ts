@@ -24,6 +24,7 @@ vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => {
 
 vi.mock('../../../src/auth/store.js', () => ({
   ensureAuthHeader: vi.fn(),
+  getDefaultSpace: vi.fn(),
 }));
 
 vi.mock('../../../src/capabilities/partitioner.js', () => ({
@@ -38,10 +39,20 @@ vi.mock('../../../src/capabilities/search.js', () => ({
   searchCapabilities: vi.fn().mockReturnValue([]),
 }));
 
+// Stub hostname() deterministically so the MCP device-name assertion is stable.
+vi.mock('os', async () => {
+  const actual = await vi.importActual<typeof import('os')>('os');
+  return {
+    ...actual,
+    hostname: () => 'test-host',
+  };
+});
+
 import { startMcpServer } from '../../../src/mcp/server.js';
 import { ensureAuthHeader } from '../../../src/auth/store.js';
 import { partitionTools } from '../../../src/capabilities/partitioner.js';
 import { searchCapabilities } from '../../../src/capabilities/search.js';
+import { getClientHeaders, setClientType } from '../../../src/api/graphql.js';
 
 const mockEnsureAuthHeader = vi.mocked(ensureAuthHeader);
 const mockPartitionTools = vi.mocked(partitionTools);
@@ -51,6 +62,8 @@ describe('startMcpServer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPartitionTools.mockReturnValue({ alwaysLoad: [], deferred: [] });
+    // Reset the module-level clientType flag so tests don't bleed into each other.
+    setClientType('cli');
   });
 
   it('can be imported', () => {
@@ -204,5 +217,34 @@ describe('startMcpServer', () => {
     expect(parsed).toEqual([
       { name: 'deferred_tool', description: 'A deferred tool', alreadyLoaded: false },
     ]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Phase 1: WS session-revocation — X-Client-Type / X-Client-Device-Name
+  // ---------------------------------------------------------------------------
+
+  it('after startMcpServer() runs, getClientHeaders() reports X-Client-Type = "mcp"', async () => {
+    mockEnsureAuthHeader.mockResolvedValue('Bearer test-token');
+
+    await startMcpServer();
+
+    const headers = getClientHeaders();
+    expect(headers['X-Client-Type']).toBe('mcp');
+  });
+
+  it('after startMcpServer() runs, getClientHeaders() reports prefixed X-Client-Device-Name = "Lemonade MCP (<hostname>)"', async () => {
+    mockEnsureAuthHeader.mockResolvedValue('Bearer test-token');
+
+    await startMcpServer();
+
+    const headers = getClientHeaders();
+    expect(headers['X-Client-Device-Name']).toBe('Lemonade MCP (test-host)');
+  });
+
+  it('CLI baseline (no startMcpServer run): getClientHeaders() reports raw hostname without MCP prefix', () => {
+    // beforeEach reset clientType to 'cli'; no startMcpServer call.
+    const headers = getClientHeaders();
+    expect(headers['X-Client-Type']).toBe('cli');
+    expect(headers['X-Client-Device-Name']).toBe('test-host');
   });
 });

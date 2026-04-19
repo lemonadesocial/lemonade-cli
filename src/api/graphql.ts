@@ -14,9 +14,14 @@ export function setClientType(type: 'cli' | 'mcp'): void {
 }
 
 export function getClientHeaders(): Record<string, string> {
+  // Implements parent-PRD US-15.2 on the HTTP path: when the MCP server is the
+  // caller, prefix the device name so operators can distinguish MCP-originated
+  // sessions from raw CLI sessions in `getMyActiveSessions`.
+  const deviceName =
+    clientType === 'mcp' ? `Lemonade MCP (${hostname()})` : hostname();
   return {
     'X-Client-Type': clientType,
-    'X-Client-Device-Name': hostname(),
+    'X-Client-Device-Name': deviceName,
     'X-Client-OS': platform() + ' ' + release(),
     'X-Client-App-Version': getPackageVersion(),
     'X-Client-Locale': process.env.LANG || 'en-US',
