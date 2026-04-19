@@ -36,6 +36,27 @@ export interface SubscriptionOptions {
 const CLOSE_CODE_SESSION_REVOKED = 4401;
 const CLOSE_CODE_TOKEN_EXPIRED = 4403;
 
+/**
+ * Module-level registry of the currently-live subscription handle.
+ *
+ * Phase 2 (IMPL § Phase 2, Option A) — exposes `getActiveSubscription()` so
+ * `auth logout` can call `dispose()` on whatever subscription is live WITHOUT
+ * unconditionally importing the subscription factory on every logout
+ * invocation (US-1.8 / US-1.9).
+ *
+ * Invariants:
+ *   - At most one active subscription per process (CLI is single-tenant).
+ *   - `getActiveSubscription()` returns `null` when no subscription is live →
+ *     `auth logout` safe-no-op (US-1.8).
+ *   - The registry entry is cleared when dispose() runs (idempotent).
+ *   - NO cross-process IPC (US-1.9) — pure in-memory per Node process.
+ */
+let activeSubscription: { dispose: () => void } | null = null;
+
+export function getActiveSubscription(): { dispose: () => void } | null {
+  return activeSubscription;
+}
+
 const NOTIFICATION_SUBSCRIPTION = `
   subscription NotificationCreated {
     notificationCreated {
@@ -218,11 +239,24 @@ export function createNotificationSubscription(
     disposed = true;
     activeUnsubscribe?.();
     client?.dispose();
+    // Clear the module-level registry only if this subscription is the
+    // currently-registered one. Guard prevents a late dispose from a
+    // previously-replaced subscription from clobbering a newer handle.
+    if (activeSubscription === handle) {
+      activeSubscription = null;
+    }
   }
+
+  const handle = { dispose };
+
+  // Register as the active subscription BEFORE kicking off connect() so a
+  // logout that fires during the initial handshake still finds a disposable
+  // handle (US-1.8 safe-no-op when there is none, safe-cleanup when there is).
+  activeSubscription = handle;
 
   connect().catch((err) => {
     options.onError?.(err instanceof Error ? err : new Error(String(err)));
   });
 
-  return { dispose };
+  return handle;
 }

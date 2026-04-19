@@ -374,3 +374,79 @@ describe('createNotificationSubscription', () => {
     expect(refreshBreadcrumbs).toHaveLength(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// activeSubscription registry — direct unit coverage for the Option A
+// module-level registry exposed via getActiveSubscription() (A-009 / US-1.8).
+// ---------------------------------------------------------------------------
+
+describe('activeSubscription registry', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    ensureAuthHeaderMock.mockImplementation(async () => 'Bearer test-token');
+    subscribeMock.mockImplementation(() => () => {});
+    getClientHeadersMock.mockImplementation(() => ({
+      'X-Client-Type': 'cli',
+      'X-Client-Device-Name': 'test-host',
+      'X-Client-OS': 'linux 1.0.0',
+      'X-Client-App-Version': '1.0.0-test',
+      'X-Client-Locale': 'en-US',
+    }));
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+  });
+
+  it('getActiveSubscription() returns null BEFORE any factory call', async () => {
+    const mod = await loadFreshModule();
+    expect(mod.getActiveSubscription()).toBeNull();
+  });
+
+  it('getActiveSubscription() returns the live handle (with dispose fn) AFTER a factory call registers it', async () => {
+    const mod = await loadFreshModule();
+    const handle = mod.createNotificationSubscription({
+      onNotification: () => {},
+    });
+
+    const active = mod.getActiveSubscription();
+    expect(active).not.toBeNull();
+    // Registry entry must be the same handle the factory returned.
+    expect(active).toBe(handle);
+    expect(typeof active?.dispose).toBe('function');
+  });
+
+  it('getActiveSubscription() returns null AFTER dispose() is called on the handle', async () => {
+    const mod = await loadFreshModule();
+    const handle = mod.createNotificationSubscription({
+      onNotification: () => {},
+    });
+    expect(mod.getActiveSubscription()).toBe(handle);
+
+    handle.dispose();
+
+    expect(mod.getActiveSubscription()).toBeNull();
+  });
+
+  it('stale-replaced guard: disposing the FIRST handle after a second factory call replaces the registry does NOT clear the SECOND entry', async () => {
+    const mod = await loadFreshModule();
+
+    // First subscription registers as active.
+    const firstHandle = mod.createNotificationSubscription({
+      onNotification: () => {},
+    });
+    expect(mod.getActiveSubscription()).toBe(firstHandle);
+
+    // Second sequential factory call replaces the registry entry.
+    const secondHandle = mod.createNotificationSubscription({
+      onNotification: () => {},
+    });
+    expect(mod.getActiveSubscription()).toBe(secondHandle);
+    expect(secondHandle).not.toBe(firstHandle);
+
+    // Disposing the (now-stale) first handle must NOT clobber the second.
+    firstHandle.dispose();
+    expect(mod.getActiveSubscription()).toBe(secondHandle);
+
+    // Sanity: disposing the currently-registered second handle clears it.
+    secondHandle.dispose();
+    expect(mod.getActiveSubscription()).toBeNull();
+  });
+});
