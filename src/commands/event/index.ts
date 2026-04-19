@@ -445,37 +445,42 @@ export function registerEventCommands(program: Command): void {
 
   event
     .command('analytics <event-id>')
-    .description('View event analytics')
+    .description('View event analytics (ticket sales + page views + guest stats). Defaults the chart window to the last 30 days.')
+    .option('--start <iso>', 'Start of the analytics window (ISO 8601). Defaults to 30 days ago.')
+    .option('--end <iso>', 'End of the analytics window (ISO 8601). Defaults to now.')
     .option('--json', 'Output as JSON')
     .option('--api-key <key>', 'API key override')
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
 
+        const now = new Date();
+        const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const start = opts.start ? new Date(opts.start).toISOString() : defaultStart.toISOString();
+        const end = opts.end ? new Date(opts.end).toISOString() : now.toISOString();
+
         const [salesResult, viewsResult, guestsResult] = await Promise.all([
-          graphqlRequest<{ aiGetEventTicketSoldInsight: Record<string, unknown> }>(
-            `query($event: MongoID!) {
-              aiGetEventTicketSoldInsight(event: $event) {
-                total_sold total_revenue_cents currency
-                by_type { ticket_type_id title sold revenue_cents }
+          graphqlRequest<{ getEventTicketSoldChartData: { items: Array<Record<string, unknown>> } }>(
+            `query($event: MongoID!, $start: DateTimeISO!, $end: DateTimeISO!) {
+              getEventTicketSoldChartData(event: $event, start: $start, end: $end) {
+                items { created_at type }
               }
             }`,
-            { event: eventId },
+            { event: eventId, start, end },
           ),
-          graphqlRequest<{ aiGetEventViewInsight: Record<string, unknown> }>(
-            `query($event: MongoID!) {
-              aiGetEventViewInsight(event: $event) {
-                total_views unique_visitors
-                top_sources { source count }
-                top_cities { city count }
+          graphqlRequest<{ getEventViewChartData: { items: Array<Record<string, unknown>> } }>(
+            `query($event: MongoID!, $start: DateTimeISO!, $end: DateTimeISO!) {
+              getEventViewChartData(event: $event, start: $start, end: $end) {
+                items { date }
               }
             }`,
-            { event: eventId },
+            { event: eventId, start, end },
           ),
-          graphqlRequest<{ aiGetEventGuestStats: Record<string, unknown> }>(
+          graphqlRequest<{ getEventGuestsStatistics: Record<string, unknown> }>(
             `query($event: MongoID!) {
-              aiGetEventGuestStats(event: $event) {
-                going pending_approval pending_invite declined checked_in total
+              getEventGuestsStatistics(event: $event) {
+                going pending_approval pending_invite declined checked_in
+                ticket_types { ticket_type ticket_type_title guests_count }
               }
             }`,
             { event: eventId },
@@ -483,26 +488,23 @@ export function registerEventCommands(program: Command): void {
         ]);
         setFlagApiKey(undefined);
 
-        const sales = salesResult.aiGetEventTicketSoldInsight;
-        const views = viewsResult.aiGetEventViewInsight;
-        const guests = guestsResult.aiGetEventGuestStats;
+        const sales = salesResult.getEventTicketSoldChartData;
+        const views = viewsResult.getEventViewChartData;
+        const guests = guestsResult.getEventGuestsStatistics;
 
         if (opts.json) {
-          console.log(jsonSuccess({ sales, views, guests }));
+          console.log(jsonSuccess({ sales, views, guests, window: { start, end } }));
         } else {
-          const rawRevenue = Number(sales.total_revenue_cents);
-          const revenueDollars = Number.isFinite(rawRevenue) ? (rawRevenue / 100).toFixed(2) : '0.00';
           console.log(renderKeyValue([
-            ['Tickets Sold', String(sales.total_sold)],
-            ['Revenue', `${revenueDollars} ${sales.currency}`],
-            ['Page Views', String(views.total_views)],
-            ['Unique Visitors', String(views.unique_visitors)],
+            ['Window Start', start],
+            ['Window End', end],
+            ['Tickets Sold (in window)', String(sales.items.length)],
+            ['Page Views (in window)', String(views.items.length)],
             ['Going', String(guests.going)],
             ['Pending Approval', String(guests.pending_approval)],
             ['Pending Invite', String(guests.pending_invite)],
             ['Declined', String(guests.declined)],
             ['Checked In', String(guests.checked_in)],
-            ['Total Guests', String(guests.total)],
           ]));
         }
       } catch (error) {
@@ -525,31 +527,44 @@ export function registerEventCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const skip = opts.cursor ? parseInt(opts.cursor, 10) : 0;
 
-        const result = await graphqlRequest<{ aiGetEventGuests: { items: Array<Record<string, unknown>> } }>(
+        const result = await graphqlRequest<{ listEventGuests: { total: number; items: Array<Record<string, unknown>> } }>(
           `query($event: MongoID!, $search: String, $limit: Int, $skip: Int) {
-            aiGetEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
-              items { name email status ticket_type_title checked_in }
+            listEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
+              total
+              items {
+                user { _id name display_name email }
+                ticket { _id type_expanded { _id title } checkin { _id } }
+                join_request { _id state }
+              }
             }
           }`,
           { event: eventId, search: opts.search, limit, skip },
         );
         setFlagApiKey(undefined);
 
-        const items = result.aiGetEventGuests.items;
+        const items = result.listEventGuests.items;
+        const total = result.listEventGuests.total;
         if (opts.json) {
           const nextCursor = items.length === limit ? String(skip + limit) : null;
-          console.log(jsonSuccess(items, { cursor: nextCursor }));
+          console.log(jsonSuccess(items, { cursor: nextCursor, total }));
         } else {
           console.log(renderTable(
-            ['Name', 'Email', 'Status', 'Ticket Type', 'Checked In'],
-            items.map((g) => [
-              String(g.name || ''),
-              String(g.email || ''),
-              String(g.status || ''),
-              String(g.ticket_type_title || ''),
-              g.checked_in ? 'Yes' : 'No',
-            ]),
+            ['Name', 'Email', 'Ticket Type', 'State', 'Checked In'],
+            items.map((g) => {
+              const user = (g.user || {}) as Record<string, unknown>;
+              const ticket = (g.ticket || {}) as Record<string, unknown>;
+              const typeExp = (ticket.type_expanded || {}) as Record<string, unknown>;
+              const jr = (g.join_request || {}) as Record<string, unknown>;
+              return [
+                String(user.display_name || user.name || ''),
+                String(user.email || ''),
+                String(typeExp.title || ''),
+                String(jr.state || ''),
+                ticket.checkin ? 'Yes' : 'No',
+              ];
+            }),
           ));
+          console.log(`\n${items.length} of ${total} guests`);
         }
       } catch (error) {
         setFlagApiKey(undefined);
@@ -587,10 +602,10 @@ export function registerEventCommands(program: Command): void {
 
   event
     .command('approvals <event-id>')
-    .description('Manage event join requests')
-    .option('--approve', 'Approve pending requests')
-    .option('--decline', 'Decline pending requests')
-    .option('--request-id <ids...>', 'Specific request IDs')
+    .description('Approve or decline specific join requests. Request IDs are required — the backend no longer supports a "decide all pending" shortcut.')
+    .option('--approve', 'Approve the listed requests')
+    .option('--decline', 'Decline the listed requests')
+    .requiredOption('--request-id <ids...>', 'Join request IDs to decide')
     .option('--json', 'Output as JSON')
     .option('--api-key <key>', 'API key override')
     .action(async (eventId: string, opts) => {
@@ -605,25 +620,26 @@ export function registerEventCommands(program: Command): void {
         }
 
         const decision = opts.approve ? 'approved' : 'declined';
-        const result = await graphqlRequest<{ aiDecideEventJoinRequests: { processed_count: number; decision: string } }>(
-          `mutation($event: MongoID!, $decision: String!, $request_ids: [MongoID!]) {
-            aiDecideEventJoinRequests(event: $event, decision: $decision, request_ids: $request_ids) {
-              processed_count decision
-            }
+        const result = await graphqlRequest<{ decideUserJoinRequests: Array<{ _id: string; processed: boolean }> }>(
+          `mutation($input: DecideUserJoinRequestsInput!) {
+            decideUserJoinRequests(input: $input) { _id processed }
           }`,
           {
-            event: eventId,
-            decision,
-            request_ids: opts.requestId,
+            input: {
+              event: eventId,
+              requests: opts.requestId,
+              decision,
+            },
           },
         );
         setFlagApiKey(undefined);
 
-        const r = result.aiDecideEventJoinRequests;
+        const r = result.decideUserJoinRequests;
         if (opts.json) {
           console.log(jsonSuccess(r));
         } else {
-          console.log(`Processed ${r.processed_count} requests (${r.decision})`);
+          const processed = r.filter((x) => x.processed).length;
+          console.log(`Decided ${r.length} requests (${processed} processed, ${r.length - processed} skipped, decision=${decision})`);
         }
       } catch (error) {
         setFlagApiKey(undefined);
@@ -646,11 +662,10 @@ export function registerEventCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const offset = parseInt(opts.offset, 10);
 
-        const summaryResult = await graphqlRequest<{ aiGetEventFeedbackSummary: Record<string, unknown> }>(
+        const summaryResult = await graphqlRequest<{ getEventFeedbackSummary: { rates: Array<{ rate_value: number; count: number }> } }>(
           `query($event: MongoID!) {
-            aiGetEventFeedbackSummary(event: $event) {
-              average_rating total_reviews
-              rating_distribution { rating count }
+            getEventFeedbackSummary(event: $event) {
+              rates { rate_value count }
             }
           }`,
           { event: eventId },
@@ -658,10 +673,11 @@ export function registerEventCommands(program: Command): void {
 
         let feedbacks: Array<Record<string, unknown>> = [];
         if (!opts.summary) {
-          const feedbackResult = await graphqlRequest<{ aiListEventFeedbacks: { items: Array<Record<string, unknown>> } }>(
-            `query($event: MongoID!, $rate_value: Float, $limit: Int, $skip: Int) {
-              aiListEventFeedbacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
-                items { user_name rating comment created_at }
+          const feedbackResult = await graphqlRequest<{ listEventFeedBacks: Array<Record<string, unknown>> }>(
+            `query($event: MongoID!, $rate_value: Float, $limit: Int!, $skip: Int!) {
+              listEventFeedBacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
+                user email rate_value comment created_at
+                user_info { _id name image_avatar }
               }
             }`,
             {
@@ -671,28 +687,40 @@ export function registerEventCommands(program: Command): void {
               skip: offset,
             },
           );
-          feedbacks = feedbackResult.aiListEventFeedbacks.items;
+          feedbacks = feedbackResult.listEventFeedBacks;
         }
         setFlagApiKey(undefined);
 
-        const summary = summaryResult.aiGetEventFeedbackSummary;
+        const rates = summaryResult.getEventFeedbackSummary.rates;
+        const totalCount = rates.reduce((s, r) => s + r.count, 0);
+        const weightedSum = rates.reduce((s, r) => s + r.rate_value * r.count, 0);
+        const avgRating = totalCount > 0 ? (weightedSum / totalCount).toFixed(2) : 'n/a';
 
         if (opts.json) {
-          console.log(jsonSuccess({ summary, feedbacks }));
+          console.log(jsonSuccess({ summary: { rates, total: totalCount, average: avgRating }, feedbacks }));
         } else {
           console.log(renderKeyValue([
-            ['Average Rating', String(summary.average_rating)],
-            ['Total Reviews', String(summary.total_reviews)],
+            ['Average Rating', String(avgRating)],
+            ['Total Reviews', String(totalCount)],
           ]));
+          if (rates.length > 0) {
+            console.log('\n' + renderTable(
+              ['Rate', 'Count'],
+              rates.map((r) => [String(r.rate_value), String(r.count)]),
+            ));
+          }
           if (feedbacks.length > 0) {
             console.log('\n' + renderTable(
               ['User', 'Rating', 'Comment', 'Date'],
-              feedbacks.map((f) => [
-                String(f.user_name || ''),
-                String(f.rating),
-                String(f.comment || ''),
-                String(f.created_at || ''),
-              ]),
+              feedbacks.map((f) => {
+                const ui = (f.user_info || {}) as Record<string, unknown>;
+                return [
+                  String(ui.name || f.email || ''),
+                  String(f.rate_value ?? ''),
+                  String(f.comment || ''),
+                  String(f.created_at || ''),
+                ];
+              }),
             ));
           }
         }

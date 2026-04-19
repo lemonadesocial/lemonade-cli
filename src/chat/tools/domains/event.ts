@@ -396,66 +396,99 @@ export const eventTools: CanonicalCapability[] = [
     name: 'event_ticket_sold_insight',
     category: 'event',
     displayName: 'event ticket sales',
-    description: 'Get ticket sales data for an event.',
+    description: 'Get per-ticket creation events over a date window. Returns { items: [{ created_at, type }] } — each item is a single sold ticket, timestamped. Count items to derive total sold; group by type for per-ticket-type breakdown.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'start', type: 'string', description: 'Start date (ISO 8601, inclusive). Defaults to 30 days ago.', required: false },
+      { name: 'end', type: 'string', description: 'End date (ISO 8601, exclusive). Defaults to now.', required: false },
+      { name: 'types', type: 'string[]', description: 'Optional ticket type IDs to filter', required: false },
     ],
-    whenToUse: 'when user wants ticket sales analytics',
-    searchHint: 'ticket sales insight analytics sold revenue',
+    whenToUse: 'when user wants ticket sales analytics over a time window; defaults to the last 30 days if no dates are provided',
+    searchHint: 'ticket sales insight analytics sold chart timeline',
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventTicketSoldInsight',
+    backendResolver: 'getEventTicketSoldChartData',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventTicketSoldInsight: unknown }>(
-        `query($event: MongoID!) {
-          aiGetEventTicketSoldInsight(event: $event) {
-            total_sold total_revenue_cents currency
-            by_type { ticket_type_id title sold revenue_cents }
+      const now = new Date();
+      const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const start = args.start
+        ? new Date(args.start as string).toISOString()
+        : defaultStart.toISOString();
+      const end = args.end
+        ? new Date(args.end as string).toISOString()
+        : now.toISOString();
+
+      const result = await graphqlRequest<{ getEventTicketSoldChartData: unknown }>(
+        `query($event: MongoID!, $start: DateTimeISO!, $end: DateTimeISO!, $types: [MongoID!]) {
+          getEventTicketSoldChartData(event: $event, start: $start, end: $end, types: $types) {
+            items { created_at type }
           }
         }`,
-        { event: args.event_id },
+        {
+          event: args.event_id,
+          start,
+          end,
+          types: args.types as string[] | undefined,
+        },
       );
-      return result.aiGetEventTicketSoldInsight;
+      return result.getEventTicketSoldChartData;
+    },
+    formatResult: (result) => {
+      const r = result as { items: Array<{ created_at: string; type: string }> };
+      return `${r.items.length} ticket${r.items.length === 1 ? '' : 's'} sold in the selected window.`;
     },
   }),
   buildCapability({
     name: 'event_view_insight',
     category: 'event',
     displayName: 'event view stats',
-    description: 'Get page view statistics for an event.',
+    description: 'Get per-view events on an event page over a date window. Returns { items: [{ date }] } — each item is one page view, timestamped. Count items to derive total views in the window.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
+      { name: 'start', type: 'string', description: 'Start date (ISO 8601, inclusive). Defaults to 30 days ago.', required: false },
+      { name: 'end', type: 'string', description: 'End date (ISO 8601, exclusive). Defaults to now.', required: false },
     ],
-    whenToUse: 'when user wants event page view analytics',
-    searchHint: 'views insight analytics traffic pageviews',
+    whenToUse: 'when user wants event page view analytics over a time window; defaults to the last 30 days if no dates are provided',
+    searchHint: 'views insight analytics traffic pageviews chart',
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventViewInsight',
+    backendResolver: 'getEventViewChartData',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventViewInsight: unknown }>(
-        `query($event: MongoID!) {
-          aiGetEventViewInsight(event: $event) {
-            total_views unique_visitors
-            top_sources { source count }
-            top_cities { city count }
+      const now = new Date();
+      const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const start = args.start
+        ? new Date(args.start as string).toISOString()
+        : defaultStart.toISOString();
+      const end = args.end
+        ? new Date(args.end as string).toISOString()
+        : now.toISOString();
+
+      const result = await graphqlRequest<{ getEventViewChartData: unknown }>(
+        `query($event: MongoID!, $start: DateTimeISO!, $end: DateTimeISO!) {
+          getEventViewChartData(event: $event, start: $start, end: $end) {
+            items { date }
           }
         }`,
-        { event: args.event_id },
+        { event: args.event_id, start, end },
       );
-      return result.aiGetEventViewInsight;
+      return result.getEventViewChartData;
+    },
+    formatResult: (result) => {
+      const r = result as { items: Array<{ date: string }> };
+      return `${r.items.length} page view${r.items.length === 1 ? '' : 's'} in the selected window.`;
     },
   }),
   buildCapability({
     name: 'event_guest_stats',
     category: 'event',
     displayName: 'event guest stats',
-    description: 'Get guest statistics for an event (going, pending, declined, checked in).',
+    description: 'Get guest statistics for an event (going, pending_approval, pending_invite, declined, checked_in, per-ticket-type breakdown).',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
@@ -464,30 +497,31 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventGuestStats',
+    backendResolver: 'getEventGuestsStatistics',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventGuestStats: unknown }>(
+      const result = await graphqlRequest<{ getEventGuestsStatistics: unknown }>(
         `query($event: MongoID!) {
-          aiGetEventGuestStats(event: $event) {
-            going pending_approval pending_invite declined checked_in total
+          getEventGuestsStatistics(event: $event) {
+            going pending_approval pending_invite declined checked_in
+            ticket_types { ticket_type ticket_type_title guests_count }
           }
         }`,
         { event: args.event_id },
       );
-      return result.aiGetEventGuestStats;
+      return result.getEventGuestsStatistics;
     },
     formatResult: (result) => {
-      const r = result as { going: number; pending_approval: number; pending_invite: number; declined: number; checked_in: number; total: number };
-      return `Guests: ${r.going} going, ${r.pending_approval} pending approval, ${r.pending_invite} pending invite, ${r.declined} declined, ${r.checked_in} checked in (${r.total} total).`;
+      const r = result as { going: number; pending_approval: number; pending_invite: number; declined: number; checked_in: number };
+      return `Guests: ${r.going} going, ${r.pending_approval} pending approval, ${r.pending_invite} pending invite, ${r.declined} declined, ${r.checked_in} checked in.`;
     },
   }),
   buildCapability({
     name: 'event_guests',
     category: 'event',
     displayName: 'event guests',
-    description: 'List attendees for an event.',
+    description: 'List attendees for an event. Returns { items: [{ user, ticket, payment, application, join_request }], total }.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
       { name: 'search', type: 'string', description: 'Search guests by name or email', required: false },
@@ -499,14 +533,19 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventGuests',
+    backendResolver: 'listEventGuests',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventGuests: unknown }>(
+      const result = await graphqlRequest<{ listEventGuests: unknown }>(
         `query($event: MongoID!, $search: String, $limit: Int, $skip: Int) {
-          aiGetEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
-            items { name email status ticket_type_title checked_in }
+          listEventGuests(event: $event, search: $search, limit: $limit, skip: $skip) {
+            total
+            items {
+              user { _id name display_name email image_avatar }
+              ticket { _id type type_expanded { _id title } checkin { _id created_at } }
+              join_request { _id state created_at }
+            }
           }
         }`,
         {
@@ -516,7 +555,11 @@ export const eventTools: CanonicalCapability[] = [
           skip: (args.skip as number) || 0,
         },
       );
-      return result.aiGetEventGuests;
+      return result.listEventGuests;
+    },
+    formatResult: (result) => {
+      const r = result as { total: number; items: unknown[] };
+      return `${r.items.length} of ${r.total} guest${r.total === 1 ? '' : 's'}.`;
     },
   }),
   buildCapability({
@@ -548,35 +591,42 @@ export const eventTools: CanonicalCapability[] = [
     name: 'event_approvals',
     category: 'event',
     displayName: 'event approvals',
-    description: 'Approve or decline event join requests.',
+    description: 'Approve or decline specific event join requests. Returns an array of { _id, processed }. Use event_join_requests (getEventJoinRequests) to look up pending request IDs first — the backend requires an explicit list.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
-      { name: 'decision', type: 'string', description: 'Decision: approved or declined', required: true,
+      { name: 'decision', type: 'string', description: 'Target state (EventJoinRequestState): approved or declined', required: true,
         enum: ['approved', 'declined'] },
-      { name: 'request_ids', type: 'string[]', description: 'Specific request IDs (optional)', required: false },
+      { name: 'request_ids', type: 'string[]', description: 'Join request IDs to decide. Required by the backend — no implicit "all pending" batch.', required: true },
     ],
-    whenToUse: 'when user wants to approve or reject join requests',
-    searchHint: 'approve reject requests pending join',
+    whenToUse: 'when user wants to approve or reject specific join requests. The implicit "decide all pending" shortcut is no longer supported — request IDs must be listed explicitly.',
+    searchHint: 'approve reject requests pending join decision',
     shouldDefer: true,
     destructive: true,
     backendType: 'mutation',
-    backendResolver: 'aiDecideEventJoinRequests',
+    backendResolver: 'decideUserJoinRequests',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiDecideEventJoinRequests: unknown }>(
-        `mutation($event: MongoID!, $decision: String!, $request_ids: [MongoID!]) {
-          aiDecideEventJoinRequests(event: $event, decision: $decision, request_ids: $request_ids) {
-            processed_count decision
+      const result = await graphqlRequest<{ decideUserJoinRequests: unknown }>(
+        `mutation($input: DecideUserJoinRequestsInput!) {
+          decideUserJoinRequests(input: $input) {
+            _id processed
           }
         }`,
         {
-          event: args.event_id,
-          decision: args.decision,
-          request_ids: args.request_ids as string[] | undefined,
+          input: {
+            event: args.event_id,
+            requests: args.request_ids,
+            decision: args.decision,
+          },
         },
       );
-      return result.aiDecideEventJoinRequests;
+      return result.decideUserJoinRequests;
+    },
+    formatResult: (result) => {
+      const r = result as Array<{ _id: string; processed: boolean }>;
+      const processed = r.filter((x) => x.processed).length;
+      return `Decided ${r.length} request${r.length === 1 ? '' : 's'} (${processed} processed, ${r.length - processed} skipped).`;
     },
   }),
   buildCapability({
@@ -616,36 +666,44 @@ export const eventTools: CanonicalCapability[] = [
     name: 'event_feedbacks',
     category: 'event',
     displayName: 'event feedbacks',
-    description: 'List individual feedback entries for an event.',
+    description: 'List individual feedback entries for an event. Returns EventFeedback[] — each item has { user, email, event, rate_value, comment, created_at, user_info { name } }.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
       { name: 'rate_value', type: 'number', description: 'Filter by rating (1-5)', required: false },
-      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '20' },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     whenToUse: 'when user wants individual event feedback entries',
-    searchHint: 'feedbacks reviews individual entries comments',
+    searchHint: 'feedbacks reviews individual entries comments ratings',
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiListEventFeedbacks',
+    // Note: spelled "FeedBacks" with a capital B in the backend SDL.
+    backendResolver: 'listEventFeedBacks',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiListEventFeedbacks: unknown }>(
-        `query($event: MongoID!, $rate_value: Float, $limit: Int, $skip: Int) {
-          aiListEventFeedbacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
-            items { user_name rating comment created_at }
+      const result = await graphqlRequest<{ listEventFeedBacks: unknown }>(
+        `query($event: MongoID!, $rate_value: Float, $limit: Int!, $skip: Int!) {
+          listEventFeedBacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
+            user email rate_value comment created_at
+            user_info { _id name image_avatar }
           }
         }`,
         {
           event: args.event_id,
           rate_value: args.rate_value as number | undefined,
-          limit: (args.limit as number) || 20,
+          limit: (args.limit as number) || 25,
           skip: (args.skip as number) || 0,
         },
       );
-      return result.aiListEventFeedbacks;
+      return result.listEventFeedBacks;
+    },
+    formatResult: (result) => {
+      const r = result as Array<{ rate_value: number }>;
+      if (r.length === 0) return 'No feedback in range.';
+      const avg = r.reduce((sum, x) => sum + (x.rate_value || 0), 0) / r.length;
+      return `${r.length} feedback${r.length === 1 ? '' : 's'} (avg ${avg.toFixed(2)}/5).`;
     },
   }),
   buildCapability({
