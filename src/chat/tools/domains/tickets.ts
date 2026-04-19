@@ -260,47 +260,76 @@ export const ticketsTools: CanonicalCapability[] = [
     name: 'tickets_price',
     category: 'tickets',
     displayName: 'tickets price',
-    description: 'Calculate ticket price with optional discount.',
+    description: 'Calculate ticket pricing for an event with optional discount. Supports multiple items in one call.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
-      { name: 'ticket_type', type: 'string', description: 'Ticket type ID', required: true },
-      { name: 'quantity', type: 'number', description: 'Number of tickets', required: false, default: '1' },
-      { name: 'discount_code', type: 'string', description: 'Discount code', required: false },
+      { name: 'currency', type: 'string', description: 'Pricing currency code (e.g. USD)', required: true },
+      { name: 'ticket_type', type: 'string', description: 'Ticket type ID (for a single-item call — alternative to items)', required: false },
+      { name: 'quantity', type: 'number', description: 'Number of tickets when using ticket_type', required: false, default: '1' },
+      { name: 'items', type: 'string', description: 'JSON array of purchasable items: [{id, count}]. Overrides ticket_type/quantity.', required: false },
+      { name: 'discount', type: 'string', description: 'Discount code', required: false },
     ],
     whenToUse: 'when user wants to calculate ticket cost',
     searchHint: 'price calculate cost ticket discount preview',
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiCalculateTicketPrice',
+    backendResolver: 'calculateTicketsPricing',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      // Backend schema accepts Float for count, but ticket quantities are whole numbers
-      const count = Math.floor(args.quantity != null ? (args.quantity as number) : 1);
-      if (count < 1) throw new Error('Quantity must be a positive whole number.');
-      const result = await graphqlRequest<{ aiCalculateTicketPrice: unknown }>(
-        `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
-          aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
-            subtotal_cents discount_cents total_cents currency
+      let items: Array<{ id: string; count: number }>;
+      if (args.items !== undefined && args.items !== null && args.items !== '') {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(args.items as string);
+        } catch {
+          throw new Error('items must be a JSON array of {id, count} objects');
+        }
+        if (!Array.isArray(parsed)) throw new Error('items must be a JSON array');
+        items = parsed.map((raw, i) => {
+          const obj = raw as { id?: unknown; count?: unknown };
+          if (typeof obj.id !== 'string' || !obj.id) throw new Error(`items[${i}].id must be a non-empty string`);
+          const count = Math.floor(Number(obj.count));
+          if (!Number.isFinite(count) || count < 1) throw new Error(`items[${i}].count must be a positive integer`);
+          return { id: obj.id, count };
+        });
+      } else {
+        if (!args.ticket_type) {
+          throw new Error('Provide either items (JSON array) or ticket_type + quantity.');
+        }
+        const count = Math.floor(args.quantity != null ? (args.quantity as number) : 1);
+        if (count < 1) throw new Error('Quantity must be a positive whole number.');
+        items = [{ id: args.ticket_type as string, count }];
+      }
+
+      const input: Record<string, unknown> = {
+        event: args.event_id,
+        currency: args.currency,
+        items,
+      };
+      if (args.discount !== undefined && args.discount !== null && args.discount !== '') {
+        input.discount = args.discount;
+      }
+
+      const result = await graphqlRequest<{ calculateTicketsPricing: { subtotal: string; discount: string; total: string } }>(
+        `query($input: CalculateTicketsPricingInput!) {
+          calculateTicketsPricing(input: $input) {
+            subtotal
+            discount
+            total
           }
         }`,
-        {
-          event: args.event_id,
-          ticket_type: args.ticket_type,
-          count,
-          discount_code: args.discount_code as string | undefined,
-        },
+        { input },
       );
-      return result.aiCalculateTicketPrice;
+      return result.calculateTicketsPricing;
     },
     formatResult: (result) => {
-      const r = result as { subtotal_cents: number; discount_cents: number; total_cents: number; currency: string };
-      const fmt = (v: number) => { const n = Number(v); return Number.isFinite(n) ? (n / 100).toFixed(2) : '0.00'; };
-      const total = fmt(r.total_cents);
-      const subtotal = fmt(r.subtotal_cents);
-      const discount = fmt(r.discount_cents);
-      if (r.discount_cents > 0) return `Price: ${r.currency} ${total} (${r.currency} ${subtotal} - ${r.currency} ${discount} discount).`;
-      return `Price: ${r.currency} ${total}`;
+      const r = result as { subtotal: string; discount: string; total: string };
+      const hasDiscount = r.discount && r.discount !== '0' && r.discount !== '0.00' && Number(r.discount) !== 0;
+      if (hasDiscount) {
+        return `Total: ${r.total} (subtotal ${r.subtotal} - discount ${r.discount}).`;
+      }
+      return `Total: ${r.total} (subtotal ${r.subtotal}).`;
     },
   }),
   buildCapability({
@@ -331,36 +360,61 @@ export const ticketsTools: CanonicalCapability[] = [
     name: 'tickets_create_discount',
     category: 'tickets',
     displayName: 'tickets create-discount',
-    description: 'Create a discount code for an event ticket type.',
+    description: 'Create discount codes on an event. Backend accepts a batch of discount inputs; CLI wraps a single discount per call.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
       { name: 'code', type: 'string', description: 'Discount code', required: true },
-      { name: 'ratio', type: 'number', description: 'Discount ratio (0.0-1.0)', required: true },
-      { name: 'ticket_type_id', type: 'string', description: 'Ticket type ID', required: false },
-      { name: 'limit', type: 'number', description: 'Usage limit', required: false },
+      { name: 'ratio', type: 'number', description: 'Discount ratio (0.0-1.0, e.g. 0.2 = 20% off)', required: true },
+      { name: 'use_limit', type: 'number', description: 'Total use limit across all redemptions', required: false },
+      { name: 'use_limit_per', type: 'number', description: 'Use limit per user', required: false },
+      { name: 'ticket_limit', type: 'number', description: 'Total ticket limit covered by this discount', required: false },
+      { name: 'ticket_limit_per', type: 'number', description: 'Ticket limit per user', required: false },
+      { name: 'ticket_types', type: 'string', description: 'Comma-separated ticket type IDs this discount applies to (omit for all)', required: false },
     ],
     whenToUse: 'when user wants to create a promo code',
     searchHint: 'create discount promo code coupon offer',
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiCreateEventTicketDiscount',
+    backendResolver: 'createEventTicketDiscounts',
     requiresSpace: false,
     surfaces: ['aiTool'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiCreateEventTicketDiscount: unknown }>(
-        `mutation($event: MongoID!, $code: String!, $ratio: Float!, $limit: Int) {
-          aiCreateEventTicketDiscount(event: $event, code: $code, ratio: $ratio, limit: $limit) {
-            code discount_type value limit created_at
+      const ratioNum = Number(args.ratio);
+      if (!Number.isFinite(ratioNum) || ratioNum <= 0 || ratioNum > 1) {
+        throw new Error('ratio must be a number greater than 0 and at most 1 (e.g. 0.2 for 20% off).');
+      }
+      const input: Record<string, unknown> = {
+        code: args.code,
+        ratio: ratioNum,
+      };
+      if (args.use_limit !== undefined && args.use_limit !== null) input.use_limit = Number(args.use_limit);
+      if (args.use_limit_per !== undefined && args.use_limit_per !== null) input.use_limit_per = Number(args.use_limit_per);
+      if (args.ticket_limit !== undefined && args.ticket_limit !== null) input.ticket_limit = Number(args.ticket_limit);
+      if (args.ticket_limit_per !== undefined && args.ticket_limit_per !== null) input.ticket_limit_per = Number(args.ticket_limit_per);
+      if (args.ticket_types !== undefined && args.ticket_types !== null && args.ticket_types !== '') {
+        const ids = (args.ticket_types as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+        if (ids.length > 0) input.ticket_types = ids;
+      }
+
+      const result = await graphqlRequest<{ createEventTicketDiscounts: { _id: string; payment_ticket_discounts: Array<{ code: string; ratio: number; active: boolean; use_limit?: number; use_limit_per?: number; ticket_limit?: number; ticket_limit_per?: number; ticket_types?: string[] }> } }>(
+        `mutation($event: MongoID!, $inputs: [EventPaymentTicketDiscountInput!]!) {
+          createEventTicketDiscounts(event: $event, inputs: $inputs) {
+            _id
+            payment_ticket_discounts {
+              code ratio active use_limit use_limit_per ticket_limit ticket_limit_per ticket_types
+            }
           }
         }`,
-        {
-          event: args.event_id,
-          code: args.code,
-          ratio: args.ratio,
-          limit: args.limit || undefined,
-        },
+        { event: args.event_id, inputs: [input] },
       );
-      return result.aiCreateEventTicketDiscount;
+      return result.createEventTicketDiscounts;
+    },
+    formatResult: (result) => {
+      const r = result as { _id: string; payment_ticket_discounts?: Array<{ code: string; ratio: number; active: boolean }> };
+      const discounts = r.payment_ticket_discounts ?? [];
+      if (discounts.length === 0) return `Event ${r._id}: no discounts returned.`;
+      const lines = discounts.map(d => `  ${d.code}: ${(d.ratio * 100).toFixed(0)}% off (${d.active ? 'active' : 'inactive'})`);
+      return `Event ${r._id} now has ${discounts.length} discount(s):\n${lines.join('\n')}`;
     },
   }),
   buildCapability({

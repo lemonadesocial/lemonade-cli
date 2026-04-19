@@ -44,15 +44,14 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetEventViewInsight: ['total_views', 'unique_visitors', 'top_sources', 'top_cities', 'source', 'count', 'city'],
   aiGetEventGuests: ['items', 'name', 'email', 'status', 'ticket_type_title', 'checked_in'],
   aiGetEventCheckins: ['items', 'name', 'email', 'ticket_type_title', 'checked_in_at'],
-  aiGetEventPaymentStats: ['total_payments', 'total_revenue', 'by_provider', 'currency', 'amount_cents', 'provider', 'count'],
   aiGetEventFeedbackSummary: ['average_rating', 'total_reviews', 'rating_distribution', 'rating', 'count'],
   aiListEventFeedbacks: ['items', 'rating', 'comment', 'user_name', 'created_at'],
   aiGetEventApplicationAnswers: ['user_name', 'email', 'answers', 'submitted_at', 'question', 'answer'],
   listEventTicketTypes: ['title', 'active', 'private', 'limited', 'description'],
   createEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
   updateEventTicketType: ['title', 'active', 'private', 'limited', 'description'],
-  aiCreateEventTicketDiscount: ['_id', 'code', 'discount_type', 'value', 'limit', 'created_at'],
-  aiCalculateTicketPrice: ['subtotal_cents', 'discount_cents', 'total_cents', 'currency'],
+  createEventTicketDiscounts: ['_id', 'payment_ticket_discounts', 'code', 'ratio', 'active', 'use_limit', 'use_limit_per', 'ticket_limit', 'ticket_limit_per', 'ticket_types'],
+  calculateTicketsPricing: ['subtotal', 'discount', 'total'],
   inviteEvent: ['_id'], // Returns Event!
   aiDecideEventJoinRequests: ['processed_count', 'decision'],
   acceptEvent: ['state'], // Returns EventRsvp!

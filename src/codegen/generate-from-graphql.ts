@@ -81,7 +81,7 @@ const MANUAL_RESOLVERS = new Set([
   'aiGetEventFeedbackSummary', 'aiListEventFeedbacks', 'aiGetEventCheckins',
   // Ticket commands
   'listEventTicketTypes', 'createEventTicketType', 'updateEventTicketType',
-  'aiCalculateTicketPrice', 'aiBuyTickets',
+  'calculateTicketsPricing', 'aiBuyTickets',
   // Reward commands
   'atlasRewardSummary', 'atlasRewardHistory',
   // Site commands

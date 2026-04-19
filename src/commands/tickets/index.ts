@@ -261,8 +261,9 @@ export function registerTicketCommands(program: Command): void {
 
   tickets
     .command('price <event-id>')
-    .description('Calculate ticket price')
+    .description('Calculate ticket pricing for an event')
     .requiredOption('--ticket-type <id>', 'Ticket type ID (get from "event analytics --json" sales breakdown)')
+    .requiredOption('--currency <code>', 'Pricing currency code (e.g. USD)')
     .option('--quantity <n>', 'Quantity', '1')
     .option('--discount <code>', 'Discount code')
     .option('--json', 'Output as JSON')
@@ -270,35 +271,36 @@ export function registerTicketCommands(program: Command): void {
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
-        // Backend schema accepts Float for count, but ticket quantities are whole numbers
         const count = parseInt(opts.quantity, 10);
         if (!Number.isInteger(count) || count < 1) {
           throw new Error('Quantity must be a positive whole number.');
         }
-        const result = await graphqlRequest<{ aiCalculateTicketPrice: Record<string, unknown> }>(
-          `query($event: MongoID!, $ticket_type: MongoID!, $count: Float!, $discount_code: String) {
-            aiCalculateTicketPrice(event: $event, ticket_type: $ticket_type, count: $count, discount_code: $discount_code) {
-              subtotal_cents discount_cents total_cents currency
+        const input: Record<string, unknown> = {
+          event: eventId,
+          currency: opts.currency,
+          items: [{ id: opts.ticketType, count }],
+        };
+        if (opts.discount) input.discount = opts.discount;
+        const result = await graphqlRequest<{ calculateTicketsPricing: { subtotal: string; discount: string; total: string } }>(
+          `query($input: CalculateTicketsPricingInput!) {
+            calculateTicketsPricing(input: $input) {
+              subtotal
+              discount
+              total
             }
           }`,
-          {
-            event: eventId,
-            ticket_type: opts.ticketType,
-            count,
-            discount_code: opts.discount,
-          },
+          { input },
         );
         setFlagApiKey(undefined);
 
-        const price = result.aiCalculateTicketPrice;
+        const price = result.calculateTicketsPricing;
         if (opts.json) {
           console.log(jsonSuccess(price));
         } else {
-          const fmt = (cents: unknown) => { const n = Number(cents); return Number.isFinite(n) ? (n / 100).toFixed(2) : '0.00'; };
           console.log(renderKeyValue([
-            ['Subtotal', `${fmt(price.subtotal_cents)} ${price.currency}`],
-            ['Discount', `${fmt(price.discount_cents)} ${price.currency}`],
-            ['Total', `${fmt(price.total_cents)} ${price.currency}`],
+            ['Subtotal', `${price.subtotal} ${opts.currency}`],
+            ['Discount', `${price.discount} ${opts.currency}`],
+            ['Total', `${price.total} ${opts.currency}`],
           ]));
         }
       } catch (error) {
