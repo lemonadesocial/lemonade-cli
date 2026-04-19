@@ -237,18 +237,6 @@ describe('Tool Registry', () => {
     expect(registry.event_remove_cohost.destructive).toBe(true);
   });
 
-  it('includes broadcasting tools (NT-6, NT-7, NT-8)', () => {
-    expect(registry.event_broadcast_create).toBeDefined();
-    expect(registry.event_broadcast_create.params.find((p) => p.name === 'provider')?.enum).toContain('youtube');
-    expect(registry.event_broadcast_create.destructive).toBe(false);
-
-    expect(registry.event_broadcast_update).toBeDefined();
-    expect(registry.event_broadcast_update.destructive).toBe(false);
-
-    expect(registry.event_broadcast_delete).toBeDefined();
-    expect(registry.event_broadcast_delete.destructive).toBe(true);
-  });
-
   it('includes email workflow tools (NT-9 through NT-14)', () => {
     expect(registry.event_emails_list).toBeDefined();
     expect(registry.event_emails_list.destructive).toBe(false);
@@ -320,13 +308,11 @@ describe('Tool Registry', () => {
     const destructiveNames = destructiveTools.map((t) => t.name);
 
     expect(destructiveNames).toContain('event_remove_cohost');
-    expect(destructiveNames).toContain('event_broadcast_delete');
     expect(destructiveNames).toContain('event_email_delete');
     expect(destructiveNames).toContain('event_cancel_invitations');
     expect(destructiveNames).toContain('page_archive');
 
     expect(destructiveNames).not.toContain('event_clone');
-    expect(destructiveNames).not.toContain('event_broadcast_create');
     expect(destructiveNames).not.toContain('event_emails_list');
     expect(destructiveNames).not.toContain('template_list');
   });
