@@ -13,7 +13,7 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   event_invite: 'inviteEvent',
   event_approvals: 'decideUserJoinRequests',
   event_feedback_summary: 'aiGetEventFeedbackSummary',
-  event_feedbacks: 'aiListEventFeedbacks',
+  event_feedbacks: 'listEventFeedBacks',
   event_checkins: 'aiGetEventCheckins',
   tickets_list_types: 'listEventTicketTypes',
   tickets_create_type: 'createEventTicketType',

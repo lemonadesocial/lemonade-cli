@@ -666,36 +666,44 @@ export const eventTools: CanonicalCapability[] = [
     name: 'event_feedbacks',
     category: 'event',
     displayName: 'event feedbacks',
-    description: 'List individual feedback entries for an event.',
+    description: 'List individual feedback entries for an event. Returns EventFeedback[] — each item has { user, email, event, rate_value, comment, created_at, user_info { name } }.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
       { name: 'rate_value', type: 'number', description: 'Filter by rating (1-5)', required: false },
-      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '20' },
+      { name: 'limit', type: 'number', description: 'Max results', required: false, default: '25' },
       { name: 'skip', type: 'number', description: 'Pagination offset', required: false },
     ],
     whenToUse: 'when user wants individual event feedback entries',
-    searchHint: 'feedbacks reviews individual entries comments',
+    searchHint: 'feedbacks reviews individual entries comments ratings',
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiListEventFeedbacks',
+    // Note: spelled "FeedBacks" with a capital B in the backend SDL.
+    backendResolver: 'listEventFeedBacks',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiListEventFeedbacks: unknown }>(
-        `query($event: MongoID!, $rate_value: Float, $limit: Int, $skip: Int) {
-          aiListEventFeedbacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
-            items { user_name rating comment created_at }
+      const result = await graphqlRequest<{ listEventFeedBacks: unknown }>(
+        `query($event: MongoID!, $rate_value: Float, $limit: Int!, $skip: Int!) {
+          listEventFeedBacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
+            user email rate_value comment created_at
+            user_info { _id name image_avatar }
           }
         }`,
         {
           event: args.event_id,
           rate_value: args.rate_value as number | undefined,
-          limit: (args.limit as number) || 20,
+          limit: (args.limit as number) || 25,
           skip: (args.skip as number) || 0,
         },
       );
-      return result.aiListEventFeedbacks;
+      return result.listEventFeedBacks;
+    },
+    formatResult: (result) => {
+      const r = result as Array<{ rate_value: number }>;
+      if (r.length === 0) return 'No feedback in range.';
+      const avg = r.reduce((sum, x) => sum + (x.rate_value || 0), 0) / r.length;
+      return `${r.length} feedback${r.length === 1 ? '' : 's'} (avg ${avg.toFixed(2)}/5).`;
     },
   }),
   buildCapability({

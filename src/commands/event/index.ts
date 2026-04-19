@@ -662,11 +662,10 @@ export function registerEventCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const offset = parseInt(opts.offset, 10);
 
-        const summaryResult = await graphqlRequest<{ aiGetEventFeedbackSummary: Record<string, unknown> }>(
+        const summaryResult = await graphqlRequest<{ getEventFeedbackSummary: { rates: Array<{ rate_value: number; count: number }> } }>(
           `query($event: MongoID!) {
-            aiGetEventFeedbackSummary(event: $event) {
-              average_rating total_reviews
-              rating_distribution { rating count }
+            getEventFeedbackSummary(event: $event) {
+              rates { rate_value count }
             }
           }`,
           { event: eventId },
@@ -674,10 +673,11 @@ export function registerEventCommands(program: Command): void {
 
         let feedbacks: Array<Record<string, unknown>> = [];
         if (!opts.summary) {
-          const feedbackResult = await graphqlRequest<{ aiListEventFeedbacks: { items: Array<Record<string, unknown>> } }>(
-            `query($event: MongoID!, $rate_value: Float, $limit: Int, $skip: Int) {
-              aiListEventFeedbacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
-                items { user_name rating comment created_at }
+          const feedbackResult = await graphqlRequest<{ listEventFeedBacks: Array<Record<string, unknown>> }>(
+            `query($event: MongoID!, $rate_value: Float, $limit: Int!, $skip: Int!) {
+              listEventFeedBacks(event: $event, rate_value: $rate_value, limit: $limit, skip: $skip) {
+                user email rate_value comment created_at
+                user_info { _id name image_avatar }
               }
             }`,
             {
@@ -687,28 +687,40 @@ export function registerEventCommands(program: Command): void {
               skip: offset,
             },
           );
-          feedbacks = feedbackResult.aiListEventFeedbacks.items;
+          feedbacks = feedbackResult.listEventFeedBacks;
         }
         setFlagApiKey(undefined);
 
-        const summary = summaryResult.aiGetEventFeedbackSummary;
+        const rates = summaryResult.getEventFeedbackSummary.rates;
+        const totalCount = rates.reduce((s, r) => s + r.count, 0);
+        const weightedSum = rates.reduce((s, r) => s + r.rate_value * r.count, 0);
+        const avgRating = totalCount > 0 ? (weightedSum / totalCount).toFixed(2) : 'n/a';
 
         if (opts.json) {
-          console.log(jsonSuccess({ summary, feedbacks }));
+          console.log(jsonSuccess({ summary: { rates, total: totalCount, average: avgRating }, feedbacks }));
         } else {
           console.log(renderKeyValue([
-            ['Average Rating', String(summary.average_rating)],
-            ['Total Reviews', String(summary.total_reviews)],
+            ['Average Rating', String(avgRating)],
+            ['Total Reviews', String(totalCount)],
           ]));
+          if (rates.length > 0) {
+            console.log('\n' + renderTable(
+              ['Rate', 'Count'],
+              rates.map((r) => [String(r.rate_value), String(r.count)]),
+            ));
+          }
           if (feedbacks.length > 0) {
             console.log('\n' + renderTable(
               ['User', 'Rating', 'Comment', 'Date'],
-              feedbacks.map((f) => [
-                String(f.user_name || ''),
-                String(f.rating),
-                String(f.comment || ''),
-                String(f.created_at || ''),
-              ]),
+              feedbacks.map((f) => {
+                const ui = (f.user_info || {}) as Record<string, unknown>;
+                return [
+                  String(ui.name || f.email || ''),
+                  String(f.rate_value ?? ''),
+                  String(f.comment || ''),
+                  String(f.created_at || ''),
+                ];
+              }),
             ));
           }
         }
