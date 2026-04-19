@@ -472,16 +472,30 @@ export const spaceTools: CanonicalCapability[] = [
     backendType: 'query',
     backendResolver: 'spaceConnections',
     requiresEvent: false,
+    surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ spaceConnections: unknown }>(
-        `query($space: MongoID!) {
-          spaceConnections(space: $space) {
-            id connectorType status lastSyncAt lastSyncStatus enabled errorMessage
+      const result = await graphqlRequest<{ spaceConnections: Array<Record<string, unknown>> }>(
+        `query($spaceId: String!) {
+          spaceConnections(spaceId: $spaceId) {
+            id connectorType status installedBy installedAt
+            lastSyncAt lastSyncStatus enabled errorMessage
           }
         }`,
-        { space: args.space_id },
+        { spaceId: args.space_id },
       );
       return result.spaceConnections;
+    },
+    formatResult: (result) => {
+      const items = result as Array<{ id: string; connectorType: string; status: string; lastSyncAt?: string | null; lastSyncStatus?: string | null; enabled: boolean; errorMessage?: string | null }>;
+      if (!Array.isArray(items)) return JSON.stringify(result);
+      if (!items.length) return 'No connectors installed on this space.';
+      const lines = [`${items.length} connector(s):`];
+      for (const c of items) {
+        const sync = c.lastSyncAt ? `${c.lastSyncStatus ?? 'unknown'} @ ${c.lastSyncAt}` : 'never synced';
+        const err = c.errorMessage ? ` (error: ${c.errorMessage})` : '';
+        lines.push(`- ${c.connectorType} [${c.id}] — ${c.status}, enabled=${c.enabled}, ${sync}${err}`);
+      }
+      return lines.join('\n');
     },
   }),
   buildCapability({
