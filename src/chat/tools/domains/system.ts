@@ -201,7 +201,7 @@ export const systemTools: CanonicalCapability[] = [
     requiresEvent: false,
     execute: async (args) => {
       const result = await graphqlRequest<{ getUsageAnalytics: unknown }>(
-        `query($stand_id: String!, $start_date: DateTime!, $end_date: DateTime!) {
+        `query($stand_id: String!, $start_date: DateTimeISO!, $end_date: DateTimeISO!) {
           getUsageAnalytics(stand_id: $stand_id, start_date: $start_date, end_date: $end_date) {
             daily_usage { date requests credits }
             by_model { model tier requests credits percentage }
