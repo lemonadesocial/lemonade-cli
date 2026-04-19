@@ -360,36 +360,61 @@ export const ticketsTools: CanonicalCapability[] = [
     name: 'tickets_create_discount',
     category: 'tickets',
     displayName: 'tickets create-discount',
-    description: 'Create a discount code for an event ticket type.',
+    description: 'Create discount codes on an event. Backend accepts a batch of discount inputs; CLI wraps a single discount per call.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
       { name: 'code', type: 'string', description: 'Discount code', required: true },
-      { name: 'ratio', type: 'number', description: 'Discount ratio (0.0-1.0)', required: true },
-      { name: 'ticket_type_id', type: 'string', description: 'Ticket type ID', required: false },
-      { name: 'limit', type: 'number', description: 'Usage limit', required: false },
+      { name: 'ratio', type: 'number', description: 'Discount ratio (0.0-1.0, e.g. 0.2 = 20% off)', required: true },
+      { name: 'use_limit', type: 'number', description: 'Total use limit across all redemptions', required: false },
+      { name: 'use_limit_per', type: 'number', description: 'Use limit per user', required: false },
+      { name: 'ticket_limit', type: 'number', description: 'Total ticket limit covered by this discount', required: false },
+      { name: 'ticket_limit_per', type: 'number', description: 'Ticket limit per user', required: false },
+      { name: 'ticket_types', type: 'string', description: 'Comma-separated ticket type IDs this discount applies to (omit for all)', required: false },
     ],
     whenToUse: 'when user wants to create a promo code',
     searchHint: 'create discount promo code coupon offer',
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiCreateEventTicketDiscount',
+    backendResolver: 'createEventTicketDiscounts',
     requiresSpace: false,
     surfaces: ['aiTool'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiCreateEventTicketDiscount: unknown }>(
-        `mutation($event: MongoID!, $code: String!, $ratio: Float!, $limit: Int) {
-          aiCreateEventTicketDiscount(event: $event, code: $code, ratio: $ratio, limit: $limit) {
-            code discount_type value limit created_at
+      const ratioNum = Number(args.ratio);
+      if (!Number.isFinite(ratioNum) || ratioNum <= 0 || ratioNum > 1) {
+        throw new Error('ratio must be a number greater than 0 and at most 1 (e.g. 0.2 for 20% off).');
+      }
+      const input: Record<string, unknown> = {
+        code: args.code,
+        ratio: ratioNum,
+      };
+      if (args.use_limit !== undefined && args.use_limit !== null) input.use_limit = Number(args.use_limit);
+      if (args.use_limit_per !== undefined && args.use_limit_per !== null) input.use_limit_per = Number(args.use_limit_per);
+      if (args.ticket_limit !== undefined && args.ticket_limit !== null) input.ticket_limit = Number(args.ticket_limit);
+      if (args.ticket_limit_per !== undefined && args.ticket_limit_per !== null) input.ticket_limit_per = Number(args.ticket_limit_per);
+      if (args.ticket_types !== undefined && args.ticket_types !== null && args.ticket_types !== '') {
+        const ids = (args.ticket_types as string).split(',').map(s => s.trim()).filter(s => s.length > 0);
+        if (ids.length > 0) input.ticket_types = ids;
+      }
+
+      const result = await graphqlRequest<{ createEventTicketDiscounts: { _id: string; payment_ticket_discounts: Array<{ code: string; ratio: number; active: boolean; use_limit?: number; use_limit_per?: number; ticket_limit?: number; ticket_limit_per?: number; ticket_types?: string[] }> } }>(
+        `mutation($event: MongoID!, $inputs: [EventPaymentTicketDiscountInput!]!) {
+          createEventTicketDiscounts(event: $event, inputs: $inputs) {
+            _id
+            payment_ticket_discounts {
+              code ratio active use_limit use_limit_per ticket_limit ticket_limit_per ticket_types
+            }
           }
         }`,
-        {
-          event: args.event_id,
-          code: args.code,
-          ratio: args.ratio,
-          limit: args.limit || undefined,
-        },
+        { event: args.event_id, inputs: [input] },
       );
-      return result.aiCreateEventTicketDiscount;
+      return result.createEventTicketDiscounts;
+    },
+    formatResult: (result) => {
+      const r = result as { _id: string; payment_ticket_discounts?: Array<{ code: string; ratio: number; active: boolean }> };
+      const discounts = r.payment_ticket_discounts ?? [];
+      if (discounts.length === 0) return `Event ${r._id}: no discounts returned.`;
+      const lines = discounts.map(d => `  ${d.code}: ${(d.ratio * 100).toFixed(0)}% off (${d.active ? 'active' : 'inactive'})`);
+      return `Event ${r._id} now has ${discounts.length} discount(s):\n${lines.join('\n')}`;
     },
   }),
   buildCapability({
