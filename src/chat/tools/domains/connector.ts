@@ -218,17 +218,27 @@ export const connectorTools: CanonicalCapability[] = [
     requiresSpace: false,
     requiresEvent: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ disconnectPlatform: boolean }>(
+      const result = await graphqlRequest<{ disconnectPlatform: { success: boolean; tokenRevoked: boolean; revocationError?: string | null } }>(
         `mutation($connectionId: String!) {
-          disconnectPlatform(connectionId: $connectionId)
+          disconnectPlatform(connectionId: $connectionId) {
+            success
+            tokenRevoked
+            revocationError
+          }
         }`,
         { connectionId: args.connection_id },
       );
-      return { disconnected: result.disconnectPlatform };
+      return result.disconnectPlatform;
     },
     formatResult: (result) => {
-      const r = result as { disconnected: boolean };
-      return r.disconnected ? 'Connector disconnected.' : 'Failed to disconnect.';
+      const r = result as { success: boolean; tokenRevoked: boolean; revocationError?: string | null };
+      if (r.success && r.tokenRevoked) {
+        return 'Connector disconnected and external access revoked.';
+      }
+      if (r.success) {
+        return `Connector disconnected locally. ${r.revocationError ?? 'Token revocation failed — revoke manually on the external platform.'}`;
+      }
+      return `Disconnect failed. ${r.revocationError ?? 'Please retry or contact support.'}`;
     },
   }),
   buildCapability({

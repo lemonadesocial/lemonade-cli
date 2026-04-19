@@ -817,8 +817,14 @@ async function handleConnectors(
     addSystemMessage(`Disconnecting ${subArg}...`);
     try {
       const { result } = await executeCapability('connector_disconnect', { connection_id: subArg }, registry);
-      const data = result as { disconnected: boolean };
-      addSystemMessage(data.disconnected ? 'Disconnected.' : 'Failed to disconnect.');
+      const data = result as { success: boolean; tokenRevoked: boolean; revocationError?: string | null };
+      if (data.success && data.tokenRevoked) {
+        addSystemMessage('Connector disconnected and external access revoked.');
+      } else if (data.success) {
+        addSystemMessage(`Connector disconnected locally. ${data.revocationError ?? 'Token revocation failed — revoke manually on the external platform.'}`);
+      } else {
+        addSystemMessage(`Disconnect failed. ${data.revocationError ?? 'Please retry or contact support.'}`);
+      }
     } catch (err) {
       if (err instanceof CapabilityNotAvailableError) {
         addSystemMessage('Connector tools not available. Check your space selection.');

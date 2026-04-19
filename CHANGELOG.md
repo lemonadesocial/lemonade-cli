@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* align connector_disconnect with DisconnectResult contract; token-revocation failures are now surfaced instead of silently succeeding
+
 ## [1.3.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.2.2...v1.3.0) (2026-04-09)
 
 
