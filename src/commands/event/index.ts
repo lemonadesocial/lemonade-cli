@@ -445,37 +445,42 @@ export function registerEventCommands(program: Command): void {
 
   event
     .command('analytics <event-id>')
-    .description('View event analytics')
+    .description('View event analytics (ticket sales + page views + guest stats). Defaults the chart window to the last 30 days.')
+    .option('--start <iso>', 'Start of the analytics window (ISO 8601). Defaults to 30 days ago.')
+    .option('--end <iso>', 'End of the analytics window (ISO 8601). Defaults to now.')
     .option('--json', 'Output as JSON')
     .option('--api-key <key>', 'API key override')
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
 
+        const now = new Date();
+        const defaultStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const start = opts.start ? new Date(opts.start).toISOString() : defaultStart.toISOString();
+        const end = opts.end ? new Date(opts.end).toISOString() : now.toISOString();
+
         const [salesResult, viewsResult, guestsResult] = await Promise.all([
-          graphqlRequest<{ aiGetEventTicketSoldInsight: Record<string, unknown> }>(
-            `query($event: MongoID!) {
-              aiGetEventTicketSoldInsight(event: $event) {
-                total_sold total_revenue_cents currency
-                by_type { ticket_type_id title sold revenue_cents }
+          graphqlRequest<{ getEventTicketSoldChartData: { items: Array<Record<string, unknown>> } }>(
+            `query($event: MongoID!, $start: DateTimeISO!, $end: DateTimeISO!) {
+              getEventTicketSoldChartData(event: $event, start: $start, end: $end) {
+                items { created_at type }
               }
             }`,
-            { event: eventId },
+            { event: eventId, start, end },
           ),
-          graphqlRequest<{ aiGetEventViewInsight: Record<string, unknown> }>(
-            `query($event: MongoID!) {
-              aiGetEventViewInsight(event: $event) {
-                total_views unique_visitors
-                top_sources { source count }
-                top_cities { city count }
+          graphqlRequest<{ getEventViewChartData: { items: Array<Record<string, unknown>> } }>(
+            `query($event: MongoID!, $start: DateTimeISO!, $end: DateTimeISO!) {
+              getEventViewChartData(event: $event, start: $start, end: $end) {
+                items { date }
               }
             }`,
-            { event: eventId },
+            { event: eventId, start, end },
           ),
-          graphqlRequest<{ aiGetEventGuestStats: Record<string, unknown> }>(
+          graphqlRequest<{ getEventGuestsStatistics: Record<string, unknown> }>(
             `query($event: MongoID!) {
-              aiGetEventGuestStats(event: $event) {
-                going pending_approval pending_invite declined checked_in total
+              getEventGuestsStatistics(event: $event) {
+                going pending_approval pending_invite declined checked_in
+                ticket_types { ticket_type ticket_type_title guests_count }
               }
             }`,
             { event: eventId },
@@ -483,26 +488,23 @@ export function registerEventCommands(program: Command): void {
         ]);
         setFlagApiKey(undefined);
 
-        const sales = salesResult.aiGetEventTicketSoldInsight;
-        const views = viewsResult.aiGetEventViewInsight;
-        const guests = guestsResult.aiGetEventGuestStats;
+        const sales = salesResult.getEventTicketSoldChartData;
+        const views = viewsResult.getEventViewChartData;
+        const guests = guestsResult.getEventGuestsStatistics;
 
         if (opts.json) {
-          console.log(jsonSuccess({ sales, views, guests }));
+          console.log(jsonSuccess({ sales, views, guests, window: { start, end } }));
         } else {
-          const rawRevenue = Number(sales.total_revenue_cents);
-          const revenueDollars = Number.isFinite(rawRevenue) ? (rawRevenue / 100).toFixed(2) : '0.00';
           console.log(renderKeyValue([
-            ['Tickets Sold', String(sales.total_sold)],
-            ['Revenue', `${revenueDollars} ${sales.currency}`],
-            ['Page Views', String(views.total_views)],
-            ['Unique Visitors', String(views.unique_visitors)],
+            ['Window Start', start],
+            ['Window End', end],
+            ['Tickets Sold (in window)', String(sales.items.length)],
+            ['Page Views (in window)', String(views.items.length)],
             ['Going', String(guests.going)],
             ['Pending Approval', String(guests.pending_approval)],
             ['Pending Invite', String(guests.pending_invite)],
             ['Declined', String(guests.declined)],
             ['Checked In', String(guests.checked_in)],
-            ['Total Guests', String(guests.total)],
           ]));
         }
       } catch (error) {

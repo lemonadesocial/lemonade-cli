@@ -455,7 +455,7 @@ export const eventTools: CanonicalCapability[] = [
     name: 'event_guest_stats',
     category: 'event',
     displayName: 'event guest stats',
-    description: 'Get guest statistics for an event (going, pending, declined, checked in).',
+    description: 'Get guest statistics for an event (going, pending_approval, pending_invite, declined, checked_in, per-ticket-type breakdown).',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
@@ -464,23 +464,24 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventGuestStats',
+    backendResolver: 'getEventGuestsStatistics',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventGuestStats: unknown }>(
+      const result = await graphqlRequest<{ getEventGuestsStatistics: unknown }>(
         `query($event: MongoID!) {
-          aiGetEventGuestStats(event: $event) {
-            going pending_approval pending_invite declined checked_in total
+          getEventGuestsStatistics(event: $event) {
+            going pending_approval pending_invite declined checked_in
+            ticket_types { ticket_type ticket_type_title guests_count }
           }
         }`,
         { event: args.event_id },
       );
-      return result.aiGetEventGuestStats;
+      return result.getEventGuestsStatistics;
     },
     formatResult: (result) => {
-      const r = result as { going: number; pending_approval: number; pending_invite: number; declined: number; checked_in: number; total: number };
-      return `Guests: ${r.going} going, ${r.pending_approval} pending approval, ${r.pending_invite} pending invite, ${r.declined} declined, ${r.checked_in} checked in (${r.total} total).`;
+      const r = result as { going: number; pending_approval: number; pending_invite: number; declined: number; checked_in: number };
+      return `Guests: ${r.going} going, ${r.pending_approval} pending approval, ${r.pending_invite} pending invite, ${r.declined} declined, ${r.checked_in} checked in.`;
     },
   }),
   buildCapability({
