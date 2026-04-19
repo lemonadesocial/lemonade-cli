@@ -30,7 +30,7 @@ export const TOOL_TO_RESOLVER: Record<string, string> = {
   event_guest_stats: 'aiGetEventGuestStats',
   event_ticket_sold_insight: 'aiGetEventTicketSoldInsight',
   event_view_insight: 'aiGetEventViewInsight',
-  event_payment_stats: 'aiGetEventPaymentStats',
+  event_payment_stats: 'getEventPaymentStatistics',
   event_application_answers: 'aiGetEventApplicationAnswers',
   notifications_list: 'getNotifications',
   notifications_read: 'readNotifications',

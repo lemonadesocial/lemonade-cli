@@ -13,39 +13,51 @@ export const paymentTools: CanonicalCapability[] = [
     name: 'event_payment_stats',
     category: 'payment',
     displayName: 'event payment stats',
-    description: 'Get payment statistics for an event.',
+    description: 'Get payment statistics for an event, broken down by Stripe and crypto with per-currency revenue and per-network counts.',
     params: [
       { name: 'event_id', type: 'string', description: 'Event ID', required: true },
     ],
     whenToUse: 'when user wants revenue totals for an event',
-    searchHint: 'payment stats revenue totals summary money',
+    searchHint: 'payment stats revenue totals summary money stripe crypto',
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventPaymentStats',
+    backendResolver: 'getEventPaymentStatistics',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventPaymentStats: unknown }>(
+      const result = await graphqlRequest<{ getEventPaymentStatistics: unknown }>(
         `query($event: MongoID!) {
-          aiGetEventPaymentStats(event: $event) {
+          getEventPaymentStatistics(event: $event) {
             total_payments
-            total_revenue { currency amount_cents }
-            by_provider { provider count amount_cents }
+            stripe_payments {
+              count
+              revenue { currency formatted_total_amount }
+            }
+            crypto_payments {
+              count
+              revenue { currency formatted_total_amount }
+              networks { chain_id count }
+            }
           }
         }`,
         { event: args.event_id },
       );
-      return result.aiGetEventPaymentStats;
+      return result.getEventPaymentStatistics;
     },
     formatResult: (result) => {
-      const r = result as { total_payments?: number; total_revenue?: Array<{ currency: string; amount_cents: number }>; by_provider?: Array<{ provider: string; count: number; amount_cents: number }> };
+      const r = result as {
+        total_payments?: number;
+        stripe_payments?: { count: number; revenue: Array<{ currency: string; formatted_total_amount: string }> };
+        crypto_payments?: { count: number; revenue: Array<{ currency: string; formatted_total_amount: string }>; networks: Array<{ chain_id: string; count: number }> };
+      };
       const payments = r.total_payments ?? 0;
-      const revenue = r.total_revenue ?? [];
-      const revSummary = revenue.length > 0
-        ? revenue.map((e) => `${e.currency} ${(e.amount_cents / 100).toFixed(2)}`).join(', ')
-        : 'none';
-      return `${payments} payments. Revenue: ${revSummary}.`;
+      const stripeRev = (r.stripe_payments?.revenue ?? []).map(e => `${e.currency} ${e.formatted_total_amount}`).join(', ') || 'none';
+      const cryptoRev = (r.crypto_payments?.revenue ?? []).map(e => `${e.currency} ${e.formatted_total_amount}`).join(', ') || 'none';
+      const stripeCount = r.stripe_payments?.count ?? 0;
+      const cryptoCount = r.crypto_payments?.count ?? 0;
+      const networks = (r.crypto_payments?.networks ?? []).map(n => `${n.chain_id}(${n.count})`).join(', ') || 'none';
+      return `${payments} payments total. Stripe: ${stripeCount} (${stripeRev}). Crypto: ${cryptoCount} (${cryptoRev}, networks: ${networks}).`;
     },
   }),
   buildCapability({

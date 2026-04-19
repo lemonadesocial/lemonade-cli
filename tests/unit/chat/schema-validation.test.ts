@@ -44,7 +44,6 @@ const BACKEND_SCHEMA: Record<string, string[]> = {
   aiGetEventViewInsight: ['total_views', 'unique_visitors', 'top_sources', 'top_cities', 'source', 'count', 'city'],
   aiGetEventGuests: ['items', 'name', 'email', 'status', 'ticket_type_title', 'checked_in'],
   aiGetEventCheckins: ['items', 'name', 'email', 'ticket_type_title', 'checked_in_at'],
-  aiGetEventPaymentStats: ['total_payments', 'total_revenue', 'by_provider', 'currency', 'amount_cents', 'provider', 'count'],
   aiGetEventFeedbackSummary: ['average_rating', 'total_reviews', 'rating_distribution', 'rating', 'count'],
   aiListEventFeedbacks: ['items', 'rating', 'comment', 'user_name', 'created_at'],
   aiGetEventApplicationAnswers: ['user_name', 'email', 'answers', 'submitted_at', 'question', 'answer'],
