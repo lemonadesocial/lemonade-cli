@@ -3,8 +3,24 @@ import React from 'react';
 import { render } from 'ink';
 import { setFlagApiKey } from '../../auth/store.js';
 import { handleError } from '../../output/error.js';
+import { graphqlRequest } from '../../api/graphql.js';
 import { startNotificationListener } from '../../chat/notifications/listener.js';
 import { WatchFeed } from './ui/WatchFeed.js';
+
+const GET_NOTIFICATION_UNREAD_COUNT_QUERY = `
+  query GetNotificationUnreadCount($category: NotificationCategory) {
+    getNotificationUnreadCount(category: $category)
+  }
+`;
+
+const NDJSON_UNREAD_DEBOUNCE_MS = 250;
+
+async function fetchUnreadCount(): Promise<number> {
+  const result = await graphqlRequest<{ getNotificationUnreadCount: number }>(
+    GET_NOTIFICATION_UNREAD_COUNT_QUERY,
+  );
+  return result.getNotificationUnreadCount;
+}
 
 export function registerNotificationsWatch(notifications: Command): void {
   notifications
@@ -36,8 +52,9 @@ export function registerNotificationsWatch(notifications: Command): void {
 
 /**
  * NDJSON mode — stdout receives one JSON line per notification; stderr
- * receives status breadcrumbs. SIGINT disposes the listener and exits 0
- * within the 500ms budget (US-1.6).
+ * receives status breadcrumbs AND per-notification `[unread] <N>` refetch
+ * breadcrumbs (US-1.5 — stdout stays strictly one-line-per-notification).
+ * SIGINT disposes the listener and exits 0 within the 500ms budget (US-1.6).
  *
  * Leak-safety: the listener and SIGINT/SIGTERM handlers are tracked in the
  * outer scope and torn down in `finally`, so a throw from inside
@@ -52,6 +69,28 @@ async function runNdjsonWatch(): Promise<void> {
   // objects whose property types are stable.
   const listenerRef: { current: Listener | null } = { current: null };
   const sigintRef: { current: (() => void) | null } = { current: null };
+  const unreadTimerRef: { current: NodeJS.Timeout | null } = { current: null };
+
+  const scheduleUnreadRefetch = (): void => {
+    if (unreadTimerRef.current) {
+      clearTimeout(unreadTimerRef.current);
+    }
+    unreadTimerRef.current = setTimeout(() => {
+      unreadTimerRef.current = null;
+      fetchUnreadCount()
+        .then((n) => {
+          try {
+            process.stderr.write(`[unread] ${n}\n`);
+          } catch {
+            // ignore
+          }
+        })
+        .catch(() => {
+          // Best-effort — swallow. A noisy warning per refetch would
+          // bury the stream; silence on failure is the PRD's spec.
+        });
+    }, NDJSON_UNREAD_DEBOUNCE_MS);
+  };
 
   try {
     await new Promise<void>((resolve, reject) => {
@@ -63,7 +102,9 @@ async function runNdjsonWatch(): Promise<void> {
             process.stdout.write(JSON.stringify(raw) + '\n');
           } catch (err) {
             reject(err instanceof Error ? err : new Error(String(err)));
+            return;
           }
+          scheduleUnreadRefetch();
         },
         onStatusChange: (status) => {
           process.stderr.write(`[${status}]\n`);
@@ -80,6 +121,10 @@ async function runNdjsonWatch(): Promise<void> {
       process.on('SIGTERM', sigintRef.current);
     });
   } finally {
+    if (unreadTimerRef.current) {
+      clearTimeout(unreadTimerRef.current);
+      unreadTimerRef.current = null;
+    }
     if (listenerRef.current) {
       try {
         listenerRef.current.stop();
@@ -97,11 +142,33 @@ async function runNdjsonWatch(): Promise<void> {
 /**
  * Ink mode — mounts WatchFeed with patchConsole + exitOnCtrlC:false so the
  * component owns clean teardown via its useEffect cleanup.
+ *
+ * Before mounting, we issue an initial `getNotificationUnreadCount` query
+ * and pass the result to <WatchFeed initialUnread={N}>. On failure, we pass
+ * `null` (header renders `unread: ?`) and write a single stderr warning.
  */
 async function runInkWatch(): Promise<void> {
-  const instance = render(React.createElement(WatchFeed), {
-    exitOnCtrlC: false,
-    patchConsole: true,
-  });
+  let initialUnread: number | null = null;
+  try {
+    initialUnread = await fetchUnreadCount();
+  } catch {
+    try {
+      process.stderr.write('[warn] initial unread fetch failed\n');
+    } catch {
+      // ignore
+    }
+    initialUnread = null;
+  }
+
+  const instance = render(
+    React.createElement(WatchFeed, {
+      initialUnread,
+      fetchUnread: fetchUnreadCount,
+    }),
+    {
+      exitOnCtrlC: false,
+      patchConsole: true,
+    },
+  );
   await instance.waitUntilExit();
 }
