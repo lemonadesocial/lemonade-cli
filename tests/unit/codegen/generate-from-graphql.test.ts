@@ -13,9 +13,17 @@ describe('generate-from-graphql', () => {
       rmSync(EXTENDED_DIR, { recursive: true });
     }
 
+    // CODEGEN_SKIP_SCHEMA_SNAPSHOTS prevents the script from overwriting the
+    // committed schema/*.json drift-guardrail files when run against a tiny
+    // synthetic fixture — otherwise the notifications type-fidelity tests
+    // (which read those files) would race and fail under parallel workers.
     execSync(
       `npx tsx src/codegen/generate-from-graphql.ts "${FIXTURE}"`,
-      { cwd: PROJECT_ROOT, stdio: 'pipe' },
+      {
+        cwd: PROJECT_ROOT,
+        stdio: 'pipe',
+        env: { ...process.env, CODEGEN_SKIP_SCHEMA_SNAPSHOTS: '1' },
+      },
     );
   });
 

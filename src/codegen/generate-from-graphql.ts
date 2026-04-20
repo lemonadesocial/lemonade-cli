@@ -28,6 +28,7 @@ interface IntrospectionInputField {
 interface IntrospectionSchema {
   queryType: { name: string };
   mutationType?: { name: string } | null;
+  subscriptionType?: { name: string } | null;
   types: IntrospectionType[];
 }
 
@@ -39,6 +40,7 @@ const INTROSPECTION_QUERY = `{
   __schema {
     queryType { name }
     mutationType { name }
+    subscriptionType { name }
     types {
       kind
       name
@@ -437,6 +439,61 @@ async function main() {
         count++;
       }
     }
+  }
+
+  // Emit full resolver snapshot (queries + mutations + subscriptions) and the
+  // NotificationType enum snapshot for drift-guardrail tests. Unlike extended-
+  // command generation above, these snapshots are UNFILTERED — they reflect
+  // the full backend surface area as returned by introspection, excluding
+  // only __-prefixed introspection internals. Resolver names are sorted
+  // alphabetically for deterministic diffs.
+  //
+  // Tests that invoke this script with a synthetic fixture can set
+  // CODEGEN_SKIP_SCHEMA_SNAPSHOTS=1 to skip writing the committed
+  // `schema/*.json` files and avoid corrupting them.
+  if (process.env.CODEGEN_SKIP_SCHEMA_SNAPSHOTS !== '1') {
+    const collectFieldNames = (typeName: string | undefined): string[] => {
+      if (!typeName) return [];
+      const typeDef = types.get(typeName);
+      if (!typeDef?.fields) return [];
+      return typeDef.fields
+        .map((f) => f.name)
+        .filter((n) => !n.startsWith('__'))
+        .sort();
+    };
+
+    const allQueries = collectFieldNames(schema.queryType.name);
+    const allMutations = collectFieldNames(schema.mutationType?.name);
+    const allSubscriptions = collectFieldNames(schema.subscriptionType?.name);
+
+    const schemaDir = join(import.meta.dirname, '..', '..', 'schema');
+    mkdirSync(schemaDir, { recursive: true });
+
+    const backendResolvers = {
+      generated: new Date().toISOString().slice(0, 10),
+      source: 'lemonade-backend',
+      queries: allQueries,
+      mutations: allMutations,
+      subscriptions: allSubscriptions,
+    };
+
+    writeFileSync(
+      join(schemaDir, 'backend-resolvers.json'),
+      JSON.stringify(backendResolvers, null, 2) + '\n',
+    );
+
+    // Emit NotificationType enum snapshot for CLI type-fidelity drift tests.
+    const notificationTypeDef = schema.types.find(
+      (t) => t.name === 'NotificationType' && t.kind === 'ENUM',
+    );
+    const notificationEnumValues = (notificationTypeDef?.enumValues ?? [])
+      .map((v) => v.name)
+      .sort();
+
+    writeFileSync(
+      join(schemaDir, 'notification-types.json'),
+      JSON.stringify(notificationEnumValues, null, 2) + '\n',
+    );
   }
 
   // Write version marker
