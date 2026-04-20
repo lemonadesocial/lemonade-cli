@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { registerNotificationsWatch } from './watch.js';
 import { registerNotificationsList } from './list.js';
 import { registerNotificationsRead } from './read.js';
+import { registerNotificationsUnread } from './unread.js';
 import { registerNotificationsFilters } from './filters/index.js';
 import { registerNotificationsPreferences } from './preferences/index.js';
 
@@ -27,6 +28,7 @@ export function registerNotificationCommands(program: Command): void {
   registerNotificationsWatch(notifications);
   registerNotificationsList(notifications);
   registerNotificationsRead(notifications);
+  registerNotificationsUnread(notifications);
   registerNotificationsFilters(notifications);
   registerNotificationsPreferences(notifications);
 }
