@@ -4,6 +4,29 @@
 
 * align connector_disconnect with DisconnectResult contract; token-revocation failures are now surfaced instead of silently succeeding
 
+## [1.5.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.4.1...v1.5.0) (2026-04-20)
+
+
+### Features
+
+* **notifications:** add filters TUI command ([7f24e48](https://github.com/lemonadesocial/lemonade-cli/commit/7f24e484dc98ddf3609fd30de8ebe3f7e5274602))
+* **notifications:** add preferences TUI command ([7a112f0](https://github.com/lemonadesocial/lemonade-cli/commit/7a112f02a1f0405238210879dcfeb76f372e5705))
+* **notifications:** add schema codegen drift guardrails ([16b4be3](https://github.com/lemonadesocial/lemonade-cli/commit/16b4be3799ef06a6667dd89c76d8526809474a0c))
+* **notifications:** add watch, list, and read commands ([1b269a3](https://github.com/lemonadesocial/lemonade-cli/commit/1b269a3e9c6a02beb45b66169cd0cfe8e59f4769))
+* **notifications:** persist last-seen dedup across sessions ([1089a43](https://github.com/lemonadesocial/lemonade-cli/commit/1089a4311205f9b25282d06529cf92d2f2d58b0f))
+
+
+### Bug Fixes
+
+* **cli:** rewrite 3 tickets/payment resolvers + fix credits_usage scalar ([#219](https://github.com/lemonadesocial/lemonade-cli/issues/219)) ([830d924](https://github.com/lemonadesocial/lemonade-cli/commit/830d924bccfbc785c1100e17729be4986dec38da))
+* **cli:** rewrite 4 space-domain resolvers + surface space_connectors ([#218](https://github.com/lemonadesocial/lemonade-cli/issues/218)) ([4e84826](https://github.com/lemonadesocial/lemonade-cli/commit/4e84826ceb4346be9f75065f335bec27ac1557ec))
+* **cli:** rewrite 6 event-analytics resolvers (drift sweep, final) ([#220](https://github.com/lemonadesocial/lemonade-cli/issues/220)) ([118940e](https://github.com/lemonadesocial/lemonade-cli/commit/118940ec22ad3dffb437c8a913d1d5e81f92df82))
+* **cli:** rewrite page-preview-link tool for createPreviewLink resolver ([#216](https://github.com/lemonadesocial/lemonade-cli/issues/216)) ([0145466](https://github.com/lemonadesocial/lemonade-cli/commit/01454661fdbed830142d97fd03beef8948b8cf08))
+* **notifications:** address audit finding A-101 (test fs race) ([1784f9d](https://github.com/lemonadesocial/lemonade-cli/commit/1784f9d578e8b1c7979e81688e7875eb941ca60c))
+* **notifications:** address audit findings A-001 / A-002 / A-003 ([dad4c2d](https://github.com/lemonadesocial/lemonade-cli/commit/dad4c2d202e027bd60369afea115928888cb092d))
+* **notifications:** address audit findings A-001..A-005 ([409d5ed](https://github.com/lemonadesocial/lemonade-cli/commit/409d5ed631cf6a63b029e8fa833d1e04773cca26))
+* **notifications:** address audit findings A-001..A-012 ([841c82a](https://github.com/lemonadesocial/lemonade-cli/commit/841c82ae2af3e8aef7541db7334bc966cf11c1bd))
+
 ## [1.4.1](https://github.com/lemonadesocial/lemonade-cli/compare/v1.4.0...v1.4.1) (2026-04-19)
 
 
