@@ -4,6 +4,10 @@ import {
 } from '../../api/subscriptions.js';
 import { startNotificationPoller } from './poller.js';
 import { formatNotification } from './formatter.js';
+import {
+  appendLastSeenNotificationId,
+  getLastSeenNotificationIds,
+} from '../../auth/notification-dedup.js';
 
 export type NotificationStatus =
   | 'connected'
@@ -26,13 +30,26 @@ export function startNotificationListener(
   let wsConnected = false;
   let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const recentIds = new Set<string>();
+  // Seed from persisted dedup cache so restarts don't re-emit notifications
+  // the previous session already showed (US-6.1..US-6.7).
+  const recentIds = getLastSeenNotificationIds();
   const handleNotification = (notification: LemonadeNotification) => {
     if (recentIds.has(notification._id)) return;
     recentIds.add(notification._id);
     if (recentIds.size > 100) {
       const first = recentIds.values().next().value as string;
       recentIds.delete(first);
+    }
+    // Persist last-seen ID. Ordering matters (US-6.5): add-then-persist so
+    // the in-memory cap check above sees the new ID. Wrap in try/catch so a
+    // disk failure never crashes the hot WS next() path (US-6.9).
+    try {
+      appendLastSeenNotificationId(notification._id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        `[notifications] dedup persist failed: ${msg}\n`,
+      );
     }
     const formatted = formatNotification(notification);
     options.onNotification(formatted, notification);

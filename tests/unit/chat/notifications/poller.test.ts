@@ -4,6 +4,17 @@ vi.mock('../../../../src/api/graphql.js', () => ({
   graphqlRequest: vi.fn(),
 }));
 
+// Isolate from the real ~/.lemonade/config.json — the poller now reads &
+// writes the persistent dedup cache via notification-dedup (Phase 5). In
+// unit tests we pin this to an in-memory stub so tests cannot pollute (or
+// be influenced by) the user's real config.
+vi.mock('../../../../src/auth/notification-dedup.js', () => ({
+  getLastSeenNotificationIds: () => new Set<string>(),
+  appendLastSeenNotificationId: () => {
+    /* no-op in unit tests */
+  },
+}));
+
 import { startNotificationPoller } from '../../../../src/chat/notifications/poller.js';
 import { graphqlRequest } from '../../../../src/api/graphql.js';
 

@@ -32,6 +32,17 @@ vi.mock('../../../../src/chat/notifications/formatter.js', () => ({
   formatNotification: (n: { _id: string }) => `formatted:${n._id}`,
 }));
 
+// Isolate from the real ~/.lemonade/config.json — listener now hydrates
+// its in-memory dedup set from the persisted cache (Phase 5). In unit
+// tests we pin this to an in-memory stub so tests cannot be influenced
+// by (or pollute) the user's real config.
+vi.mock('../../../../src/auth/notification-dedup.js', () => ({
+  getLastSeenNotificationIds: () => new Set<string>(),
+  appendLastSeenNotificationId: () => {
+    /* no-op in unit tests */
+  },
+}));
+
 import { startNotificationListener } from '../../../../src/chat/notifications/listener.js';
 
 describe('startNotificationListener — onSessionRevoked wiring (A-005, US-6.9)', () => {
