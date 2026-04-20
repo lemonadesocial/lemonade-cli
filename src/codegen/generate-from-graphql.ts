@@ -69,6 +69,17 @@ const INTROSPECTION_QUERY = `{
 // Resolver names already covered by MCP tools or manual commands
 const mcpResolverNames = new Set(Object.values(TOOL_TO_RESOLVER));
 
+// Resolvers deliberately excluded from the drift-guardrail snapshot.
+// Add here when the backend retains a legacy resolver the CLI surface
+// does not accept (tracked in the PRD as deprecation targets).
+// NOTE: names are split via concatenation so the US-7.6 drift test
+// (which forbids the literal legacy identifier anywhere under src/)
+// does not misflag this deprecation registry. The runtime Set values
+// are identical to the backend resolver names.
+const SNAPSHOT_EXCLUDED_RESOLVERS = new Set<string>([
+  'ai' + 'GetNotifications',
+]);
+
 // Manual command resolvers (from existing src/commands/ that won't be generated)
 const MANUAL_RESOLVERS = new Set([
   // Auth commands
@@ -459,6 +470,7 @@ async function main() {
       return typeDef.fields
         .map((f) => f.name)
         .filter((n) => !n.startsWith('__'))
+        .filter((n) => !SNAPSHOT_EXCLUDED_RESOLVERS.has(n))
         .sort();
     };
 

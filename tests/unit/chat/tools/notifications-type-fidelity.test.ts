@@ -1,15 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { dirname, join, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
 import {
   NOTIFICATION_TYPES,
   NOTIFICATION_CATEGORIES,
 } from '../../../../src/chat/tools/domains/notifications.js';
 
-const repoRoot = process.cwd();
-const schemaDir = join(repoRoot, 'schema');
-const srcDir = join(repoRoot, 'src');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(__dirname, '..', '..', '..', '..');
+const schemaDir = join(REPO_ROOT, 'schema');
+const srcDir = join(REPO_ROOT, 'src');
 
 function readJson<T>(relPath: string): T {
   const raw = readFileSync(join(schemaDir, relPath), 'utf-8');

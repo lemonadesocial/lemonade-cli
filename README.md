@@ -383,6 +383,7 @@ lemonade config get default_space
 | `OPENAI_API_KEY` | OpenAI API key for `make-lemonade` |
 | `MAKE_LEMONADE_PROVIDER` | AI provider: `anthropic` or `openai` |
 | `MAKE_LEMONADE_MODEL` | Model override (e.g. `claude-sonnet-4-6`, `gpt-4o`) |
+| `CODEGEN_SKIP_SCHEMA_SNAPSHOTS` | Internal testing flag: when `1`, `yarn generate:graphql` skips writing `schema/backend-resolvers.json` and `schema/notification-types.json` (used by `tests/unit/codegen/generate-from-graphql.test.ts` to prevent fixture runs from overwriting the committed drift-guardrail snapshots) |
 
 No API key? Use `make-lemonade --mode credits` to run on Lemonade's built-in AI with your subscription credits.
 
