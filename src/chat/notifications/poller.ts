@@ -1,5 +1,9 @@
 import { graphqlRequest } from '../../api/graphql.js';
 import type { LemonadeNotification } from '../../api/subscriptions.js';
+import {
+  appendLastSeenNotificationId,
+  getLastSeenNotificationIds,
+} from '../../auth/notification-dedup.js';
 
 const GET_NOTIFICATIONS = `
   query GetNotifications($limit: Int, $skip: Int) {
@@ -23,7 +27,9 @@ export function startNotificationPoller(
   onNotification: (notification: LemonadeNotification) => void,
   intervalMs: number = 60_000,
 ): { stop: () => void } {
-  const seenIds = new Set<string>();
+  // Seed from persisted dedup cache so restarts don't re-emit notifications
+  // the previous session already showed (US-6.1..US-6.7).
+  const seenIds = getLastSeenNotificationIds();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
   let firstPoll = true;
@@ -58,6 +64,17 @@ export function startNotificationPoller(
         for (const n of newNotifications.reverse()) {
           if (!n.is_seen) {
             onNotification(n);
+            // Persist last-seen ID. Wrap in try/catch so disk failure
+            // degrades to a stderr breadcrumb (US-6.9); never crash the
+            // poller loop.
+            try {
+              appendLastSeenNotificationId(n._id);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              process.stderr.write(
+                `[notifications] dedup persist failed: ${msg}\n`,
+              );
+            }
           }
         }
       }

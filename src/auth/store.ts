@@ -19,6 +19,8 @@ export interface LemonadeConfig {
   ai_credits_space?: string;
   ai_config?: string;
   agent_name?: string;
+  lastSeenNotificationIds?: string[];
+  lastSeenNotificationsUpdatedAt?: number;
 }
 
 const CONFIG_DIR = join(homedir(), '.lemonade');
@@ -46,7 +48,7 @@ function cleanupStaleTmpFile(): void {
   }
 }
 
-function readConfig(): LemonadeConfig {
+export function readConfig(): LemonadeConfig {
   ensureConfigDir();
   if (!existsSync(CONFIG_FILE)) {
     return { ...DEFAULTS };
@@ -62,7 +64,7 @@ function readConfig(): LemonadeConfig {
   }
 }
 
-function writeConfig(config: LemonadeConfig): void {
+export function writeConfig(config: LemonadeConfig): void {
   ensureConfigDir();
   const data = JSON.stringify(config, null, 2);
   const tmpFile = CONFIG_FILE + '.tmp';
