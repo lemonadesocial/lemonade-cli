@@ -7,8 +7,8 @@ import {
 } from '../../../../src/commands/notifications/ui/feed-state.js';
 
 describe('feedReducer (A-009 — unit coverage for WatchFeed state machine)', () => {
-  it('initialState — notifications empty, status disconnected', () => {
-    expect(initialState).toEqual({ notifications: [], status: 'disconnected' });
+  it('initialState — notifications empty, status disconnected, unread null', () => {
+    expect(initialState).toEqual({ notifications: [], status: 'disconnected', unread: null });
   });
 
   it('notify — appends the formatted line to the end (newest last)', () => {
@@ -48,6 +48,42 @@ describe('feedReducer (A-009 — unit coverage for WatchFeed state machine)', ()
     const afterStatus = feedReducer(seeded, { type: 'status', payload: 'connected' });
     expect(afterStatus.notifications).toEqual(['keep-me']);
     expect(afterStatus.status).toBe('connected');
+  });
+
+  it("'unread-update' with integer payload sets state.unread", () => {
+    const next = feedReducer(initialState, { type: 'unread-update', payload: 42 });
+    expect(next.unread).toBe(42);
+  });
+
+  it("'unread-update' with null explicitly resets state.unread to null", () => {
+    const seeded = feedReducer(initialState, { type: 'unread-update', payload: 5 });
+    expect(seeded.unread).toBe(5);
+    const reset = feedReducer(seeded, { type: 'unread-update', payload: null });
+    expect(reset.unread).toBeNull();
+  });
+
+  it("'unread-update' does NOT clobber state.notifications or state.status", () => {
+    const seeded = feedReducer(initialState, { type: 'notify', payload: 'line-1' });
+    const withStatus = feedReducer(seeded, { type: 'status', payload: 'connected' });
+    const next = feedReducer(withStatus, { type: 'unread-update', payload: 7 });
+
+    expect(next.notifications).toEqual(['line-1']);
+    expect(next.status).toBe('connected');
+    expect(next.unread).toBe(7);
+  });
+
+  it("'notify' does NOT clobber state.unread", () => {
+    const seeded = feedReducer(initialState, { type: 'unread-update', payload: 9 });
+    const afterNotify = feedReducer(seeded, { type: 'notify', payload: 'line-X' });
+    expect(afterNotify.unread).toBe(9);
+    expect(afterNotify.notifications).toEqual(['line-X']);
+  });
+
+  it("'status' does NOT clobber state.unread", () => {
+    const seeded = feedReducer(initialState, { type: 'unread-update', payload: 11 });
+    const afterStatus = feedReducer(seeded, { type: 'status', payload: 'polling' });
+    expect(afterStatus.unread).toBe(11);
+    expect(afterStatus.status).toBe('polling');
   });
 
   it('unknown action — returns the same state reference unchanged', () => {

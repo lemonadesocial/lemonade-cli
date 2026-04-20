@@ -83,6 +83,19 @@ describe('notifications type fidelity (drift guardrails)', () => {
     expect(backendResolvers.queries).toContain('getNotifications');
   });
 
+  // US-5.2: `getNotificationUnreadCount` is the scalar unread-count query
+  // consumed by `notifications unread` + `notifications read --all` pre-fetch
+  // + watch-header segment. Drift-guardrail regression.
+  it('backend-resolvers.json.queries contains getNotificationUnreadCount', () => {
+    expect(backendResolvers.queries).toContain('getNotificationUnreadCount');
+  });
+
+  // US-5.2: `readAllNotifications` is the bulk mark-read mutation consumed by
+  // `notifications read --all`. Drift-guardrail regression.
+  it('backend-resolvers.json.mutations contains readAllNotifications', () => {
+    expect(backendResolvers.mutations).toContain('readAllNotifications');
+  });
+
   // US-7.5b: all 6 filter/preference resolvers must remain present.
   it('backend-resolvers.json contains all 6 filter/preference resolvers (US-7.5b)', () => {
     expect(backendResolvers.queries).toContain('getNotificationFilters');

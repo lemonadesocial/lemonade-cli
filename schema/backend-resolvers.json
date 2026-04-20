@@ -1,5 +1,5 @@
 {
-  "generated": "2026-04-20",
+  "generated": "2026-04-21",
   "source": "lemonade-backend",
   "queries": [
     "adminChain",
@@ -132,6 +132,7 @@
     "getNewsfeed",
     "getNotificationChannelPreferences",
     "getNotificationFilters",
+    "getNotificationUnreadCount",
     "getNotifications",
     "getOffers",
     "getPageConfig",
@@ -550,6 +551,7 @@
     "publishTemplateUpdate",
     "purchaseCredits",
     "purchaseSubscription",
+    "readAllNotifications",
     "readNotifications",
     "redeemTickets",
     "registerXMTPActivation",
