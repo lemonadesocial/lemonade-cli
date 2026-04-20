@@ -112,17 +112,23 @@ describe('notifications read', () => {
     expect((parsed.data as Record<string, unknown>).dry_run).toBe(true);
   });
 
-  it('US-3.6 — zero IDs exits code 1 with correct stderr message', async () => {
+  it('US-3.6 — zero IDs exits code 1 with exact PRD stderr message', async () => {
     const program = buildProgram();
-    // Commander rejects zero variadic args with its own error — ensure no network call
-    // and that either Commander or our guard writes a user-visible error to stderr.
-    await expect(
-      program.parseAsync(['node', 'test', 'notifications', 'read']),
-    ).rejects.toThrow();
+    // `read [id...]` is an optional-variadic (A-008), so Commander does NOT
+    // fire its own missing-argument error — our custom guard runs and emits
+    // the PRD-mandated string before calling process.exit(1).
+    let thrown: Error | undefined;
+    try {
+      await program.parseAsync(['node', 'test', 'notifications', 'read']);
+    } catch (err) {
+      thrown = err as Error;
+    }
 
+    expect(thrown).toBeDefined();
+    expect(thrown?.message).toBe('__exit__:1');
     expect(mockGraphqlRequest).not.toHaveBeenCalled();
-    // Commander's error message mentions the missing argument.
+
     const stderrText = stderrSpy.mock.calls.map((c) => String(c[0])).join('');
-    expect(stderrText.length).toBeGreaterThan(0);
+    expect(stderrText).toContain('At least one notification ID is required');
   });
 });

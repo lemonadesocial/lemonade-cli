@@ -67,7 +67,6 @@ export function registerNotificationsList(notifications: Command): void {
           GET_NOTIFICATIONS_QUERY,
           variables,
         );
-        setFlagApiKey(undefined);
 
         const items = opts.unseen
           ? result.getNotifications.filter((n) => !n.is_seen)
@@ -93,8 +92,9 @@ export function registerNotificationsList(notifications: Command): void {
           );
         }
       } catch (error) {
+        handleError(error, !!opts.json);
+      } finally {
         setFlagApiKey(undefined);
-        handleError(error, opts.json);
       }
     });
 }

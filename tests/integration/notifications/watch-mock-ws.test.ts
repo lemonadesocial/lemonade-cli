@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { createServer, type Server as HttpServer } from 'http';
 import { WebSocketServer } from 'ws';
@@ -17,8 +17,9 @@ import { resolve as resolvePath } from 'path';
  *     payloads only.
  *
  * Note: this test spawns `node dist/index.js` — it requires that `yarn build`
- * has already produced a fresh dist/. The npm test script in this repo runs
- * `yarn build` before `yarn test` during CI, so this is a safe assumption.
+ * has already produced a fresh dist/. The CI workflow at
+ * .github/workflows/ci.yml (test job) runs `yarn build` before `yarn test`
+ * so this is a safe assumption.
  */
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -163,6 +164,22 @@ afterAll(async () => {
   });
 });
 
+// Suite-scope handle on the spawned CLI so afterEach can SIGKILL any leaked
+// child if a test body threw before reaching its own teardown (A-011).
+let spawnedChild: ChildProcessWithoutNullStreams | null = null;
+
+afterEach(() => {
+  const leaked = spawnedChild;
+  spawnedChild = null;
+  if (leaked && leaked.exitCode === null && leaked.killed === false) {
+    try {
+      leaked.kill('SIGKILL');
+    } catch {
+      // best-effort — prevent CI from hanging if the kill races with exit
+    }
+  }
+});
+
 describe('notifications watch — mock WS integration', () => {
   it(
     'emits NDJSON lines for 3 synthetic notifications and exits 0 on SIGINT',
@@ -180,101 +197,116 @@ describe('notifications watch — mock WS integration', () => {
           stdio: ['ignore', 'pipe', 'pipe'],
         },
       );
+      spawnedChild = child;
 
-      const stdoutChunks: string[] = [];
-      const stderrChunks: string[] = [];
-      child.stdout.on('data', (chunk: Buffer) => {
-        stdoutChunks.push(chunk.toString('utf-8'));
-      });
-      child.stderr.on('data', (chunk: Buffer) => {
-        stderrChunks.push(chunk.toString('utf-8'));
-      });
+      try {
+        const stdoutChunks: string[] = [];
+        const stderrChunks: string[] = [];
+        child.stdout.on('data', (chunk: Buffer) => {
+          stdoutChunks.push(chunk.toString('utf-8'));
+        });
+        child.stderr.on('data', (chunk: Buffer) => {
+          stderrChunks.push(chunk.toString('utf-8'));
+        });
 
-      // Wait for the child to connect AND for our server-side subscriber to
-      // register (the CLI subscribe -> server onSubscribe -> generator start
-      // flow). subscriberReady fires when the generator adds itself to the
-      // subscribers Set — after that, publish() will route through.
-      await Promise.race([
-        subscriberReady.promise,
-        new Promise((r) => setTimeout(r, 3000)),
-      ]);
-      // Give the handshake an extra tick to settle.
-      await new Promise((r) => setTimeout(r, 50));
-
-      // Emit 3 synthetic payloads within a tight window (well under the 500 ms
-      // budget — US-1.4 mandates ≤ 250 ms p95 per event at loopback).
-      publish({
-        _id: 'evt-1',
-        created_at: new Date().toISOString(),
-        type: 'event_update',
-        title: 't1',
-      });
-      publish({
-        _id: 'evt-2',
-        created_at: new Date().toISOString(),
-        type: 'event_update',
-        title: 't2',
-      });
-      publish({
-        _id: 'evt-3',
-        created_at: new Date().toISOString(),
-        type: 'event_update',
-        title: 't3',
-      });
-
-      // Wait for stdout to receive all 3 NDJSON lines (2s window per spec).
-      const deadline = Date.now() + 2000;
-      let receivedIds: string[] = [];
-      while (Date.now() < deadline) {
-        const combined = stdoutChunks.join('');
-        receivedIds = combined
-          .split('\n')
-          .filter((line) => line.trim().length > 0)
-          .map((line) => {
-            try {
-              const parsed = JSON.parse(line) as { _id?: string };
-              return parsed._id ?? '';
-            } catch {
-              return '';
-            }
-          })
-          .filter((id) => id.length > 0);
-        if (receivedIds.length >= 3) break;
+        // Wait for the child to connect AND for our server-side subscriber to
+        // register (the CLI subscribe -> server onSubscribe -> generator start
+        // flow). subscriberReady fires when the generator adds itself to the
+        // subscribers Set — after that, publish() will route through.
+        await Promise.race([
+          subscriberReady.promise,
+          new Promise((r) => setTimeout(r, 3000)),
+        ]);
+        // Give the handshake an extra tick to settle.
         await new Promise((r) => setTimeout(r, 50));
+
+        // Emit 3 synthetic payloads within a tight window (well under the 500 ms
+        // budget — US-1.4 mandates ≤ 250 ms p95 per event at loopback).
+        publish({
+          _id: 'evt-1',
+          created_at: new Date().toISOString(),
+          type: 'event_update',
+          title: 't1',
+        });
+        publish({
+          _id: 'evt-2',
+          created_at: new Date().toISOString(),
+          type: 'event_update',
+          title: 't2',
+        });
+        publish({
+          _id: 'evt-3',
+          created_at: new Date().toISOString(),
+          type: 'event_update',
+          title: 't3',
+        });
+
+        // Wait for stdout to receive all 3 NDJSON lines (2s window per spec).
+        const deadline = Date.now() + 2000;
+        let receivedIds: string[] = [];
+        while (Date.now() < deadline) {
+          const combined = stdoutChunks.join('');
+          receivedIds = combined
+            .split('\n')
+            .filter((line) => line.trim().length > 0)
+            .map((line) => {
+              try {
+                const parsed = JSON.parse(line) as { _id?: string };
+                return parsed._id ?? '';
+              } catch {
+                return '';
+              }
+            })
+            .filter((id) => id.length > 0);
+          if (receivedIds.length >= 3) break;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+
+        if (receivedIds.length < 3) {
+          // Surface raw streams so CI logs show why it failed. Kept on failure
+          // only so a flaky run in CI is diagnosable without local repro.
+          process.stderr.write(`\n[integration-test debug] stdout:\n${stdoutChunks.join('')}\n`);
+          process.stderr.write(`[integration-test debug] stderr:\n${stderrChunks.join('')}\n`);
+        }
+
+        expect(receivedIds).toContain('evt-1');
+        expect(receivedIds).toContain('evt-2');
+        expect(receivedIds).toContain('evt-3');
+
+        // US-1.7 — status breadcrumbs only on stderr, NOT on stdout.
+        const stdoutAll = stdoutChunks.join('');
+        expect(stdoutAll).not.toContain('[connected]');
+        expect(stdoutAll).not.toContain('[polling]');
+
+        // Stderr MUST NOT contain notification payloads.
+        const stderrAll = stderrChunks.join('');
+        expect(stderrAll).not.toContain('evt-1');
+        expect(stderrAll).not.toContain('evt-2');
+        expect(stderrAll).not.toContain('evt-3');
+
+        // US-1.6 — SIGINT exits within 500 ms, code 0 (PRD budget;
+        // previously asserted < 1500 ms — A-010 tightens to the real spec).
+        const sigintStart = Date.now();
+        child.kill('SIGINT');
+        const exitCode: number = await new Promise((resolve) => {
+          child.on('exit', (code) => resolve(code ?? -1));
+        });
+        const sigintDuration = Date.now() - sigintStart;
+
+        expect(exitCode).toBe(0);
+        expect(sigintDuration).toBeLessThan(500);
+      } finally {
+        // A-011 — if the test body threw before reaching child.kill('SIGINT')
+        // above, SIGKILL here to prevent a leaked node subprocess from
+        // hanging the vitest run.
+        if (child.exitCode === null && child.killed === false) {
+          try {
+            child.kill('SIGKILL');
+          } catch {
+            // best-effort
+          }
+        }
       }
-
-      if (receivedIds.length < 3) {
-        // Surface raw streams so CI logs show why it failed. Kept on failure
-        // only so a flaky run in CI is diagnosable without local repro.
-        process.stderr.write(`\n[integration-test debug] stdout:\n${stdoutChunks.join('')}\n`);
-        process.stderr.write(`[integration-test debug] stderr:\n${stderrChunks.join('')}\n`);
-      }
-
-      expect(receivedIds).toContain('evt-1');
-      expect(receivedIds).toContain('evt-2');
-      expect(receivedIds).toContain('evt-3');
-
-      // US-1.7 — status breadcrumbs only on stderr, NOT on stdout.
-      const stdoutAll = stdoutChunks.join('');
-      expect(stdoutAll).not.toContain('[connected]');
-      expect(stdoutAll).not.toContain('[polling]');
-
-      // Stderr MUST NOT contain notification payloads.
-      const stderrAll = stderrChunks.join('');
-      expect(stderrAll).not.toContain('evt-1');
-      expect(stderrAll).not.toContain('evt-2');
-      expect(stderrAll).not.toContain('evt-3');
-
-      // US-1.6 — SIGINT exits within 500 ms, code 0.
-      const sigintStart = Date.now();
-      child.kill('SIGINT');
-      const exitCode: number = await new Promise((resolve) => {
-        child.on('exit', (code) => resolve(code ?? -1));
-      });
-      const sigintDuration = Date.now() - sigintStart;
-
-      expect(exitCode).toBe(0);
-      expect(sigintDuration).toBeLessThan(1500);
     },
     20000,
   );

@@ -1,12 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useReducer } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import {
   startNotificationListener,
   type NotificationStatus,
 } from '../../../chat/notifications/listener.js';
 import type { LemonadeNotification } from '../../../api/subscriptions.js';
-
-const MAX_VISIBLE = 10;
+import { feedReducer, initialState } from './feed-state.js';
 
 export interface WatchFeedProps {
   /**
@@ -23,6 +22,10 @@ export interface WatchFeedProps {
 /**
  * Ink live-feed view for `lemonade notifications watch`.
  *
+ * State is delegated to the pure `feedReducer` in `./feed-state.ts` so the
+ * MAX_VISIBLE slice, status transitions, and notification push logic can be
+ * unit-tested without rendering Ink (A-009 remediation).
+ *
  * Anti-patterns honoured (per IMPL Phase 2 § Anti-patterns):
  * - NEVER call process.exit() inside the component — use useApp().exit().
  * - NEVER write directly via process.stdout.write (Ink manages the TTY).
@@ -30,8 +33,7 @@ export interface WatchFeedProps {
  */
 export function WatchFeed({ listenerFactory }: WatchFeedProps): React.JSX.Element {
   const { exit } = useApp();
-  const [status, setStatus] = useState<NotificationStatus>('disconnected');
-  const [recent, setRecent] = useState<string[]>([]);
+  const [state, dispatch] = useReducer(feedReducer, initialState);
 
   useEffect(() => {
     const factory =
@@ -40,16 +42,10 @@ export function WatchFeed({ listenerFactory }: WatchFeedProps): React.JSX.Elemen
 
     const listener = factory({
       onNotification: (formatted) => {
-        setRecent((prev) => {
-          const next = [...prev, formatted];
-          if (next.length > MAX_VISIBLE) {
-            return next.slice(next.length - MAX_VISIBLE);
-          }
-          return next;
-        });
+        dispatch({ type: 'notify', payload: formatted });
       },
       onStatusChange: (s) => {
-        setStatus(s);
+        dispatch({ type: 'status', payload: s });
       },
     });
 
@@ -70,13 +66,13 @@ export function WatchFeed({ listenerFactory }: WatchFeedProps): React.JSX.Elemen
   return (
     <Box flexDirection="column">
       <Text>
-        Notifications — status: <Text bold>{status}</Text>
+        Notifications — status: <Text bold>{state.status}</Text>
       </Text>
       <Box flexDirection="column" marginTop={1}>
-        {recent.length === 0 ? (
+        {state.notifications.length === 0 ? (
           <Text dimColor>Waiting for notifications… (Ctrl+C or q to exit)</Text>
         ) : (
-          recent.map((line, idx) => <Text key={`${idx}-${line}`}>{line}</Text>)
+          state.notifications.map((line, idx) => <Text key={`${idx}-${line}`}>{line}</Text>)
         )}
       </Box>
     </Box>

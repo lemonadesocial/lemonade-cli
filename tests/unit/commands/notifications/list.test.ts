@@ -124,7 +124,7 @@ describe('notifications list', () => {
     expect(output).not.toContain('B');
   });
 
-  it('US-2.6 — --json emits flat envelope { ok, data, cursor, total }', async () => {
+  it('US-2.6 — --json emits flat envelope { ok, data, cursor }', async () => {
     mockGraphqlRequest.mockResolvedValueOnce({
       getNotifications: [
         { _id: '1', type: 'event_update', created_at: 't', is_seen: false },
@@ -134,10 +134,15 @@ describe('notifications list', () => {
     await program.parseAsync(['node', 'test', 'notifications', 'list', '--json']);
 
     const parsed = JSON.parse(consoleLogSpy.mock.calls[0][0] as string) as Record<string, unknown>;
+    // Lock the exact shape emitted by `jsonSuccess(data, { cursor })` in
+    // src/output/json.ts:14-21 — no `meta` nesting, cursor is top-level and
+    // null when there is no next page (single row < default limit of 25),
+    // `total` is undefined -> dropped by JSON.stringify so the key MUST NOT
+    // be present on the parsed envelope.
     expect(parsed.ok).toBe(true);
     expect(Array.isArray(parsed.data)).toBe(true);
-    // Flat envelope: cursor/total at top level, NOT nested under `meta`.
-    expect(parsed).toHaveProperty('cursor');
+    expect(parsed.cursor).toBeNull();
+    expect('total' in parsed).toBe(false);
     expect('meta' in parsed).toBe(false);
   });
 
