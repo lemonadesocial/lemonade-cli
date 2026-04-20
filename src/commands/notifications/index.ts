@@ -3,6 +3,7 @@ import { registerNotificationsWatch } from './watch.js';
 import { registerNotificationsList } from './list.js';
 import { registerNotificationsRead } from './read.js';
 import { registerNotificationsFilters } from './filters/index.js';
+import { registerNotificationsPreferences } from './preferences/index.js';
 
 /**
  * Register the `lemonade notifications` command family (Phase 2 of
@@ -27,4 +28,5 @@ export function registerNotificationCommands(program: Command): void {
   registerNotificationsList(notifications);
   registerNotificationsRead(notifications);
   registerNotificationsFilters(notifications);
+  registerNotificationsPreferences(notifications);
 }
