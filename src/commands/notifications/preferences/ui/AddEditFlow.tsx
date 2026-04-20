@@ -21,6 +21,17 @@ import { ADD_EDIT_STEPS, CONFIRM_STEP, PREFERENCE_CHANNELS } from '../state.js';
  * `filters/ui/AddEditFlow.tsx` — kept parallel (do not abstract).
  * Backend enforces no hard coupling between `notification_category` and
  * `notification_type`, so this map is a UX assist.
+ *
+ * NOTE (A-004): entries are built with string-prefix heuristics
+ * (`startsWith('event_')`, `startsWith('user_')`, etc.) plus a few
+ * explicit type names. This is intentional — as new `NOTIFICATION_TYPES`
+ * are added to the shared list, most will fall into an existing bucket
+ * automatically. Fallback behaviour lives at the `typeOptions` useMemo
+ * below: when a category is set but its scoped list is empty (e.g. the
+ * heuristic missed every type), we fall back to the full
+ * `NOTIFICATION_TYPES` list so the user is never locked out of picking a
+ * type. Backend never rejects a category/type pair, so any mismatch is a
+ * UX nudge — not a hard constraint.
  */
 const CATEGORY_TYPE_MAP: Record<PreferenceCategory, readonly PreferenceType[]> = {
   event: NOTIFICATION_TYPES.filter((t) => t.startsWith('event_') || t === 'ticket_assigned' || t === 'ticket_cancelled') as readonly PreferenceType[],

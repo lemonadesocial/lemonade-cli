@@ -16,6 +16,13 @@ export interface PreferenceTuiProps {
    * Optional dependency injection for tests — lets the reducer be
    * driven without the real transport. Each override mirrors the
    * corresponding helper in `graphql.ts`.
+   *
+   * Props shape mirrors `FilterTui.tsx` deps injection for test-seam
+   * symmetry; currently unused by production mount (the production
+   * entry in `preferences/index.ts` constructs `<PreferenceTui />`
+   * without overrides, letting the defaults from `graphql.ts` take
+   * effect). Kept deliberately parallel per the IMPL "parallel-not-
+   * shared" directive — do not abstract with filters.
    */
   deps?: {
     fetchPreferences?: () => Promise<NotificationChannelPreference[]>;

@@ -462,6 +462,24 @@ describe('preferenceReducer — delete flow', () => {
       expect(s3.preferences).toEqual([]);
     }
   });
+
+  it('US-5d.3 / A-005 — delete-error returns to list with error message and clears pendingMutation', () => {
+    const listWithPref = listState([makePreference({ _id: 'a' })], 0);
+    const deleteConfirm = preferenceReducer(listWithPref, { type: 'begin-delete' });
+    const confirmed = preferenceReducer(deleteConfirm, { type: 'confirm-delete' });
+    // sim: PreferenceTui dispatches submit-error on deleteMutation rejection
+    const errored = preferenceReducer(confirmed, {
+      type: 'submit-error',
+      error: 'Server unavailable',
+      statusCode: 500,
+    });
+    expect(errored.kind).toBe('list');
+    if (errored.kind === 'list') {
+      expect(errored.status).toBe('error');
+      expect(errored.error).toBe('Server unavailable');
+      expect(errored.pendingMutation).toBeUndefined();
+    }
+  });
 });
 
 describe('preferenceReducer — back-to-list + quit', () => {

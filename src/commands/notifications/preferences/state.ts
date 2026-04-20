@@ -421,6 +421,20 @@ export function preferenceReducer(state: PreferenceState, action: PreferenceActi
     }
 
     case 'submit-error': {
+      // Delete path (US-5d.3 / A-001): `PreferenceTui.tsx` dispatches
+      // `submit-error` when the delete mutation rejects. Without this
+      // branch the reducer silently drops the action and the UI hangs on
+      // "Deleting…" forever. Return to the list with the error surfaced
+      // and `pendingMutation` omitted (undefined) so the user can retry.
+      if (state.kind === 'delete-confirm') {
+        return {
+          kind: 'list',
+          preferences: state.preferences,
+          cursor: clampCursor(state.preferences, state.cursor),
+          status: 'error',
+          error: action.error,
+        };
+      }
       if (state.kind !== 'add' && state.kind !== 'edit') return state;
       // 404 → concurrent-delete wording + return to list (US-5c.3). The
       // exact string is specified in the PRD — do not paraphrase.
