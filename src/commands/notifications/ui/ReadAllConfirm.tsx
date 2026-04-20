@@ -25,6 +25,27 @@ export function keystrokeToDecision(input: string): boolean {
 }
 
 /**
+ * Pure unmount-cleanup helper. Extracted from the `useEffect` cleanup callback
+ * so it can be unit-tested without needing to mount the Ink component
+ * (A-006 remediation).
+ *
+ * Contract: if the prompt has not yet resolved (decidedRef is false),
+ * resolve it with `false` and flip the ref so subsequent calls are no-ops.
+ * If already resolved, does nothing (the keystroke path already fired
+ * onDecision exactly once — single-fire guarantee).
+ *
+ * This mirrors the body of `ReadAllConfirm`'s `useEffect` cleanup.
+ */
+export function handleUnmountCleanup(
+  decidedRef: { current: boolean },
+  onDecision: (confirmed: boolean) => void,
+): void {
+  if (decidedRef.current) return;
+  decidedRef.current = true;
+  onDecision(false);
+}
+
+/**
  * Ink (y/N) confirmation for `lemonade notifications read --all`.
  *
  * Unlike `filters/ui/DeleteConfirm.tsx`, this component owns its own
@@ -59,14 +80,11 @@ export function ReadAllConfirm({ count, onDecision }: ReadAllConfirmProps): Reac
   });
 
   // Unmount-before-keystroke edge case: user Ctrl+C's out of the whole
-  // process. Ink tears down the component; our cleanup resolves the decision
-  // with `false` so the action handler's `finally` block runs.
+  // process. Ink tears down the component; the shared pure helper resolves
+  // the decision with `false` so the action handler's `finally` block runs.
   useEffect(() => {
     return () => {
-      if (!decidedRef.current) {
-        decidedRef.current = true;
-        onDecision(false);
-      }
+      handleUnmountCleanup(decidedRef, onDecision);
     };
   }, [onDecision]);
 

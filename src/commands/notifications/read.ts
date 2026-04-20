@@ -7,6 +7,7 @@ import { handleError } from '../../output/error.js';
 import { setFlagApiKey } from '../../auth/store.js';
 import { NOTIFICATION_CATEGORIES } from '../../chat/tools/domains/notifications.js';
 import { ReadAllConfirm } from './ui/ReadAllConfirm.js';
+import { buildCategoryVariables } from './variables.js';
 
 const READ_NOTIFICATIONS_MUTATION = `
   mutation ReadNotifications($_id: [MongoID!]) {
@@ -25,19 +26,6 @@ const READ_ALL_NOTIFICATIONS_MUTATION = `
     readAllNotifications(category: $category)
   }
 `;
-
-/**
- * Build the category-scoped variables object. Per PRD US-2.10/US-3.13: omit
- * the key entirely when the flag is absent (NOT null) so the server sees the
- * field as undefined.
- */
-function buildCategoryVariables(category: string | undefined): Record<string, unknown> {
-  const variables: Record<string, unknown> = {};
-  if (category !== undefined && category !== null && category !== '') {
-    variables.category = category;
-  }
-  return variables;
-}
 
 export function registerNotificationsRead(notifications: Command): void {
   notifications
@@ -153,26 +141,29 @@ export function registerNotificationsRead(notifications: Command): void {
                   count: wouldMark,
                   onDecision: decide,
                 }),
-                { exitOnCtrlC: false, patchConsole: true },
+                // One-shot Ink render — no long-lived feed, so no need to
+                // patch console.* (A-010 remediation). Keeping patchConsole
+                // off avoids global console overrides leaking into the
+                // process after the prompt resolves.
+                { exitOnCtrlC: false, patchConsole: false },
               );
               // Defense-in-depth: if the Ink process exits for any reason
               // before the component calls onDecision (component unmount
               // also fires onDecision(false), but belt-and-braces), the
               // waitUntilExit promise resolves and we cancel.
-              instance
-                .waitUntilExit()
-                .then(() => decide(false))
-                .catch(() => decide(false));
+              instance.waitUntilExit().finally(() => decide(false));
             });
           }
 
           if (!confirmed) {
             // US-3.3 — cancel path. No mutation.
-            if (opts.json) {
-              console.log(jsonSuccess({ marked: 0, unread: wouldMark, cancelled: true }));
-            } else {
-              console.log('Cancelled. No changes made.');
-            }
+            //
+            // The cancel path is ONLY reachable in interactive TTY mode: the
+            // US-3.8 guard above (`opts.json && !yes && !dryRun`) rejects
+            // JSON-mode prompts before we ever render the Ink confirm. So
+            // `opts.json` is false here by construction — no JSON branch
+            // needed (A-002 remediation).
+            console.log('Cancelled. No changes made.');
             return;
           }
 

@@ -197,18 +197,6 @@ describe('notifications unread', () => {
     expect(mockHandleError.mock.calls[0][0]).toBe(err);
   });
 
-  it('US-2.10 — empty-string --category is treated as absent (variables omit the key)', async () => {
-    // Commander .choices() rejects empty strings, but this test guards the
-    // implementation's defense-in-depth: `opts.category !== ''` prevents the
-    // value from being forwarded even if a user supplies a sentinel via env.
-    mockGraphqlRequest.mockResolvedValueOnce({ getNotificationUnreadCount: 2 });
-    const program = buildProgram();
-    await program.parseAsync(['node', 'test', 'notifications', 'unread']);
-
-    const [, variables] = mockGraphqlRequest.mock.calls[0];
-    expect(variables).toEqual({});
-  });
-
   it('finally — setFlagApiKey(undefined) runs even on error', async () => {
     mockGraphqlRequest.mockRejectedValueOnce(
       new GraphQLError('boom', 'INTERNAL', 500),

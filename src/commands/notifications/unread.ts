@@ -4,6 +4,7 @@ import { jsonSuccess } from '../../output/json.js';
 import { handleError } from '../../output/error.js';
 import { setFlagApiKey } from '../../auth/store.js';
 import { NOTIFICATION_CATEGORIES } from '../../chat/tools/domains/notifications.js';
+import { buildCategoryVariables } from './variables.js';
 
 /**
  * Scalar one-shot "how many unread notifications do I have?" subcommand.
@@ -39,12 +40,9 @@ export function registerNotificationsUnread(notifications: Command): void {
         setFlagApiKey(opts.apiKey);
 
         // Per PRD US-2.10: omit `category` from the variables object when
-        // the flag is not supplied — NOT `null`. Commander leaves the key
-        // unset on opts, so a truthy check suffices.
-        const variables: Record<string, unknown> = {};
-        if (opts.category !== undefined && opts.category !== null && opts.category !== '') {
-          variables.category = opts.category;
-        }
+        // the flag is not supplied — NOT `null`. Helper contains the
+        // defensive null/empty-string checks (A-007 / A-011 remediation).
+        const variables = buildCategoryVariables(opts.category);
 
         const result = await graphqlRequest<{ getNotificationUnreadCount: number }>(
           GET_NOTIFICATION_UNREAD_COUNT_QUERY,

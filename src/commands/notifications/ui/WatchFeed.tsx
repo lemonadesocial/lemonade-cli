@@ -28,11 +28,74 @@ export interface WatchFeedProps {
    * component does not refetch on notification arrival (useful for tests
    * that only assert feed behaviour). When present, invoked (debounced at
    * 250 ms) on every `onNotification` dispatch.
+   *
+   * NOTE: `fetchUnread` must be a STABLE reference (module-level function in
+   * `watch.ts` — not a fresh arrow per render), otherwise the listener
+   * useEffect below will tear down + remount on every parent re-render,
+   * losing the debounce timer and the listener subscription. Test harnesses
+   * should pass a stable `vi.fn()` or module-level stub (A-012 remediation).
    */
   fetchUnread?: () => Promise<number>;
 }
 
-const UNREAD_REFETCH_DEBOUNCE_MS = 250;
+export const UNREAD_REFETCH_DEBOUNCE_MS = 250;
+
+/**
+ * Pure factory for the unread-refetch debounce scheduler. Extracted from
+ * `WatchFeed`'s useEffect body so the debounce window + unmount-cancel
+ * semantics can be unit-tested deterministically under `vi.useFakeTimers()`
+ * without mounting Ink (A-001 remediation).
+ *
+ * Contract:
+ *   - `schedule()` starts (or resets) a timer of `debounceMs`. On fire:
+ *     calls `fetchUnread()` and, if `isMounted()` is still true, dispatches
+ *     the result via `onResult(n)`. On fetch failure, calls `onError()`
+ *     (still gated by `isMounted()`), again only if still mounted.
+ *   - Rapid re-entry cancels the pending timer and re-arms — so N calls
+ *     within `debounceMs` collapse into a SINGLE fetchUnread() call on the
+ *     trailing edge.
+ *   - `cancel()` clears any pending timer. After `cancel()`, no further
+ *     onResult/onError is delivered even if `fetchUnread()` is already
+ *     in-flight (gated by isMounted) — that's the unmount safety rail.
+ */
+export function createRefetchScheduler(opts: {
+  fetchUnread: () => Promise<number>;
+  onResult: (n: number) => void;
+  onError: () => void;
+  isMounted: () => boolean;
+  debounceMs?: number;
+}): { schedule: () => void; cancel: () => void } {
+  const debounceMs = opts.debounceMs ?? UNREAD_REFETCH_DEBOUNCE_MS;
+  let timer: NodeJS.Timeout | null = null;
+
+  const cancel = (): void => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  const schedule = (): void => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+    timer = setTimeout(() => {
+      timer = null;
+      opts
+        .fetchUnread()
+        .then((n) => {
+          if (!opts.isMounted()) return;
+          opts.onResult(n);
+        })
+        .catch(() => {
+          if (!opts.isMounted()) return;
+          opts.onError();
+        });
+    }, debounceMs);
+  };
+
+  return { schedule, cancel };
+}
 
 /**
  * Ink live-feed view for `lemonade notifications watch`.
@@ -57,15 +120,17 @@ export function WatchFeed({
   const { exit } = useApp();
   const [state, dispatch] = useReducer(feedReducer, initialState);
   const mountedRef = useRef<boolean>(true);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const initialSeededRef = useRef<boolean>(false);
 
-  // Seed the unread count from the caller's pre-fetch on mount.
+  // Seed the unread count from the caller's pre-fetch on mount. Mount-only
+  // dep array `[]` is deliberate: the `initialSeededRef` guard turns any
+  // re-run into a no-op, so reacting to `initialUnread` changes would be a
+  // dead branch (A-009 remediation).
   useEffect(() => {
     if (initialSeededRef.current) return;
     initialSeededRef.current = true;
     dispatch({ type: 'unread-update', payload: initialUnread ?? null });
-  }, [initialUnread]);
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -74,20 +139,14 @@ export function WatchFeed({
       listenerFactory ??
       ((h) => startNotificationListener(h));
 
-    const scheduleRefetch = () => {
-      if (!fetchUnread) return;
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-      debounceRef.current = setTimeout(() => {
-        debounceRef.current = null;
-        fetchUnread()
-          .then((n) => {
-            if (!mountedRef.current) return;
-            dispatch({ type: 'unread-update', payload: n });
-          })
-          .catch(() => {
-            if (!mountedRef.current) return;
+    // Extracted scheduler (A-001 remediation) — the debounce semantics are
+    // covered by unit tests against `createRefetchScheduler` directly with
+    // fake timers.
+    const scheduler = fetchUnread
+      ? createRefetchScheduler({
+          fetchUnread,
+          onResult: (n) => dispatch({ type: 'unread-update', payload: n }),
+          onError: () => {
             // Keep last value sticky — do NOT dispatch on failure.
             // Emit a single stderr breadcrumb so the user sees the
             // transient failure without flooding the TTY.
@@ -96,14 +155,15 @@ export function WatchFeed({
             } catch {
               // ignore — stderr write failures are non-fatal.
             }
-          });
-      }, UNREAD_REFETCH_DEBOUNCE_MS);
-    };
+          },
+          isMounted: () => mountedRef.current,
+        })
+      : null;
 
     const listener = factory({
       onNotification: (formatted) => {
         dispatch({ type: 'notify', payload: formatted });
-        scheduleRefetch();
+        scheduler?.schedule();
       },
       onStatusChange: (s) => {
         dispatch({ type: 'status', payload: s });
@@ -112,10 +172,7 @@ export function WatchFeed({
 
     return () => {
       mountedRef.current = false;
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-        debounceRef.current = null;
-      }
+      scheduler?.cancel();
       listener.stop();
     };
   }, [listenerFactory, fetchUnread]);

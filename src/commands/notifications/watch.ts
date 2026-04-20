@@ -13,13 +13,70 @@ const GET_NOTIFICATION_UNREAD_COUNT_QUERY = `
   }
 `;
 
-const NDJSON_UNREAD_DEBOUNCE_MS = 250;
+export const NDJSON_UNREAD_DEBOUNCE_MS = 250;
 
 async function fetchUnreadCount(): Promise<number> {
   const result = await graphqlRequest<{ getNotificationUnreadCount: number }>(
     GET_NOTIFICATION_UNREAD_COUNT_QUERY,
   );
   return result.getNotificationUnreadCount;
+}
+
+/**
+ * Factory for the NDJSON mode unread-refetch helper. Extracted from
+ * `runNdjsonWatch` so the debounce + stderr-breadcrumb + silent-failure
+ * contract can be unit-tested with fake timers + injected spies
+ * (A-004 remediation).
+ *
+ * Behaviour:
+ *   - `schedule()` starts (or resets) a `debounceMs` timer. On fire:
+ *     invokes `fetchUnread()` and writes `[unread] <N>\n` to `stderrWrite`
+ *     on success.
+ *   - On fetch failure: swallows silently (US-1.4 deviation — a per-notification
+ *     warning would spam the piped stream; operators inspect successful
+ *     `[unread] <N>` breadcrumbs for drift detection).
+ *   - `cancel()` clears any pending timer.
+ *
+ * Tests MUST NOT see a `[unread]` string written to STDOUT — stderr only.
+ */
+export function createNdjsonUnreadRefetcher(opts: {
+  fetchUnread: () => Promise<number>;
+  stderrWrite: (chunk: string) => void;
+  debounceMs?: number;
+}): { schedule: () => void; cancel: () => void } {
+  const debounceMs = opts.debounceMs ?? NDJSON_UNREAD_DEBOUNCE_MS;
+  let timer: NodeJS.Timeout | null = null;
+
+  const cancel = (): void => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  const schedule = (): void => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+    timer = setTimeout(() => {
+      timer = null;
+      opts
+        .fetchUnread()
+        .then((n) => {
+          try {
+            opts.stderrWrite(`[unread] ${n}\n`);
+          } catch {
+            // ignore — stderr write failures are non-fatal.
+          }
+        })
+        .catch(() => {
+          // US-1.4 NDJSON deviation — swallow silently. See the module
+          // docblock for the runNdjsonWatch scheduler for rationale.
+        });
+    }, debounceMs);
+  };
+
+  return { schedule, cancel };
 }
 
 export function registerNotificationsWatch(notifications: Command): void {
@@ -69,28 +126,13 @@ async function runNdjsonWatch(): Promise<void> {
   // objects whose property types are stable.
   const listenerRef: { current: Listener | null } = { current: null };
   const sigintRef: { current: (() => void) | null } = { current: null };
-  const unreadTimerRef: { current: NodeJS.Timeout | null } = { current: null };
 
-  const scheduleUnreadRefetch = (): void => {
-    if (unreadTimerRef.current) {
-      clearTimeout(unreadTimerRef.current);
-    }
-    unreadTimerRef.current = setTimeout(() => {
-      unreadTimerRef.current = null;
-      fetchUnreadCount()
-        .then((n) => {
-          try {
-            process.stderr.write(`[unread] ${n}\n`);
-          } catch {
-            // ignore
-          }
-        })
-        .catch(() => {
-          // Best-effort — swallow. A noisy warning per refetch would
-          // bury the stream; silence on failure is the PRD's spec.
-        });
-    }, NDJSON_UNREAD_DEBOUNCE_MS);
-  };
+  // Extracted refetcher — unit-tested via createNdjsonUnreadRefetcher
+  // (A-004 remediation).
+  const refetcher = createNdjsonUnreadRefetcher({
+    fetchUnread: fetchUnreadCount,
+    stderrWrite: (chunk) => process.stderr.write(chunk),
+  });
 
   try {
     await new Promise<void>((resolve, reject) => {
@@ -104,7 +146,7 @@ async function runNdjsonWatch(): Promise<void> {
             reject(err instanceof Error ? err : new Error(String(err)));
             return;
           }
-          scheduleUnreadRefetch();
+          refetcher.schedule();
         },
         onStatusChange: (status) => {
           process.stderr.write(`[${status}]\n`);
@@ -121,10 +163,7 @@ async function runNdjsonWatch(): Promise<void> {
       process.on('SIGTERM', sigintRef.current);
     });
   } finally {
-    if (unreadTimerRef.current) {
-      clearTimeout(unreadTimerRef.current);
-      unreadTimerRef.current = null;
-    }
+    refetcher.cancel();
     if (listenerRef.current) {
       try {
         listenerRef.current.stop();

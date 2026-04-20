@@ -107,7 +107,8 @@ describe('notifications read --all', () => {
     if (isTtyDescriptor) {
       Object.defineProperty(process.stdout, 'isTTY', isTtyDescriptor);
     } else {
-      // @ts-expect-error — restore default
+      // Cast narrows isTTY to optional so `delete` typechecks without
+      // needing a @ts-expect-error directive (A-013 remediation).
       delete (process.stdout as { isTTY?: boolean }).isTTY;
     }
   });
@@ -440,7 +441,7 @@ describe('notifications read --all', () => {
   // Post-mutation race (Risks row 2) — refetch returns non-zero
   // ────────────────────────────────────────────────────────────────────
 
-  it('post-mutation race — refetch returns non-zero N\' → success string reflects actual N\'', async () => {
+  it('US-3.2 + Risks row 2 — post-mutation race: refetch returns non-zero N\' → success string reflects actual N\'', async () => {
     mockGraphqlRequest.mockResolvedValueOnce({ getNotificationUnreadCount: 42 });
     mockGraphqlRequest.mockResolvedValueOnce({ readAllNotifications: 42 });
     // Simulate: 1 new notification arrived between mutation and refetch.
@@ -454,7 +455,7 @@ describe('notifications read --all', () => {
     expect(logs).toContain('Marked 42 notifications as read. Unread: 1.');
   });
 
-  it('post-mutation refetch failure → success string still prints, unread=0 fallback', async () => {
+  it('US-3.2 + Risks row 2 — post-mutation refetch failure: success string still prints, unread=0 fallback', async () => {
     mockGraphqlRequest.mockResolvedValueOnce({ getNotificationUnreadCount: 5 });
     mockGraphqlRequest.mockResolvedValueOnce({ readAllNotifications: 5 });
     // Refetch throws — swallowed, unread falls back to 0.

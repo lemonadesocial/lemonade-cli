@@ -1,18 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   keystrokeToDecision,
+  handleUnmountCleanup,
 } from '../../../../../src/commands/notifications/ui/ReadAllConfirm.js';
 
 /**
- * ReadAllConfirm keystroke coverage.
+ * ReadAllConfirm keystroke + unmount-cleanup coverage.
  *
- * The keystroke-to-decision logic is extracted into a pure function so it can
- * be unit-tested without mounting Ink (per IMPL § O-5: no `ink-testing-library`
- * dependency; tests must use extracted pure logic OR Ink's built-in helpers).
+ * Per IMPL § O-5: the `ink-testing-library` dependency is off-limits, so the
+ * component's two decision paths are covered via extracted pure helpers:
  *
- * Single-fire, unmount-resolve-false, and exit() wiring are covered
- * indirectly by the read-all integration test which exercises the full
- * Ink render path via the command action.
+ *   1. `keystrokeToDecision(input)` — covers every keystroke branch
+ *      (y/Y → true, everything else including Escape → false).
+ *   2. `handleUnmountCleanup(decidedRef, onDecision)` — covers the
+ *      Ctrl+C-during-prompt safety rail (ReadAllConfirm.tsx useEffect
+ *      cleanup): if the prompt has not yet resolved, resolve `false`.
+ *
+ * Single-fire (decidedRef) + Ink wiring (render + exit) is covered by the
+ * read-all integration test which exercises the full Ink render path.
  */
 
 describe('keystrokeToDecision — y/Y confirms, everything else cancels', () => {
@@ -37,6 +42,9 @@ describe('keystrokeToDecision — y/Y confirms, everything else cancels', () => 
   });
 
   it('empty string (Escape / Ctrl+C passthrough) → false', () => {
+    // Ink's useInput surfaces bare Escape as input === '' (key.escape=true).
+    // Our keystroke handler takes the pure `input` string only, which maps
+    // empty → false. This is the escape-key coverage for A-006.
     expect(keystrokeToDecision('')).toBe(false);
   });
 
@@ -62,5 +70,45 @@ describe('keystrokeToDecision — y/Y confirms, everything else cancels', () => 
 
   it('lowercase only: "Y " → false (space suffix breaks the match)', () => {
     expect(keystrokeToDecision('Y ')).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// A-006 — unmount-cleanup pure-helper coverage
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('handleUnmountCleanup — Ctrl+C-during-prompt safety rail', () => {
+  it('unresolved ref (decidedRef=false) → onDecision(false) fires exactly once', () => {
+    const onDecision = vi.fn();
+    const decidedRef = { current: false };
+
+    handleUnmountCleanup(decidedRef, onDecision);
+
+    expect(onDecision).toHaveBeenCalledTimes(1);
+    expect(onDecision).toHaveBeenCalledWith(false);
+    // Ref flipped — a second cleanup call (e.g. StrictMode re-run) is a no-op.
+    expect(decidedRef.current).toBe(true);
+  });
+
+  it('already-resolved ref (decidedRef=true) → onDecision is NOT called', () => {
+    const onDecision = vi.fn();
+    // Keystroke path already fired → ref is `true` when cleanup runs.
+    const decidedRef = { current: true };
+
+    handleUnmountCleanup(decidedRef, onDecision);
+
+    expect(onDecision).not.toHaveBeenCalled();
+    expect(decidedRef.current).toBe(true);
+  });
+
+  it('called twice in a row → onDecision still fires exactly once (single-fire guarantee)', () => {
+    const onDecision = vi.fn();
+    const decidedRef = { current: false };
+
+    handleUnmountCleanup(decidedRef, onDecision);
+    handleUnmountCleanup(decidedRef, onDecision);
+
+    expect(onDecision).toHaveBeenCalledTimes(1);
+    expect(onDecision).toHaveBeenCalledWith(false);
   });
 });
