@@ -340,6 +340,9 @@ Every command supports `--json` for structured output and `--dry-run` for mutati
 | `lemonade space create` | Create a community space |
 | `lemonade space list` | List your spaces |
 | `lemonade space stripe-connect` | Connect Stripe for payouts |
+| `lemonade notifications watch` | Stream live notifications (Ink feed or NDJSON) |
+| `lemonade notifications list` | List recent notifications |
+| `lemonade notifications read <id...>` | Mark notifications as read |
 | `lemonade tickets create-type` | Add a ticket type to an event |
 | `lemonade tickets types <event-id>` | List ticket types |
 | `lemonade site generate` | AI-generate a landing page |
