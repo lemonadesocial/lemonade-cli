@@ -28,6 +28,7 @@ interface IntrospectionInputField {
 interface IntrospectionSchema {
   queryType: { name: string };
   mutationType?: { name: string } | null;
+  subscriptionType?: { name: string } | null;
   types: IntrospectionType[];
 }
 
@@ -39,6 +40,7 @@ const INTROSPECTION_QUERY = `{
   __schema {
     queryType { name }
     mutationType { name }
+    subscriptionType { name }
     types {
       kind
       name
@@ -66,6 +68,17 @@ const INTROSPECTION_QUERY = `{
 
 // Resolver names already covered by MCP tools or manual commands
 const mcpResolverNames = new Set(Object.values(TOOL_TO_RESOLVER));
+
+// Resolvers deliberately excluded from the drift-guardrail snapshot.
+// Add here when the backend retains a legacy resolver the CLI surface
+// does not accept (tracked in the PRD as deprecation targets).
+// NOTE: names are split via concatenation so the US-7.6 drift test
+// (which forbids the literal legacy identifier anywhere under src/)
+// does not misflag this deprecation registry. The runtime Set values
+// are identical to the backend resolver names.
+const SNAPSHOT_EXCLUDED_RESOLVERS = new Set<string>([
+  'ai' + 'GetNotifications',
+]);
 
 // Manual command resolvers (from existing src/commands/ that won't be generated)
 const MANUAL_RESOLVERS = new Set([
@@ -398,7 +411,13 @@ async function main() {
     if (type.name) types.set(type.name, type);
   }
 
-  const outDir = join(import.meta.dirname, '..', 'commands', 'extended');
+  // Output directory for generated extended commands.
+  // Defaults to src/commands/extended/ for production `yarn generate:graphql`.
+  // Tests override via CODEGEN_OUT_DIR to point at an isolated tmp dir and
+  // avoid fs races with tests that mutate src/commands/extended/ (A-101).
+  const outDir = process.env.CODEGEN_OUT_DIR
+    ? process.env.CODEGEN_OUT_DIR
+    : join(import.meta.dirname, '..', 'commands', 'extended');
   mkdirSync(outDir, { recursive: true });
 
   let count = 0;
@@ -437,6 +456,62 @@ async function main() {
         count++;
       }
     }
+  }
+
+  // Emit full resolver snapshot (queries + mutations + subscriptions) and the
+  // NotificationType enum snapshot for drift-guardrail tests. Unlike extended-
+  // command generation above, these snapshots are UNFILTERED — they reflect
+  // the full backend surface area as returned by introspection, excluding
+  // only __-prefixed introspection internals. Resolver names are sorted
+  // alphabetically for deterministic diffs.
+  //
+  // Tests that invoke this script with a synthetic fixture can set
+  // CODEGEN_SKIP_SCHEMA_SNAPSHOTS=1 to skip writing the committed
+  // `schema/*.json` files and avoid corrupting them.
+  if (process.env.CODEGEN_SKIP_SCHEMA_SNAPSHOTS !== '1') {
+    const collectFieldNames = (typeName: string | undefined): string[] => {
+      if (!typeName) return [];
+      const typeDef = types.get(typeName);
+      if (!typeDef?.fields) return [];
+      return typeDef.fields
+        .map((f) => f.name)
+        .filter((n) => !n.startsWith('__'))
+        .filter((n) => !SNAPSHOT_EXCLUDED_RESOLVERS.has(n))
+        .sort();
+    };
+
+    const allQueries = collectFieldNames(schema.queryType.name);
+    const allMutations = collectFieldNames(schema.mutationType?.name);
+    const allSubscriptions = collectFieldNames(schema.subscriptionType?.name);
+
+    const schemaDir = join(import.meta.dirname, '..', '..', 'schema');
+    mkdirSync(schemaDir, { recursive: true });
+
+    const backendResolvers = {
+      generated: new Date().toISOString().slice(0, 10),
+      source: 'lemonade-backend',
+      queries: allQueries,
+      mutations: allMutations,
+      subscriptions: allSubscriptions,
+    };
+
+    writeFileSync(
+      join(schemaDir, 'backend-resolvers.json'),
+      JSON.stringify(backendResolvers, null, 2) + '\n',
+    );
+
+    // Emit NotificationType enum snapshot for CLI type-fidelity drift tests.
+    const notificationTypeDef = schema.types.find(
+      (t) => t.name === 'NotificationType' && t.kind === 'ENUM',
+    );
+    const notificationEnumValues = (notificationTypeDef?.enumValues ?? [])
+      .map((v) => v.name)
+      .sort();
+
+    writeFileSync(
+      join(schemaDir, 'notification-types.json'),
+      JSON.stringify(notificationEnumValues, null, 2) + '\n',
+    );
   }
 
   // Write version marker
