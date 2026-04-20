@@ -411,7 +411,13 @@ async function main() {
     if (type.name) types.set(type.name, type);
   }
 
-  const outDir = join(import.meta.dirname, '..', 'commands', 'extended');
+  // Output directory for generated extended commands.
+  // Defaults to src/commands/extended/ for production `yarn generate:graphql`.
+  // Tests override via CODEGEN_OUT_DIR to point at an isolated tmp dir and
+  // avoid fs races with tests that mutate src/commands/extended/ (A-101).
+  const outDir = process.env.CODEGEN_OUT_DIR
+    ? process.env.CODEGEN_OUT_DIR
+    : join(import.meta.dirname, '..', 'commands', 'extended');
   mkdirSync(outDir, { recursive: true });
 
   let count = 0;
