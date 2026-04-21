@@ -3,7 +3,9 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { createServer, type Server as HttpServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/use/ws';
-import { resolve as resolvePath } from 'path';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join, resolve as resolvePath } from 'path';
 
 /**
  * Integration smoke test for `lemonade notifications watch --json` against a
@@ -168,6 +170,12 @@ afterAll(async () => {
 // child if a test body threw before reaching its own teardown (A-011).
 let spawnedChild: ChildProcessWithoutNullStreams | null = null;
 
+// Per-test HOME so the spawned CLI reads/writes a fresh ~/.lemonade/config.json
+// and cannot dedup against notification IDs persisted by prior test runs
+// (`src/chat/notifications/listener.ts` + `src/auth/notification-dedup.ts`
+// persist every delivered `_id` to config; repeat IDs are silently dropped).
+let childHome: string | null = null;
+
 afterEach(() => {
   const leaked = spawnedChild;
   spawnedChild = null;
@@ -178,6 +186,15 @@ afterEach(() => {
       // best-effort — prevent CI from hanging if the kill races with exit
     }
   }
+  const home = childHome;
+  childHome = null;
+  if (home) {
+    try {
+      rmSync(home, { recursive: true, force: true });
+    } catch {
+      // best-effort — tmp dir cleanup is non-fatal
+    }
+  }
 });
 
 describe('notifications watch — mock WS integration', () => {
@@ -185,12 +202,18 @@ describe('notifications watch — mock WS integration', () => {
     'emits NDJSON lines for 3 synthetic notifications and exits 0 on SIGINT',
     async () => {
       const cliEntry = resolvePath(process.cwd(), 'dist/index.js');
+      childHome = mkdtempSync(join(tmpdir(), 'lemonade-cli-watch-test-'));
       const child: ChildProcessWithoutNullStreams = spawn(
         process.execPath,
         [cliEntry, 'notifications', 'watch', '--json'],
         {
           env: {
             ...process.env,
+            // Isolate the CLI's config dir (~/.lemonade) to a fresh tmp HOME
+            // so the persisted notification dedup cache cannot carry state
+            // between test runs (or leak into the developer's real config).
+            HOME: childHome,
+            USERPROFILE: childHome,
             LEMONADE_API_URL: `http://127.0.0.1:${port}`,
             LEMONADE_API_KEY: 'test-key',
           },
