@@ -4,6 +4,13 @@
 
 * align connector_disconnect with DisconnectResult contract; token-revocation failures are now surfaced instead of silently succeeding
 
+## [1.6.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.5.0...v1.6.0) (2026-04-20)
+
+
+### Features
+
+* add notifications unread subcommand and read --all flag ([#226](https://github.com/lemonadesocial/lemonade-cli/issues/226)) ([1ec6149](https://github.com/lemonadesocial/lemonade-cli/commit/1ec6149419719001cf7cb7cc7ae48496871ba620))
+
 ## [1.5.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.4.1...v1.5.0) (2026-04-20)
 
 
