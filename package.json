@@ -32,6 +32,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src/",
+    "codegen": "graphql-codegen --config codegen.ts",
+    "validate:gql": "graphql-codegen --config codegen.ts",
     "generate": "yarn generate:mcp && yarn generate:graphql",
     "generate:mcp": "tsx src/codegen/generate-from-mcp.ts",
     "generate:graphql": "tsx src/codegen/generate-from-graphql.ts",
@@ -69,6 +71,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "^5.0.5",
+    "@graphql-codegen/client-preset": "^4.6.4",
+    "@graphql-typed-document-node/core": "^3.2.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.14",
     "@types/ws": "^8.18.1",

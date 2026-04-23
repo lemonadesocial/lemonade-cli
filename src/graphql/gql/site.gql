@@ -1,0 +1,14 @@
+query GetPageConfig($id: MongoID!) {
+  getPageConfig(_id: $id) {
+    _id
+    status
+  }
+}
+
+mutation PublishPageConfig($id: MongoID!) {
+  publishPageConfig(id: $id) {
+    _id
+    status
+    published_version
+  }
+}

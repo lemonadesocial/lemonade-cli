@@ -114,7 +114,7 @@ describe('notifications type fidelity (drift guardrails)', () => {
 
   // US-7.6: no non-test source file may reference the legacy resolver name.
   it('no src/**/*.ts file references aiGetNotifications (US-7.6)', () => {
-    const files = walkTsFiles(srcDir, new Set(['node_modules', 'dist', '__tests__', 'tests']));
+    const files = walkTsFiles(srcDir, new Set(['node_modules', 'dist', '__tests__', 'tests', 'generated']));
     const offenders = files.filter((f) => {
       const content = readFileSync(f, 'utf-8');
       return /aiGetNotifications/.test(content);

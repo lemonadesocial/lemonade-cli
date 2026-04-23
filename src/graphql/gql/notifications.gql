@@ -1,0 +1,39 @@
+query GetNotificationFilters {
+  getNotificationFilters {
+    _id
+    mode
+    notification_type
+    notification_category
+    ref_type
+    ref_id
+    space_scoped
+  }
+}
+
+mutation SetNotificationFilter($input: NotificationFilterInput!) {
+  setNotificationFilter(input: $input) {
+    _id
+    mode
+    notification_type
+    notification_category
+    ref_type
+    ref_id
+    space_scoped
+  }
+}
+
+mutation DeleteNotificationFilter($filterId: MongoID!) {
+  deleteNotificationFilter(filterId: $filterId)
+}
+
+query GetNotificationUnreadCount($category: NotificationCategory) {
+  getNotificationUnreadCount(category: $category)
+}
+
+mutation ReadAllNotifications($category: NotificationCategory) {
+  readAllNotifications(category: $category)
+}
+
+mutation ReadNotifications($_id: [MongoID!]) {
+  readNotifications(_id: $_id)
+}

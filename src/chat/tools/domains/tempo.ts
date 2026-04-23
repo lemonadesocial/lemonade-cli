@@ -1,6 +1,5 @@
 import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
-import { graphqlRequest } from '../../../api/graphql.js';
 
 export const tempoTools: CanonicalCapability[] = [
   buildCapability({
@@ -57,44 +56,6 @@ export const tempoTools: CanonicalCapability[] = [
     formatResult: (result) => {
       const r = result as { success: boolean; output: string };
       return r.success ? `Transfer sent. ${r.output}` : 'Transfer failed.';
-    },
-  }),
-  buildCapability({
-    name: 'tempo_setup_payouts',
-    category: 'tempo',
-    displayName: 'tempo setup payouts',
-    description: 'Configure your Tempo wallet as the reward payout destination. Auto-detects wallet address.',
-    params: [
-      { name: 'space_id', type: 'string', description: 'Space ID', required: false },
-    ],
-    whenToUse: 'when user wants to configure Tempo as payout destination',
-    searchHint: 'tempo setup payouts wallet destination configure',
-    shouldDefer: true,
-    destructive: false,
-    backendType: 'mutation',
-    backendService: 'atlas',
-    backendResolver: 'atlasUpdatePayoutSettings',
-    requiresEvent: false,
-    execute: async (args, context) => {
-      const { getWalletInfo } = await import('../../tempo/index.js');
-      const info = getWalletInfo();
-      if (!info.loggedIn || !info.address) {
-        throw new Error('Tempo wallet not connected. Use /tempo login first.');
-      }
-      const spaceId = (args.space_id as string) || context?.defaultSpace;
-      if (!spaceId) throw new Error('No space specified. Use /spaces to select one.');
-
-      const result = await graphqlRequest<{ atlasUpdatePayoutSettings: unknown }>(
-        `mutation($input: AtlasPayoutSettingsInput!) {
-          atlasUpdatePayoutSettings(input: $input) { wallet_address wallet_chain preferred_method }
-        }`,
-        { input: { wallet_address: info.address, wallet_chain: 'tempo', preferred_method: 'tempo_usdc' } },
-      );
-      return result.atlasUpdatePayoutSettings;
-    },
-    formatResult: (result) => {
-      const r = result as { wallet_address: string; preferred_method: string };
-      return `Payouts configured: ${r.wallet_address} via Tempo USDC.`;
     },
   }),
   buildCapability({

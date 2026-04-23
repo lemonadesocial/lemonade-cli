@@ -1,0 +1,17 @@
+query GetEventCheckins($input: GetEventCheckinsInput!) {
+  getEventCheckins(input: $input) {
+    _id
+    created_at
+    email
+    ticket
+    login_user {
+      _id
+      name
+      email
+    }
+    non_login_user {
+      name
+      email
+    }
+  }
+}

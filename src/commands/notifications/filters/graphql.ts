@@ -14,62 +14,91 @@
  * capability wrapper at `src/chat/tools/domains/notifications.ts:281`.
  */
 import { graphqlRequest } from '../../../api/graphql.js';
+import { print } from 'graphql';
+import {
+  DeleteNotificationFilterDocument,
+  GetNotificationFiltersDocument,
+  NotificationFilterInput,
+  NotificationFilterMode,
+  NotificationRefType,
+  NotificationType,
+  NotificationCategory,
+  SetNotificationFilterDocument,
+} from '../../../graphql/generated/backend/graphql.js';
 import type { FilterInput, NotificationFilter } from './state.js';
 
-const GET_FILTERS_QUERY = `
-  query GetNotificationFilters {
-    getNotificationFilters {
-      _id
-      user
-      mode
-      notification_type
-      notification_category
-      ref_type
-      ref_id
-      space_scoped
-    }
+function fromBackendFilter(filter: {
+  _id?: unknown;
+  mode: NotificationFilterMode;
+  notification_type?: NotificationType | null;
+  notification_category?: NotificationCategory | null;
+  ref_type?: NotificationRefType | null;
+  ref_id?: unknown;
+  space_scoped?: unknown;
+}): NotificationFilter {
+  if (!filter._id) {
+    throw new Error('Notification filter response is missing _id.');
   }
-`;
 
-const SET_FILTER_MUTATION = `
-  mutation SetNotificationFilter($input: NotificationFilterInput!) {
-    setNotificationFilter(input: $input) {
-      _id
-      user
-      mode
-      notification_type
-      notification_category
-      ref_type
-      ref_id
-      space_scoped
-    }
-  }
-`;
+  return {
+    _id: String(filter._id),
+    mode: filter.mode,
+    notification_type: filter.notification_type ?? undefined,
+    notification_category: filter.notification_category ?? undefined,
+    ref_type: filter.ref_type ?? undefined,
+    ref_id: filter.ref_id ? String(filter.ref_id) : undefined,
+    space_scoped: filter.space_scoped ? String(filter.space_scoped) : undefined,
+  };
+}
 
-const DELETE_FILTER_MUTATION = `
-  mutation DeleteNotificationFilter($filterId: MongoID!) {
-    deleteNotificationFilter(filterId: $filterId)
-  }
-`;
+function toBackendFilterInput(input: FilterInput): NotificationFilterInput {
+  return {
+    _id: input._id,
+    mode: input.mode as NotificationFilterMode,
+    notification_category: input.notification_category as NotificationCategory | undefined,
+    notification_type: input.notification_type as NotificationType | undefined,
+    ref_type: input.ref_type as NotificationRefType | undefined,
+    ref_id: input.ref_id,
+    space_scoped: input.space_scoped,
+  };
+}
 
 export async function fetchFilters(): Promise<NotificationFilter[]> {
-  const result = await graphqlRequest<{ getNotificationFilters: NotificationFilter[] }>(
-    GET_FILTERS_QUERY,
-  );
-  return result.getNotificationFilters ?? [];
+  const result = await graphqlRequest<{
+    getNotificationFilters: Array<{
+      _id?: unknown;
+      mode: NotificationFilterMode;
+      notification_type?: NotificationType | null;
+      notification_category?: NotificationCategory | null;
+      ref_type?: NotificationRefType | null;
+      ref_id?: unknown;
+      space_scoped?: unknown;
+    }>;
+  }>(print(GetNotificationFiltersDocument));
+  return (result.getNotificationFilters ?? []).map(fromBackendFilter);
 }
 
 export async function upsertFilter(input: FilterInput): Promise<NotificationFilter> {
-  const result = await graphqlRequest<{ setNotificationFilter: NotificationFilter }>(
-    SET_FILTER_MUTATION,
-    { input },
+  const result = await graphqlRequest<{
+    setNotificationFilter: {
+      _id?: unknown;
+      mode: NotificationFilterMode;
+      notification_type?: NotificationType | null;
+      notification_category?: NotificationCategory | null;
+      ref_type?: NotificationRefType | null;
+      ref_id?: unknown;
+      space_scoped?: unknown;
+    };
+  }>(
+    print(SetNotificationFilterDocument),
+    { input: toBackendFilterInput(input) },
   );
-  return result.setNotificationFilter;
+  return fromBackendFilter(result.setNotificationFilter);
 }
 
 export async function deleteFilter(filterId: string): Promise<boolean> {
   const result = await graphqlRequest<{ deleteNotificationFilter: boolean }>(
-    DELETE_FILTER_MUTATION,
+    print(DeleteNotificationFilterDocument),
     { filterId },
   );
   return result.deleteNotificationFilter;

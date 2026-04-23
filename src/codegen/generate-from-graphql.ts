@@ -91,15 +91,11 @@ const MANUAL_RESOLVERS = new Set([
   'createEvent', 'getHostingEvents', 'aiSearchEvents', 'getEvent',
   'updateEvent', 'aiPublishEvent', 'cancelEvent',
   'listEventGuests', 'inviteEvent', 'decideUserJoinRequests',
-  'aiGetEventFeedbackSummary', 'listEventFeedBacks', 'aiGetEventCheckins',
+  'aiGetEventFeedbackSummary', 'listEventFeedBacks', 'getEventCheckins',
   // Ticket commands
   'listEventTicketTypes', 'createEventTicketType', 'updateEventTicketType',
   'calculateTicketsPricing', 'aiBuyTickets',
-  // Reward commands
-  'atlasRewardSummary', 'atlasRewardHistory',
   // Site commands
-  'aiGeneratePageFromDescription', 'aiCreatePageConfig',
-  'aiUpdatePageConfigSection', 'aiSuggestSections',
   'getPageConfig', 'updatePageConfig', 'getPublishedConfig',
   'createPreviewLink', 'createPageConfig',
   // Payment accounts

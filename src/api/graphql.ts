@@ -1,4 +1,6 @@
 import { hostname, platform, release } from 'os';
+import { print } from 'graphql';
+import type { TypedDocumentNode } from '@graphql-typed-document-node/core';
 import { getApiUrl, ensureAuthHeader } from '../auth/store.js';
 import { getPackageVersion } from '../config/version.js';
 
@@ -103,4 +105,14 @@ export async function graphqlRequest<T>(
   }
 
   return body.data;
+}
+
+export async function graphqlRequestDocument<TResult, TVariables>(
+  document: TypedDocumentNode<TResult, TVariables>,
+  variables?: TVariables,
+): Promise<TResult> {
+  return graphqlRequest<TResult>(
+    print(document),
+    variables as Record<string, unknown> | undefined,
+  );
 }

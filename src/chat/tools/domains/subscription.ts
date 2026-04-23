@@ -1,6 +1,7 @@
 import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
-import { graphqlRequest } from '../../../api/graphql.js';
+import { graphqlRequest, graphqlRequestDocument } from '../../../api/graphql.js';
+import { GetSpaceSubscriptionDocument } from '../../../graphql/generated/backend/graphql.js';
 
 export const subscriptionTools: CanonicalCapability[] = [
   buildCapability({
@@ -19,14 +20,8 @@ export const subscriptionTools: CanonicalCapability[] = [
     backendResolver: 'getSpaceSubscription',
     requiresEvent: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ getSpaceSubscription: unknown }>(
-        `query($space: MongoID!) {
-          getSpaceSubscription(space: $space) {
-            subscription { _id space status current_period_start current_period_end cancel_at_period_end }
-            items { _id type active }
-            payment { client_secret publishable_key }
-          }
-        }`,
+      const result = await graphqlRequestDocument(
+        GetSpaceSubscriptionDocument,
         { space: args.space_id },
       );
       return result.getSpaceSubscription;

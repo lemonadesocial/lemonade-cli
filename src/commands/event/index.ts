@@ -1,10 +1,11 @@
 import { Command } from 'commander';
-import { graphqlRequest } from '../../api/graphql.js';
+import { graphqlRequest, graphqlRequestDocument } from '../../api/graphql.js';
 import { registrySearch } from '../../api/registry.js';
 import { jsonSuccess } from '../../output/json.js';
 import { renderTable, renderKeyValue } from '../../output/table.js';
 import { handleError } from '../../output/error.js';
 import { setFlagApiKey, getDefaultSpace } from '../../auth/store.js';
+import { GetEventCheckinsDocument } from '../../graphql/generated/backend/graphql.js';
 
 export function registerEventCommands(program: Command): void {
   const event = program
@@ -743,27 +744,23 @@ export function registerEventCommands(program: Command): void {
         const limit = Math.min(parseInt(opts.limit, 10), 100);
         const offset = parseInt(opts.offset, 10);
 
-        const result = await graphqlRequest<{ aiGetEventCheckins: { items: Array<Record<string, unknown>> } }>(
-          `query($event: MongoID!, $limit: Int, $skip: Int) {
-            aiGetEventCheckins(event: $event, limit: $limit, skip: $skip) {
-              items { name email ticket_type_title checked_in_at }
-            }
-          }`,
-          { event: eventId, limit, skip: offset },
+        const result = await graphqlRequestDocument(
+          GetEventCheckinsDocument,
+          { input: { event: eventId } },
         );
         setFlagApiKey(undefined);
 
-        const items = result.aiGetEventCheckins.items;
+        const items = result.getEventCheckins.slice(offset, offset + limit);
         if (opts.json) {
           console.log(jsonSuccess(items));
         } else {
           console.log(renderTable(
-            ['Name', 'Email', 'Ticket Type', 'Checked In At'],
+            ['Name', 'Email', 'Ticket', 'Checked In At'],
             items.map((c) => [
-              String(c.name || ''),
-              String(c.email || ''),
-              String(c.ticket_type_title || ''),
-              String(c.checked_in_at || ''),
+              String(c.login_user?.name || c.non_login_user?.name || ''),
+              String(c.login_user?.email || c.non_login_user?.email || c.email || ''),
+              String(c.ticket || ''),
+              String(c.created_at || ''),
             ]),
           ));
         }

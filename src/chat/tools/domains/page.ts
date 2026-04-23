@@ -3,6 +3,13 @@ import { CanonicalCapability } from '../../../capabilities/types.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 import { parseJsonObject, parseJsonArray } from '../utils/index.js';
 
+const DISABLED_SITE_AI_MESSAGE =
+  'AI page generation tools are temporarily unavailable because the live backend no longer exposes those AI page endpoints.';
+
+function siteAiUnavailable(): never {
+  throw new Error(DISABLED_SITE_AI_MESSAGE);
+}
+
 export const pageTools: CanonicalCapability[] = [
   buildCapability({
     name: 'site_generate',
@@ -20,31 +27,12 @@ export const pageTools: CanonicalCapability[] = [
     searchHint: 'generate page ai website landing build auto',
     alwaysLoad: true,
     destructive: false,
-    backendType: 'mutation',
+    backendType: 'none',
     backendResolver: 'aiGeneratePageFromDescription',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
-    execute: async (args) => {
-      const input: Record<string, unknown> = {
-        owner_id: args.owner_id,
-        owner_type: args.owner_type,
-        description: args.description,
-      };
-      if (args.style) input.style = args.style;
-
-      const result = await graphqlRequest<{ aiGeneratePageFromDescription: unknown }>(
-        `mutation($input: AiGeneratePageInput!) {
-          aiGeneratePageFromDescription(input: $input) {
-            _id name status version
-            sections { id type order hidden }
-            theme { type mode colors { text_primary accent background } }
-          }
-        }`,
-        { input },
-      );
-      return result.aiGeneratePageFromDescription;
-    },
+    execute: async () => siteAiUnavailable(),
   }),
   buildCapability({
     name: 'site_create_page',
@@ -64,36 +52,13 @@ export const pageTools: CanonicalCapability[] = [
     searchHint: 'create page website scaffold ai sections',
     alwaysLoad: true,
     destructive: false,
-    backendType: 'mutation',
+    backendType: 'none',
     backendResolver: 'aiCreatePageConfig',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
-    execute: async (args) => {
-      const input: Record<string, unknown> = {
-        owner_id: args.owner_id,
-        owner_type: args.owner_type,
-      };
-      if (args.name !== undefined) input.name = args.name;
-      if (args.template_id !== undefined) input.template_id = args.template_id;
-      if (args.theme !== undefined) input.theme = parseJsonObject(args.theme as string, 'theme');
-      if (args.sections !== undefined) input.sections = parseJsonArray(args.sections as string, 'sections');
-
-      const result = await graphqlRequest<{ aiCreatePageConfig: unknown }>(
-        `mutation($input: AICreatePageConfigInput!) {
-          aiCreatePageConfig(input: $input) {
-            _id name status version
-          }
-        }`,
-        { input },
-      );
-      return result.aiCreatePageConfig;
-    },
-    formatResult: (result) => {
-      if (result === null || result === undefined) return 'Error: no response from server.';
-      const r = result as Record<string, unknown>;
-      return `Page config created: ${r._id} "${r.name || '(unnamed)'}" [${r.status}]`;
-    },
+    execute: async () => siteAiUnavailable(),
+    formatResult: () => DISABLED_SITE_AI_MESSAGE,
   }),
   buildCapability({
     name: 'site_update_section',
@@ -108,33 +73,13 @@ export const pageTools: CanonicalCapability[] = [
     whenToUse: 'when user wants to modify a page section',
     searchHint: 'update edit section page website content',
     destructive: true,
-    backendType: 'mutation',
+    backendType: 'none',
     backendResolver: 'aiUpdatePageConfigSection',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
-    execute: async (args) => {
-      const parsedUpdates = parseJsonObject(args.updates as string, 'updates');
-
-      const result = await graphqlRequest<{ aiUpdatePageConfigSection: unknown }>(
-        `mutation($input: AIUpdatePageConfigSectionInput!, $section_id: String!, $config_id: MongoID!) {
-          aiUpdatePageConfigSection(input: $input, section_id: $section_id, config_id: $config_id) {
-            _id name status version sections { id type order hidden }
-          }
-        }`,
-        {
-          input: { updates: parsedUpdates },
-          section_id: args.section_id,
-          config_id: args.page_id,
-        },
-      );
-      return result.aiUpdatePageConfigSection;
-    },
-    formatResult: (result) => {
-      if (result === null || result === undefined) return 'Error: no response from server.';
-      const r = result as Record<string, unknown>;
-      return `Section updated. Page "${r.name || '(unnamed)'}" now at version ${r.version}.`;
-    },
+    execute: async () => siteAiUnavailable(),
+    formatResult: () => DISABLED_SITE_AI_MESSAGE,
   }),
   buildCapability({
     name: 'site_deploy',
@@ -175,34 +120,13 @@ export const pageTools: CanonicalCapability[] = [
     whenToUse: 'when user wants AI section suggestions for a page',
     searchHint: 'templates suggestions sections page components',
     destructive: false,
-    backendType: 'query',
+    backendType: 'none',
     backendResolver: 'aiSuggestSections',
     requiresSpace: false,
     requiresEvent: false,
     surfaces: ['aiTool'],
-    execute: async (args) => {
-      const variables: Record<string, unknown> = {
-        owner_type: args.owner_type,
-        owner_id: args.owner_id,
-      };
-      if (args.context !== undefined) variables.context = args.context;
-
-      const result = await graphqlRequest<{ aiSuggestSections: unknown }>(
-        `query($owner_type: String!, $owner_id: MongoID!, $context: String) {
-          aiSuggestSections(owner_type: $owner_type, owner_id: $owner_id, context: $context) {
-            type name reason default_props
-          }
-        }`,
-        variables,
-      );
-      return result.aiSuggestSections;
-    },
-    formatResult: (result) => {
-      if (result === null || result === undefined) return 'Error: no response from server.';
-      const suggestions = result as Array<Record<string, unknown>>;
-      if (!suggestions.length) return 'No section suggestions found.';
-      return `${suggestions.length} suggestion(s):\n${suggestions.map(s => `- ${s.type}: ${s.name} — ${s.reason}`).join('\n')}`;
-    },
+    execute: async () => siteAiUnavailable(),
+    formatResult: () => DISABLED_SITE_AI_MESSAGE,
   }),
   buildCapability({
     name: 'page_archive',

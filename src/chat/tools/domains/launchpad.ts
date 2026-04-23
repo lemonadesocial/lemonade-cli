@@ -1,6 +1,11 @@
 import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
-import { graphqlRequest } from '../../../api/graphql.js';
+import { graphqlRequestDocument } from '../../../api/graphql.js';
+import {
+  AddLaunchpadCoinDocument,
+  ListLaunchpadCoinsDocument,
+  UpdateLaunchpadCoinDocument,
+} from '../../../graphql/generated/backend/graphql.js';
 
 export const launchpadTools: CanonicalCapability[] = [
   buildCapability({
@@ -14,13 +19,14 @@ export const launchpadTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiListLaunchpadCoins',
+    backendResolver: 'listLaunchpadCoins',
     requiresEvent: false,
     execute: async () => {
-      const result = await graphqlRequest<{ aiListLaunchpadCoins: unknown }>(
-        'query { aiListLaunchpadCoins { items { _id name symbol status } } }',
+      const result = await graphqlRequestDocument(
+        ListLaunchpadCoinsDocument,
+        { owned: true },
       );
-      return result.aiListLaunchpadCoins;
+      return result.listLaunchpadCoins;
     },
   }),
   buildCapability({
@@ -30,7 +36,7 @@ export const launchpadTools: CanonicalCapability[] = [
     description: 'Add a new launchpad coin.',
     params: [
       { name: 'name', type: 'string', description: 'Coin name', required: true },
-      { name: 'symbol', type: 'string', description: 'Coin symbol', required: true },
+      { name: 'ticker', type: 'string', description: 'Coin ticker', required: true },
       { name: 'description', type: 'string', description: 'Coin description', required: false },
     ],
     whenToUse: 'when user wants to add a new launchpad token',
@@ -38,16 +44,20 @@ export const launchpadTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiAddLaunchpadCoin',
+    backendResolver: 'addLaunchpadCoin',
     requiresEvent: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiAddLaunchpadCoin: unknown }>(
-        `mutation($input: AddLaunchpadCoinInput!) {
-          aiAddLaunchpadCoin(input: $input) { _id name symbol status }
-        }`,
-        { input: { name: args.name, symbol: args.symbol, description: args.description } },
+      const result = await graphqlRequestDocument(
+        AddLaunchpadCoinDocument,
+        {
+          input: {
+            name: String(args.name),
+            ticker: String(args.ticker),
+            description: args.description ? String(args.description) : undefined,
+          },
+        },
       );
-      return result.aiAddLaunchpadCoin;
+      return result.addLaunchpadCoin;
     },
   }),
   buildCapability({
@@ -65,20 +75,18 @@ export const launchpadTools: CanonicalCapability[] = [
     shouldDefer: true,
     destructive: false,
     backendType: 'mutation',
-    backendResolver: 'aiUpdateLaunchpadCoin',
+    backendResolver: 'updateLaunchpadCoin',
     requiresEvent: false,
     execute: async (args) => {
       const input: Record<string, unknown> = { _id: args.coin_id };
-      if (args.name) input.name = args.name;
-      if (args.description) input.description = args.description;
+      if (args.name) input.name = String(args.name);
+      if (args.description) input.description = String(args.description);
 
-      const result = await graphqlRequest<{ aiUpdateLaunchpadCoin: unknown }>(
-        `mutation($input: UpdateLaunchpadCoinInput!) {
-          aiUpdateLaunchpadCoin(input: $input) { _id name symbol status }
-        }`,
+      const result = await graphqlRequestDocument(
+        UpdateLaunchpadCoinDocument,
         { input },
       );
-      return result.aiUpdateLaunchpadCoin;
+      return result.updateLaunchpadCoin;
     },
   }),
 ];
