@@ -4,6 +4,18 @@
 
 * align connector_disconnect with DisconnectResult contract; token-revocation failures are now surfaced instead of silently succeeding
 
+## [1.7.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.6.0...v1.7.0) (2026-04-24)
+
+
+### Features
+
+* align CLI GraphQL with staging schema ([#230](https://github.com/lemonadesocial/lemonade-cli/issues/230)) ([945b8b2](https://github.com/lemonadesocial/lemonade-cli/commit/945b8b2a64b213c498e3516d75e550fa516e0887))
+
+
+### Bug Fixes
+
+* **test:** isolate watch-mock-ws subprocess HOME to de-flake NDJSON test ([#228](https://github.com/lemonadesocial/lemonade-cli/issues/228)) ([f006788](https://github.com/lemonadesocial/lemonade-cli/commit/f0067883e5cd252dcaedc9715daae17634428613))
+
 ## [1.6.0](https://github.com/lemonadesocial/lemonade-cli/compare/v1.5.0...v1.6.0) (2026-04-20)
 
 
