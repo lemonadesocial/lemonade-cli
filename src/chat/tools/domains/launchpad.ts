@@ -68,6 +68,7 @@ export const launchpadTools: CanonicalCapability[] = [
     params: [
       { name: 'coin_id', type: 'string', description: 'Coin ID', required: true },
       { name: 'name', type: 'string', description: 'New name', required: false },
+      { name: 'ticker', type: 'string', description: 'New ticker', required: false },
       { name: 'description', type: 'string', description: 'New description', required: false },
     ],
     whenToUse: 'when user wants to update a launchpad token',
@@ -80,6 +81,7 @@ export const launchpadTools: CanonicalCapability[] = [
     execute: async (args) => {
       const input: Record<string, unknown> = { _id: args.coin_id };
       if (args.name) input.name = String(args.name);
+      if (args.ticker) input.ticker = String(args.ticker);
       if (args.description) input.description = String(args.description);
 
       const result = await graphqlRequestDocument(

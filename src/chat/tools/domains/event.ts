@@ -1,8 +1,8 @@
 import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
-import { graphqlRequest, graphqlRequestDocument } from '../../../api/graphql.js';
+import { fetchEventCheckinsPage } from '../../../api/event-checkins.js';
+import { graphqlRequest } from '../../../api/graphql.js';
 import { registrySearch } from '../../../api/registry.js';
-import { GetEventCheckinsDocument } from '../../../graphql/generated/backend/graphql.js';
 import { parseJsonObject } from '../utils/index.js';
 
 /** Shared extractor: pulls { _id, title } from a result object */
@@ -726,13 +726,13 @@ export const eventTools: CanonicalCapability[] = [
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const limit = (args.limit as number) || 20;
-      const skip = (args.skip as number) || 0;
-      const result = await graphqlRequestDocument(
-        GetEventCheckinsDocument,
-        { input: { event: args.event_id as string } },
+      return fetchEventCheckinsPage(
+        args.event_id as string,
+        {
+          limit: args.limit as number | undefined,
+          skip: args.skip as number | undefined,
+        },
       );
-      return result.getEventCheckins.slice(skip, skip + limit);
     },
   }),
   buildCapability({
