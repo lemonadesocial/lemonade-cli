@@ -12,6 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..', '..');
 const schemaDir = join(REPO_ROOT, 'schema');
 const srcDir = join(REPO_ROOT, 'src');
+const generatedBackendGqlPath = join(REPO_ROOT, 'src', 'graphql', 'generated', 'backend', 'gql.ts');
 
 function readJson<T>(relPath: string): T {
   const raw = readFileSync(join(schemaDir, relPath), 'utf-8');
@@ -114,11 +115,16 @@ describe('notifications type fidelity (drift guardrails)', () => {
 
   // US-7.6: no non-test source file may reference the legacy resolver name.
   it('no src/**/*.ts file references aiGetNotifications (US-7.6)', () => {
-    const files = walkTsFiles(srcDir, new Set(['node_modules', 'dist', '__tests__', 'tests']));
+    const files = walkTsFiles(srcDir, new Set(['node_modules', 'dist', '__tests__', 'tests', 'generated']));
     const offenders = files.filter((f) => {
       const content = readFileSync(f, 'utf-8');
       return /aiGetNotifications/.test(content);
     });
     expect(offenders).toEqual([]);
+  });
+
+  it('generated backend gql map does NOT contain aiGetNotifications', () => {
+    const content = readFileSync(generatedBackendGqlPath, 'utf-8');
+    expect(content).not.toContain('aiGetNotifications');
   });
 });

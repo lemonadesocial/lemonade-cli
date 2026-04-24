@@ -1,0 +1,35 @@
+query ListLaunchpadCoins($limit: Int, $skip: Int, $address: String, $owned: Boolean) {
+  listLaunchpadCoins(limit: $limit, skip: $skip, address: $address, owned: $owned) {
+    items {
+      _id
+      address
+      name
+      ticker
+      description
+      website
+    }
+    total
+  }
+}
+
+mutation AddLaunchpadCoin($input: LaunchpadCoinInput!) {
+  addLaunchpadCoin(input: $input) {
+    _id
+    address
+    name
+    ticker
+    description
+    website
+  }
+}
+
+mutation UpdateLaunchpadCoin($input: LaunchpadCoinInput!) {
+  updateLaunchpadCoin(input: $input) {
+    _id
+    address
+    name
+    ticker
+    description
+    website
+  }
+}

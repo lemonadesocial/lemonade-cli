@@ -1,0 +1,30 @@
+query ListMySpaces($limit: Int, $skip: Int) {
+  listMySpaces(limit: $limit, skip: $skip) {
+    items {
+      _id
+      title
+      slug
+      description
+    }
+  }
+}
+
+mutation CreateSpace($input: SpaceInput!) {
+  createSpace(input: $input) {
+    _id
+    title
+    slug
+    description
+    private
+  }
+}
+
+mutation UpdateSpace($id: MongoID!, $input: SpaceInput!) {
+  updateSpace(_id: $id, input: $input) {
+    _id
+    title
+    slug
+    description
+    private
+  }
+}

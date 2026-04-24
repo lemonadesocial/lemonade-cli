@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { fetchEventCheckinsPage, EVENT_CHECKINS_LIMIT_CAP } from '../../api/event-checkins.js';
 import { graphqlRequest } from '../../api/graphql.js';
 import { registrySearch } from '../../api/registry.js';
 import { jsonSuccess } from '../../output/json.js';
@@ -740,32 +741,31 @@ export function registerEventCommands(program: Command): void {
     .action(async (eventId: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
-        const limit = Math.min(parseInt(opts.limit, 10), 100);
+        const limit = Math.min(parseInt(opts.limit, 10), EVENT_CHECKINS_LIMIT_CAP);
         const offset = parseInt(opts.offset, 10);
 
-        const result = await graphqlRequest<{ aiGetEventCheckins: { items: Array<Record<string, unknown>> } }>(
-          `query($event: MongoID!, $limit: Int, $skip: Int) {
-            aiGetEventCheckins(event: $event, limit: $limit, skip: $skip) {
-              items { name email ticket_type_title checked_in_at }
-            }
-          }`,
-          { event: eventId, limit, skip: offset },
+        const page = await fetchEventCheckinsPage(
+          eventId,
+          { limit, skip: offset },
         );
         setFlagApiKey(undefined);
 
-        const items = result.aiGetEventCheckins.items;
         if (opts.json) {
-          console.log(jsonSuccess(items));
+          console.log(jsonSuccess(page.items, { cursor: page.next_cursor }));
         } else {
           console.log(renderTable(
             ['Name', 'Email', 'Ticket Type', 'Checked In At'],
-            items.map((c) => [
-              String(c.name || ''),
-              String(c.email || ''),
-              String(c.ticket_type_title || ''),
-              String(c.checked_in_at || ''),
+            page.items.map((c) => [
+              c.name,
+              c.email,
+              c.ticket_type_title,
+              c.checked_in_at,
             ]),
           ));
+          console.log(`\n${page.items.length} check-ins`);
+          if (page.next_cursor) {
+            process.stderr.write(`More results may be available. Use --offset ${page.next_cursor} to fetch the next page.\n`);
+          }
         }
       } catch (error) {
         setFlagApiKey(undefined);

@@ -25,6 +25,6 @@ export default [
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', '*.js', 'tests/'],
+    ignores: ['dist/', 'node_modules/', '*.js', 'tests/', 'src/graphql/generated/**'],
   },
 ];

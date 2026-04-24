@@ -2,30 +2,26 @@ import { Command, Option } from 'commander';
 import React from 'react';
 import { render } from 'ink';
 import { graphqlRequest } from '../../api/graphql.js';
+import { print } from 'graphql';
 import { jsonSuccess } from '../../output/json.js';
 import { handleError } from '../../output/error.js';
 import { setFlagApiKey } from '../../auth/store.js';
 import { NOTIFICATION_CATEGORIES } from '../../chat/tools/domains/notifications.js';
 import { ReadAllConfirm } from './ui/ReadAllConfirm.js';
 import { buildCategoryVariables } from './variables.js';
+import {
+  GetNotificationUnreadCountDocument,
+  ReadAllNotificationsDocument,
+  ReadNotificationsDocument,
+} from '../../graphql/generated/backend/graphql.js';
 
-const READ_NOTIFICATIONS_MUTATION = `
-  mutation ReadNotifications($_id: [MongoID!]) {
-    readNotifications(_id: $_id)
-  }
-`;
+interface NotificationUnreadCountResult {
+  getNotificationUnreadCount: number;
+}
 
-const GET_NOTIFICATION_UNREAD_COUNT_QUERY = `
-  query GetNotificationUnreadCount($category: NotificationCategory) {
-    getNotificationUnreadCount(category: $category)
-  }
-`;
-
-const READ_ALL_NOTIFICATIONS_MUTATION = `
-  mutation ReadAllNotifications($category: NotificationCategory) {
-    readAllNotifications(category: $category)
-  }
-`;
+interface ReadAllNotificationsResult {
+  readAllNotifications: number;
+}
 
 export function registerNotificationsRead(notifications: Command): void {
   notifications
@@ -94,8 +90,8 @@ export function registerNotificationsRead(notifications: Command): void {
 
           // Pre-fetch unread count (all paths need this: prompt, dry-run,
           // zero-unread short-circuit).
-          const pre = await graphqlRequest<{ getNotificationUnreadCount: number }>(
-            GET_NOTIFICATION_UNREAD_COUNT_QUERY,
+          const pre = await graphqlRequest<NotificationUnreadCountResult>(
+            print(GetNotificationUnreadCountDocument),
             categoryVars,
           );
           const wouldMark = pre.getNotificationUnreadCount;
@@ -168,8 +164,8 @@ export function registerNotificationsRead(notifications: Command): void {
           }
 
           // US-3.2 / US-3.4 — confirmed: run the bulk mutation.
-          const mutResult = await graphqlRequest<{ readAllNotifications: number }>(
-            READ_ALL_NOTIFICATIONS_MUTATION,
+          const mutResult = await graphqlRequest<ReadAllNotificationsResult>(
+            print(ReadAllNotificationsDocument),
             categoryVars,
           );
           const marked = mutResult.readAllNotifications;
@@ -179,8 +175,8 @@ export function registerNotificationsRead(notifications: Command): void {
           // drain). PRD Risks row 2 + US-3.2.
           let unreadAfter = 0;
           try {
-            const post = await graphqlRequest<{ getNotificationUnreadCount: number }>(
-              GET_NOTIFICATION_UNREAD_COUNT_QUERY,
+            const post = await graphqlRequest<NotificationUnreadCountResult>(
+              print(GetNotificationUnreadCountDocument),
               categoryVars,
             );
             unreadAfter = post.getNotificationUnreadCount;
@@ -221,7 +217,7 @@ export function registerNotificationsRead(notifications: Command): void {
 
       if (opts.dryRun) {
         const payload = {
-          mutation: READ_NOTIFICATIONS_MUTATION.trim(),
+          mutation: print(ReadNotificationsDocument).trim(),
           variables,
         };
         if (opts.json) {
@@ -237,7 +233,7 @@ export function registerNotificationsRead(notifications: Command): void {
       try {
         setFlagApiKey(opts.apiKey);
         await graphqlRequest<{ readNotifications: boolean }>(
-          READ_NOTIFICATIONS_MUTATION,
+          print(ReadNotificationsDocument),
           variables,
         );
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
 
 vi.mock('../../../src/api/graphql.js', () => ({
-  graphqlRequest: vi.fn(),
+  graphqlRequestDocument: vi.fn(),
   getClientHeaders: () => ({}),
   setClientType: vi.fn(),
 }));
@@ -13,9 +13,9 @@ vi.mock('../../../src/output/error.js', () => ({
 }));
 
 import { registerSessionsCommands } from '../../../src/commands/sessions/index.js';
-import { graphqlRequest } from '../../../src/api/graphql.js';
+import { graphqlRequestDocument } from '../../../src/api/graphql.js';
 
-const mockGraphqlRequest = vi.mocked(graphqlRequest);
+const mockGraphqlRequestDocument = vi.mocked(graphqlRequestDocument);
 
 describe('Sessions Commands', () => {
   let program: Command;
@@ -73,11 +73,11 @@ describe('Sessions Commands', () => {
     ];
 
     it('renders a table with session data', async () => {
-      mockGraphqlRequest.mockResolvedValueOnce({ getMyActiveSessions: mockSessions });
+      mockGraphqlRequestDocument.mockResolvedValueOnce({ getMyActiveSessions: mockSessions });
 
       await program.parseAsync(['node', 'test', 'sessions', 'list']);
 
-      expect(mockGraphqlRequest).toHaveBeenCalledOnce();
+      expect(mockGraphqlRequestDocument).toHaveBeenCalledOnce();
       expect(consoleLogSpy).toHaveBeenCalledOnce();
       const output = consoleLogSpy.mock.calls[0][0] as string;
       expect(output).toContain('sess_001');
@@ -87,7 +87,7 @@ describe('Sessions Commands', () => {
     });
 
     it('outputs JSON when --json flag is set', async () => {
-      mockGraphqlRequest.mockResolvedValueOnce({ getMyActiveSessions: mockSessions });
+      mockGraphqlRequestDocument.mockResolvedValueOnce({ getMyActiveSessions: mockSessions });
 
       await program.parseAsync(['node', 'test', 'sessions', 'list', '--json']);
 
@@ -111,7 +111,7 @@ describe('Sessions Commands', () => {
           kratos_session_id: null,
         },
       ];
-      mockGraphqlRequest.mockResolvedValueOnce({ getMyActiveSessions: sessionsWithNullKratos });
+      mockGraphqlRequestDocument.mockResolvedValueOnce({ getMyActiveSessions: sessionsWithNullKratos });
 
       await program.parseAsync(['node', 'test', 'sessions', 'list']);
 
@@ -123,21 +123,27 @@ describe('Sessions Commands', () => {
 
   describe('sessions revoke', () => {
     it('calls revokeMySession mutation with session id', async () => {
-      mockGraphqlRequest.mockResolvedValueOnce({ getMyActiveSessions: [] });
-      mockGraphqlRequest.mockResolvedValueOnce({ revokeMySession: { success: true } });
+      mockGraphqlRequestDocument.mockResolvedValueOnce({ getMyActiveSessions: [] });
+      mockGraphqlRequestDocument.mockResolvedValueOnce({ revokeMySession: true });
 
       await program.parseAsync(['node', 'test', 'sessions', 'revoke', 'sess_001']);
 
-      expect(mockGraphqlRequest).toHaveBeenCalledWith(
-        expect.stringContaining('revokeMySession'),
+      expect(mockGraphqlRequestDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          definitions: expect.arrayContaining([
+            expect.objectContaining({
+              name: expect.objectContaining({ value: 'RevokeMySession' }),
+            }),
+          ]),
+        }),
         { session_id: 'sess_001' },
       );
       expect(consoleLogSpy).toHaveBeenCalledWith('Session revoked successfully.');
     });
 
     it('outputs JSON on success with --json flag', async () => {
-      mockGraphqlRequest.mockResolvedValueOnce({ getMyActiveSessions: [] });
-      mockGraphqlRequest.mockResolvedValueOnce({ revokeMySession: { success: true } });
+      mockGraphqlRequestDocument.mockResolvedValueOnce({ getMyActiveSessions: [] });
+      mockGraphqlRequestDocument.mockResolvedValueOnce({ revokeMySession: true });
 
       await program.parseAsync(['node', 'test', 'sessions', 'revoke', 'sess_001', '--json']);
 
@@ -156,11 +162,11 @@ describe('Sessions Commands', () => {
     });
 
     it('calls requestStepUpVerification as first API call', async () => {
-      mockGraphqlRequest.mockResolvedValueOnce({
-        requestStepUpVerification: { success: true },
+      mockGraphqlRequestDocument.mockResolvedValueOnce({
+        requestStepUpVerification: true,
       });
       // The next call will hang waiting for stdin, but we verify the first mutation is called
-      mockGraphqlRequest.mockImplementationOnce(() => new Promise(() => {})); // never resolves
+      mockGraphqlRequestDocument.mockImplementationOnce(() => new Promise(() => {})); // never resolves
 
       // Intercept stderr to suppress prompt output
       const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -171,9 +177,15 @@ describe('Sessions Commands', () => {
       // Give it a tick to execute the first mutation
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(mockGraphqlRequest).toHaveBeenCalledTimes(1);
-      expect(mockGraphqlRequest).toHaveBeenCalledWith(
-        expect.stringContaining('requestStepUpVerification'),
+      expect(mockGraphqlRequestDocument).toHaveBeenCalledTimes(1);
+      expect(mockGraphqlRequestDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          definitions: expect.arrayContaining([
+            expect.objectContaining({
+              name: expect.objectContaining({ value: 'RequestStepUpVerification' }),
+            }),
+          ]),
+        }),
       );
 
       stderrSpy.mockRestore();

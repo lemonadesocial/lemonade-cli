@@ -23,7 +23,6 @@ export type FilterRefType = (typeof NOTIFICATION_REF_TYPES)[number];
 
 export interface NotificationFilter {
   _id: string;
-  user?: string | null;
   mode: FilterMode;
   notification_type?: string | null;
   notification_category?: string | null;

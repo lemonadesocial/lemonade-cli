@@ -1,11 +1,16 @@
 import { Command } from 'commander';
 import open from 'open';
-import { graphqlRequest } from '../../api/graphql.js';
+import { graphqlRequest, graphqlRequestDocument } from '../../api/graphql.js';
 import { jsonSuccess } from '../../output/json.js';
 import { renderTable, renderKeyValue } from '../../output/table.js';
 import { handleError } from '../../output/error.js';
 import { setFlagApiKey } from '../../auth/store.js';
 import { TIER_LIMITS } from '../../config/defaults.js';
+import {
+  CreateSpaceDocument,
+  ListMySpacesDocument,
+  UpdateSpaceDocument,
+} from '../../graphql/generated/backend/graphql.js';
 
 export function registerSpaceCommands(program: Command): void {
   const space = program
@@ -23,10 +28,8 @@ export function registerSpaceCommands(program: Command): void {
     .action(async (title: string, opts) => {
       try {
         setFlagApiKey(opts.apiKey);
-        const result = await graphqlRequest<{ aiCreateSpace: Record<string, unknown> }>(
-          `mutation($input: AISpaceInput!) {
-            aiCreateSpace(input: $input) { _id title slug description }
-          }`,
+        const result = await graphqlRequestDocument(
+          CreateSpaceDocument,
           {
             input: {
               title,
@@ -38,7 +41,7 @@ export function registerSpaceCommands(program: Command): void {
         );
         setFlagApiKey(undefined);
 
-        const s = result.aiCreateSpace;
+        const s = result.createSpace;
         if (opts.json) {
           console.log(jsonSuccess(s));
         } else {
@@ -67,12 +70,8 @@ export function registerSpaceCommands(program: Command): void {
         const limit = parseInt(opts.limit, 10);
         const skip = opts.cursor ? parseInt(opts.cursor, 10) : 0;
 
-        const result = await graphqlRequest<{ listMySpaces: { items: Record<string, unknown>[] } }>(
-          `query($limit: Int, $skip: Int) {
-            listMySpaces(limit: $limit, skip: $skip) {
-              items { _id title slug description }
-            }
-          }`,
+        const result = await graphqlRequestDocument(
+          ListMySpacesDocument,
           { limit, skip },
         );
         setFlagApiKey(undefined);
@@ -109,15 +108,16 @@ export function registerSpaceCommands(program: Command): void {
         if (opts.description) input.description = opts.description;
         if (opts.slug) input.slug = opts.slug;
 
-        const result = await graphqlRequest<{ aiUpdateSpace: Record<string, unknown> }>(
-          `mutation($id: MongoID!, $input: AISpaceInput!) {
-            aiUpdateSpace(id: $id, input: $input) { _id title slug }
-          }`,
+        const result = await graphqlRequestDocument(
+          UpdateSpaceDocument,
           { id: spaceId, input },
         );
         setFlagApiKey(undefined);
 
-        const s = result.aiUpdateSpace;
+        const s = result.updateSpace;
+        if (!s) {
+          throw new Error(`Space ${spaceId} was not found or could not be updated.`);
+        }
         if (opts.json) {
           console.log(jsonSuccess(s));
         } else {

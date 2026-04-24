@@ -1,5 +1,6 @@
 import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
+import { fetchEventCheckinsPage } from '../../../api/event-checkins.js';
 import { graphqlRequest } from '../../../api/graphql.js';
 import { registrySearch } from '../../../api/registry.js';
 import { parseJsonObject } from '../utils/index.js';
@@ -721,23 +722,17 @@ export const eventTools: CanonicalCapability[] = [
     alwaysLoad: true,
     destructive: false,
     backendType: 'query',
-    backendResolver: 'aiGetEventCheckins',
+    backendResolver: 'getEventCheckins',
     requiresSpace: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async (args) => {
-      const result = await graphqlRequest<{ aiGetEventCheckins: unknown }>(
-        `query($event: MongoID!, $limit: Int, $skip: Int) {
-          aiGetEventCheckins(event: $event, limit: $limit, skip: $skip) {
-            items { name email ticket_type_title checked_in_at }
-          }
-        }`,
+      return fetchEventCheckinsPage(
+        args.event_id as string,
         {
-          event: args.event_id,
-          limit: (args.limit as number) || 20,
-          skip: (args.skip as number) || 0,
+          limit: args.limit as number | undefined,
+          skip: args.skip as number | undefined,
         },
       );
-      return result.aiGetEventCheckins;
     },
   }),
   buildCapability({
