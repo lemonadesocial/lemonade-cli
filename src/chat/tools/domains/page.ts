@@ -1,6 +1,7 @@
 import { buildCapability } from '../../../capabilities/factory.js';
 import { CanonicalCapability } from '../../../capabilities/types.js';
-import { graphqlRequest } from '../../../api/graphql.js';
+import { graphqlRequest, graphqlRequestDocument } from '../../../api/graphql.js';
+import { GetPageConfigDocument } from '../../../graphql/generated/backend/graphql.js';
 import { parseJsonObject, parseJsonArray } from '../utils/index.js';
 
 const DISABLED_SITE_AI_MESSAGE =
@@ -33,6 +34,7 @@ export const pageTools: CanonicalCapability[] = [
     requiresEvent: false,
     surfaces: ['aiTool', 'cliCommand'],
     execute: async () => siteAiUnavailable(),
+    formatResult: () => DISABLED_SITE_AI_MESSAGE,
   }),
   buildCapability({
     name: 'site_create_page',
@@ -284,14 +286,9 @@ export const pageTools: CanonicalCapability[] = [
     requiresSpace: false,
     requiresEvent: false,
     execute: async (args) => {
-      const result = await graphqlRequest<{ getPageConfig: unknown }>(
-        `query($id: MongoID!) {
-          getPageConfig(id: $id) {
-            _id owner_type owner_id name description status version published_version template_id thumbnail_url
-            sections { id type order hidden props }
-          }
-        }`,
-        { id: args.config_id },
+      const result = await graphqlRequestDocument(
+        GetPageConfigDocument,
+        { id: args.config_id as string },
       );
       return result.getPageConfig;
     },

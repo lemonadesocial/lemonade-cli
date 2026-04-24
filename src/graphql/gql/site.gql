@@ -1,7 +1,22 @@
 query GetPageConfig($id: MongoID!) {
   getPageConfig(_id: $id) {
     _id
+    owner_type
+    owner_id
+    name
+    description
     status
+    version
+    published_version
+    template_id
+    thumbnail_url
+    sections {
+      id
+      type
+      order
+      hidden
+      props
+    }
   }
 }
 

@@ -1,6 +1,5 @@
 import { Command } from 'commander';
-import { graphqlRequest } from '../../api/graphql.js';
-import { print } from 'graphql';
+import { graphqlRequestDocument } from '../../api/graphql.js';
 import { jsonSuccess } from '../../output/json.js';
 import { renderTable } from '../../output/table.js';
 import { handleError } from '../../output/error.js';
@@ -12,32 +11,6 @@ import {
   RevokeMySessionDocument,
   VerifyStepUpVerificationDocument,
 } from '../../graphql/generated/backend/graphql.js';
-
-interface ActiveSession {
-  _id: string;
-  client_type?: string | null;
-  device_name?: string | null;
-  os?: string | null;
-  app_version?: string | null;
-  last_active?: string | null;
-  is_current: boolean;
-}
-
-interface GetMyActiveSessionsResult {
-  getMyActiveSessions: ActiveSession[];
-}
-
-interface RevokeMySessionResult {
-  revokeMySession: boolean | { success?: boolean | null };
-}
-
-interface VerifyStepUpVerificationResult {
-  verifyStepUpVerification: string | { step_up_token?: string | null };
-}
-
-interface RevokeAllOtherSessionsResult {
-  revokeAllOtherSessions: number | { revoked_count?: number | null };
-}
 
 function promptForInput(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -64,7 +37,7 @@ export function registerSessionsCommands(program: Command): void {
     .option('--json', 'Output as JSON')
     .action(async (opts) => {
       try {
-        const result = await graphqlRequest<GetMyActiveSessionsResult>(print(GetMyActiveSessionsDocument));
+        const result = await graphqlRequestDocument(GetMyActiveSessionsDocument);
         const items = result.getMyActiveSessions;
 
         if (opts.json) {
@@ -96,19 +69,17 @@ export function registerSessionsCommands(program: Command): void {
     .action(async (id: string, opts) => {
       try {
         // Check if this is the current session and warn
-        const listResult = await graphqlRequest<GetMyActiveSessionsResult>(print(GetMyActiveSessionsDocument));
+        const listResult = await graphqlRequestDocument(GetMyActiveSessionsDocument);
         const targetSession = listResult.getMyActiveSessions.find((s) => s._id === id);
         if (targetSession?.is_current) {
           process.stderr.write('Warning: revoking your current session will invalidate your auth token.\n');
         }
 
-        const result = await graphqlRequest<RevokeMySessionResult>(
-          print(RevokeMySessionDocument),
+        const result = await graphqlRequestDocument(
+          RevokeMySessionDocument,
           { session_id: id },
         );
-        const success = typeof result.revokeMySession === 'boolean'
-          ? result.revokeMySession
-          : Boolean(result.revokeMySession?.success);
+        const success = result.revokeMySession;
 
         if (opts.json) {
           console.log(jsonSuccess({ success }));
@@ -127,9 +98,7 @@ export function registerSessionsCommands(program: Command): void {
     .action(async (opts) => {
       try {
         // Step 1: Request step-up verification code
-        await graphqlRequest<{ requestStepUpVerification: boolean | { success?: boolean | null } }>(
-          print(RequestStepUpVerificationDocument),
-        );
+        await graphqlRequestDocument(RequestStepUpVerificationDocument);
 
         if (!opts.json) {
           process.stderr.write('A verification code has been sent to your email.\n');
@@ -142,22 +111,18 @@ export function registerSessionsCommands(program: Command): void {
         }
 
         // Step 3: Verify the code and get step-up token
-        const verifyResult = await graphqlRequest<VerifyStepUpVerificationResult>(
-          print(VerifyStepUpVerificationDocument),
+        const verifyResult = await graphqlRequestDocument(
+          VerifyStepUpVerificationDocument,
           { code },
         );
-        const stepUpToken = typeof verifyResult.verifyStepUpVerification === 'string'
-          ? verifyResult.verifyStepUpVerification
-          : String(verifyResult.verifyStepUpVerification?.step_up_token ?? '');
+        const stepUpToken = verifyResult.verifyStepUpVerification;
 
         // Step 4: Revoke all other sessions with the step-up token
-        const revokeResult = await graphqlRequest<RevokeAllOtherSessionsResult>(
-          print(RevokeAllOtherSessionsDocument),
+        const revokeResult = await graphqlRequestDocument(
+          RevokeAllOtherSessionsDocument,
           { step_up_token: stepUpToken },
         );
-        const revokedCount = typeof revokeResult.revokeAllOtherSessions === 'number'
-          ? revokeResult.revokeAllOtherSessions
-          : Number(revokeResult.revokeAllOtherSessions?.revoked_count ?? 0);
+        const revokedCount = revokeResult.revokeAllOtherSessions;
 
         if (opts.json) {
           console.log(jsonSuccess({ revoked_count: revokedCount }));

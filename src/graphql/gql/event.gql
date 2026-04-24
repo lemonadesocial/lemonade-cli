@@ -1,5 +1,5 @@
-query GetEventCheckins($input: GetEventCheckinsInput!) {
-  getEventCheckins(input: $input) {
+query GetEventCheckins($input: GetEventCheckinsInput!, $skip: Int, $limit: Int) {
+  getEventCheckins(input: $input, skip: $skip, limit: $limit) {
     _id
     created_at
     email
@@ -12,6 +12,16 @@ query GetEventCheckins($input: GetEventCheckinsInput!) {
     non_login_user {
       name
       email
+    }
+  }
+}
+
+query GetTicketsByIds($ids: [MongoID!]) {
+  getTickets(_id: $ids) {
+    _id
+    type_expanded {
+      _id
+      title
     }
   }
 }

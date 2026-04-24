@@ -12,6 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..', '..');
 const schemaDir = join(REPO_ROOT, 'schema');
 const srcDir = join(REPO_ROOT, 'src');
+const generatedBackendGqlPath = join(REPO_ROOT, 'src', 'graphql', 'generated', 'backend', 'gql.ts');
 
 function readJson<T>(relPath: string): T {
   const raw = readFileSync(join(schemaDir, relPath), 'utf-8');
@@ -120,5 +121,10 @@ describe('notifications type fidelity (drift guardrails)', () => {
       return /aiGetNotifications/.test(content);
     });
     expect(offenders).toEqual([]);
+  });
+
+  it('generated backend gql map does NOT contain aiGetNotifications', () => {
+    const content = readFileSync(generatedBackendGqlPath, 'utf-8');
+    expect(content).not.toContain('aiGetNotifications');
   });
 });
